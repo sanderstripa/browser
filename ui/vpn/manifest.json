@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "VPN",
+  "version": "2.7.0",
+  "description": "Private VPN proxy for Chrome powered by a local Xray helper.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtcmY/ReLkvfQBIsj7Ddda5OjJZBoYpnddgvIt/QjZaWkvcKaO1UH/FMfPyK6++thH7GPHWPBGz/D2u+BGQ7JI/1BqYolhBHR7MDHFomnk+WUeot+Rb3FCF1Mi2byM71BNfI0WW9oSR7RZzCnjamWr4HSCAkVqmvYJ2sC8dr0e1BuWqWgHFgCFqQFuFuJD9T65XtDqMrLEHT7oahh4PI0Fjs1mSYHM68ZTJxFTdADdqL+KsUzMaYTImMQdITPJTFe6yFIPzmuYCP8KKmVpPhaG2lcpb6XoXUq//bGCcOje5vPn3kqxN44pKMTSCv48TqT+zvTUv6RhmH4k4+ybnYv8QIDAQAB",
+  "permissions": ["nativeMessaging", "proxy", "storage", "privacy", "alarms"],
+  "background": { "service_worker": "background.js" },
+  "icons": { "16": "icons/icon-off-16.png", "32": "icons/icon-off-32.png", "48": "icons/icon-off-48.png", "128": "icons/icon-off-128.png" },
+  "action": { "default_title": "VPN", "default_popup": "popup.html", "default_icon": { "16": "icons/icon-off-16.png", "32": "icons/icon-off-32.png" } }
+}

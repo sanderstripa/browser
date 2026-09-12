@@ -1,0 +1,240 @@
+:root{--bg:#0a090b;--surface:#101012;--surface2:#18191c;--text:#e8e8e7;--muted:#8b8c91;--line:#292a2e;--accent:#8b8c91;--accent2:#686a70;--good:#3fd17b;--danger:#f05a70;--danger2:#f05a70;--shadow:0 18px 55px #000a;font-family:"Segoe UI Variable","Segoe UI",sans-serif}
+@media(prefers-color-scheme:light){:root{--bg:#f5f5f3;--surface:#fafbfa;--surface2:#f0f2f0;--text:#151619;--muted:#5e6166;--line:#d9dbd9;--accent:#5e6166;--accent2:#4d5055;--good:#3fd17b;--danger:#e65368;--danger2:#e65368;--shadow:0 18px 45px #1516191a}}
+:root[data-theme=dark]{--bg:#0a090b;--surface:#101012;--surface2:#18191c;--text:#e8e8e7;--muted:#8b8c91;--line:#292a2e;--accent:#8b8c91;--accent2:#686a70;--good:#3fd17b;--danger:#f05a70;--danger2:#f05a70;--shadow:0 18px 55px #000a}
+:root[data-theme=light]{--bg:#f5f5f3;--surface:#fafbfa;--surface2:#f0f2f0;--text:#151619;--muted:#5e6166;--line:#d9dbd9;--accent:#5e6166;--accent2:#4d5055;--good:#3fd17b;--danger:#e65368;--danger2:#e65368;--shadow:0 18px 45px #1516191a}
+header{justify-content:space-between;margin-bottom:17px}
+header .connection{margin:0;padding:0}
+.round{display:grid;place-items:center;padding:0;line-height:1}
+.round svg{display:block;width:21px;height:21px;fill:var(--muted)}
+body[data-state=connected] .disconnect,body[data-state=connected] .disconnect:hover,body[data-state=connected] .disconnect:focus,body[data-state=connected] .disconnect:active{background:linear-gradient(135deg,var(--danger2),var(--danger));color:#fff;box-shadow:0 10px 25px color-mix(in srgb,var(--danger) 24%,transparent);filter:none}
+.connect,.primary{background:linear-gradient(135deg,var(--accent2),var(--accent))}
+.profile-select{position:relative;margin:8px 0}
+.profile-select>button{display:flex;align-items:center;justify-content:space-between;width:100%;min-height:42px;padding:10px 13px 10px 14px;border:1px solid var(--line);border-radius:14px;background:var(--surface2);color:var(--text);font:inherit;font-size:12px;cursor:pointer;text-align:left}
+.profile-select>button:focus,.profile-select>button[aria-expanded=true]{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 15%,transparent);outline:0}
+.chevron,.setting-trigger svg{display:block;flex:0 0 auto;width:18px;height:18px;fill:none;stroke:var(--muted);stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+#profileMenu{display:none;position:absolute;z-index:10;top:calc(100% + 6px);left:0;right:0;padding:6px;background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);max-height:180px;overflow-y:auto}
+#profileMenu.open{display:grid;gap:3px}
+#profileMenu button{width:100%;border:0;border-radius:10px;padding:10px 11px;background:transparent;color:var(--text);font:inherit;font-size:12px;text-align:left;cursor:pointer}
+#profileMenu button:hover{background:var(--surface2)}
+#profileMenu button.selected{background:color-mix(in srgb,var(--accent) 15%,var(--surface));color:var(--accent2);font-weight:600}
+.setting-select{position:relative;margin:8px 0 12px}
+.setting-trigger{display:flex;align-items:center;justify-content:space-between;width:100%;min-height:42px;padding:10px 13px;border:1px solid var(--line);border-radius:13px;background:var(--surface2);color:var(--text);font:inherit;font-size:12px;cursor:pointer;text-align:left}
+.setting-select.open .setting-trigger{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 15%,transparent)}
+.setting-menu{display:none;position:absolute;z-index:20;top:calc(100% + 6px);left:0;right:0;padding:6px;background:var(--surface);border:1px solid var(--line);border-radius:13px;box-shadow:var(--shadow)}
+.setting-select.open .setting-menu{display:grid;gap:3px}
+.setting-menu button{border:0;border-radius:9px;padding:10px 11px;background:transparent;color:var(--text);font:inherit;font-size:12px;text-align:left;cursor:pointer}
+.setting-menu button:hover{background:var(--surface2)}
+.setting-menu button.selected{background:color-mix(in srgb,var(--accent) 15%,var(--surface));color:var(--accent2);font-weight:600}
+html,body{min-height:0}
+body{height:auto}
+main{padding:24px 20px 22px}
+header{margin-bottom:23px}
+.profile-card{margin-bottom:20px}
+#error{min-height:18px;margin-bottom:4px}
+.connect,.disconnect{min-height:42px}
+.disconnect{margin-top:10px}
+.ip-button{margin-top:16px}
+.reconnecting .pulse,.disconnecting .pulse{background:#e7a93f;animation:p 1s infinite}
+#settingsDialog form{padding:17px 20px 22px}
+#settingsDialog .dialog-head{top:-17px;margin:-17px -20px 14px;padding:17px 20px}
+#settingsDialog h3{margin:17px 0 7px}
+#settingsDialog .setting-select{margin:6px 0 9px}
+#settingsDialog .setting-trigger{min-height:39px;padding:8px 13px}
+#settingsDialog .toggle{margin:9px 0}
+#settingsDialog textarea{margin:6px 0}
+#settingsDialog .secondary{margin-top:9px}
+
+/* Aurora-inspired main screen */
+html,body{width:360px;min-height:600px}
+body{background:radial-gradient(circle at 50% 18%,color-mix(in srgb,var(--accent) 7%,transparent),transparent 34%),var(--bg)}
+main{min-height:600px;padding:18px 22px 22px;display:flex;flex-direction:column}
+header{height:42px;margin:0 0 4px;align-items:flex-start}
+.round{width:40px;height:40px;border:0;background:transparent;box-shadow:none;border-radius:12px}
+.round:hover{background:color-mix(in srgb,var(--surface) 75%,transparent)}
+.round svg{width:25px;height:25px;fill:none;stroke:var(--muted);stroke-width:1.65;stroke-linecap:round;stroke-linejoin:round}
+.hero{display:flex;flex-direction:column;align-items:center;margin:0 0 24px}
+.hero .connection{order:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;width:100%;padding:0;margin:20px 0 0;text-align:center}
+.hero .connection .pulse{display:none}.hero .connection strong{display:block;width:100%;font-size:15px;line-height:1.2;text-align:center}.hero .connection small{display:block;width:100%;font-size:10px;line-height:1.2;color:var(--muted);text-align:center}
+#primaryAction{order:0;position:relative;width:232px;height:232px;min-height:232px;padding:0;border-radius:50%;background:transparent;color:var(--muted);box-shadow:none;isolation:isolate;transition:transform .2s ease,color .25s ease;overflow:visible}
+#primaryAction::before,#primaryAction::after{content:"";position:absolute;border-radius:50%;pointer-events:none}
+#primaryAction::before{inset:5px;border:1px solid color-mix(in srgb,var(--line) 52%,transparent);box-shadow:0 24px 54px color-mix(in srgb,var(--text) 8%,transparent)}
+#primaryAction::after{inset:38px;border:13px solid color-mix(in srgb,var(--muted) 13%,transparent);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--line) 64%,transparent),0 13px 38px color-mix(in srgb,var(--text) 9%,transparent);transition:border-color .25s,box-shadow .25s}
+#primaryAction:not(:disabled):hover{transform:scale(1.025);filter:none}#primaryAction:not(:disabled):active{transform:scale(.985)}
+#primaryAction:focus-visible{outline:3px solid color-mix(in srgb,var(--accent) 35%,transparent);outline-offset:4px}
+#primaryAction .power-rings{position:relative;z-index:1;display:grid;place-items:center;width:80px;height:80px;margin:auto;border-radius:50%;background:transparent;box-shadow:none}
+#primaryAction .power-rings::before{display:none}
+#primaryAction svg{width:47px;height:47px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round}
+#primaryLabel{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+body[data-state=connected] #primaryAction{color:var(--good)}
+body[data-state=connected] #primaryAction::after{border-color:color-mix(in srgb,var(--good) 28%,transparent);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--good) 20%,transparent),0 10px 34px color-mix(in srgb,var(--good) 16%,transparent)}
+body[data-state=connecting] #primaryAction::after,body[data-state=reconnecting] #primaryAction::after,body[data-state=disconnecting] #primaryAction::after{border-color:color-mix(in srgb,#e7a93f 34%,transparent);animation:ringPulse 1.15s ease-in-out infinite}
+@keyframes ringPulse{50%{transform:scale(1.045);opacity:.52}}
+.profile-card{margin:0;padding:12px 14px 10px;border-radius:20px;background:color-mix(in srgb,var(--surface) 92%,transparent);box-shadow:0 14px 38px color-mix(in srgb,var(--text) 8%,transparent)}
+.profile-select{margin:0 0 8px}.profile-select>button{min-height:58px;border:0;border-radius:15px;background:var(--surface2);padding:9px 12px;font-size:14px;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--line) 72%,transparent)}
+.profile-select>button:focus,.profile-select>button[aria-expanded=true]{border:0;box-shadow:inset 0 0 0 1px var(--accent),0 0 0 3px color-mix(in srgb,var(--accent) 13%,transparent)}
+.profile-main{gap:11px}.server-flag{display:block;width:40px;height:27px;border-radius:5px;object-fit:cover;background:var(--surface);box-shadow:0 0 0 1px color-mix(in srgb,var(--line) 70%,transparent)}.chevron{width:18px;height:18px}
+.tools{justify-content:flex-end;padding:0 2px}.tools button{padding:6px 8px;border:0;background:transparent;font-size:10px;color:var(--muted)}.tools button:last-child{margin-left:0;color:var(--danger)}.tools button:hover{background:var(--surface2)}
+#profileMenu{top:calc(100% + 7px);border-radius:15px}#profileMenu button{display:flex;align-items:center;gap:10px}.menu-flag{display:block;width:30px;height:20px;border-radius:4px;object-fit:cover;box-shadow:0 0 0 1px color-mix(in srgb,var(--line) 70%,transparent)}#error{min-height:16px;margin:7px 4px 3px;text-align:center}
+.country-field{position:relative}.country-field img{position:absolute;left:12px;top:50%;z-index:1;width:28px;height:19px;border-radius:3px;object-fit:cover;transform:translateY(-50%);box-shadow:0 0 0 1px color-mix(in srgb,var(--line) 70%,transparent)}.country-field input{padding-left:51px}
+.quick-actions{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;margin-top:auto;padding:19px 5px 2px}
+.quick-actions button{display:flex;align-items:center;justify-content:center;gap:8px;border:0;background:none;color:var(--muted);font:inherit;font-size:11px;font-weight:600;cursor:pointer;transition:color .18s}
+.quick-actions button:hover{color:var(--accent)}.quick-actions button:disabled{opacity:.4}.quick-actions svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}.quick-actions .divider{width:1px;height:24px;background:var(--line)}
+@media(prefers-reduced-motion:reduce){#primaryAction,.round{transition:none}body[data-state=connecting] #primaryAction::after,body[data-state=reconnecting] #primaryAction::after,body[data-state=disconnecting] #primaryAction::after{animation:none}}
+#settingsDialog{width:360px}
+
+/* Exact concept-derived power control; replaces all CSS-built rings. */
+#primaryAction{width:248px;height:248px;min-height:248px}
+#primaryAction::before,#primaryAction::after{display:none}
+#primaryAction .power-concept{position:absolute;left:50%;top:50%;display:block;width:340px;height:340px;max-width:none;object-fit:contain;clip-path:circle(34% at 50% 50%);transform:translate(-50%,-50%);pointer-events:none;user-select:none;filter:none;transition:transform .2s ease,filter .2s ease}
+#primaryAction:not(:disabled):hover .power-concept{transform:translate(-50%,-50%) scale(1.015)}
+#primaryAction:not(:disabled):active .power-concept{transform:translate(-50%,-50%) scale(.985)}
+body[data-state=connected] #primaryAction .power-concept{filter:drop-shadow(0 9px 18px color-mix(in srgb,var(--good) 16%,transparent))}
+body[data-state=connecting] #primaryAction .power-concept,body[data-state=reconnecting] #primaryAction .power-concept,body[data-state=disconnecting] #primaryAction .power-concept{animation:conceptPulse 1.15s ease-in-out infinite}
+@keyframes conceptPulse{50%{opacity:.68;transform:translate(-50%,-50%) scale(.985)}}
+
+/* Single-circle stateful power control. */
+#primaryAction{--power-color:#7d8799;width:222px;height:222px;min-height:222px;border:11px solid color-mix(in srgb,var(--power-color) 24%,var(--surface));border-radius:50%;background:var(--surface);color:var(--power-color);box-shadow:0 18px 46px color-mix(in srgb,var(--text) 10%,transparent),inset 0 0 0 1px color-mix(in srgb,var(--line) 45%,transparent);transition:border-color .28s ease,color .28s ease,box-shadow .28s ease,transform .2s ease}
+#primaryAction .power-core{display:grid;place-items:center;width:100%;height:100%}
+#primaryAction .power-core svg{display:block;width:52px;height:52px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;transition:stroke .28s ease,filter .28s ease}
+#primaryAction:not(:disabled):hover{transform:scale(1.018)}#primaryAction:not(:disabled):active{transform:scale(.985)}
+body[data-state=connected] #primaryAction{--power-color:var(--good);border-color:var(--good);box-shadow:0 18px 46px color-mix(in srgb,var(--text) 9%,transparent),0 0 24px color-mix(in srgb,var(--good) 24%,transparent),inset 0 0 0 1px color-mix(in srgb,var(--good) 35%,transparent)}
+body[data-state=connected] #primaryAction .power-core svg{filter:drop-shadow(0 0 7px color-mix(in srgb,var(--good) 42%,transparent))}
+body[data-state=connecting] #primaryAction,body[data-state=reconnecting] #primaryAction,body[data-state=disconnecting] #primaryAction{animation:powerWaiting 1.15s ease-in-out infinite}
+@keyframes powerWaiting{50%{opacity:.64;transform:scale(.985)}}
+
+/* Compact split-tunnel domain list with its own scrolling. */
+#settingsDialog #domains{display:block;width:100%;height:68px;min-height:68px;max-height:68px;margin:4px 0 5px;resize:none;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--muted) 45%,transparent) transparent}
+#settingsDialog #domains::-webkit-scrollbar{width:7px}
+#settingsDialog #domains::-webkit-scrollbar-track{background:transparent}
+#settingsDialog #domains::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--muted) 38%,transparent);border-radius:99px}
+
+/* Keep the complete settings screen inside the fixed-height popup. */
+#settingsDialog form{overflow-y:hidden;padding:15px 18px 12px}
+#settingsDialog .dialog-head{top:-15px;margin:-15px -18px 11px;padding:15px 18px 12px}
+#settingsDialog .dialog-head h2{font-size:18px}
+#settingsDialog h3{margin:15px 0 6px;font-size:11px;gap:8px}
+#settingsDialog h3:first-of-type{margin-top:6px}
+#settingsDialog h3 svg{width:17px;height:17px}
+#settingsDialog .setting-select{margin:4px 0 9px}
+#settingsDialog .setting-trigger{min-height:36px;padding:7px 12px}
+#settingsDialog .toggle{margin:7px 0}
+#settingsDialog .toggle input{width:17px;height:17px}
+#settingsDialog textarea{margin:4px 0}
+#settingsDialog .hint{margin:5px 0;font-size:9px;line-height:1.3}
+#settingsDialog .secondary{min-height:34px;padding:8px;margin-top:10px}
+#settingsDialog #settingsError{min-height:5px}
+
+/* Give each settings group a clearer visual boundary without growing the popup. */
+#settingsDialog h3{margin:21px 0 8px}
+#settingsDialog h3:first-of-type{margin-top:8px}
+#settingsDialog .toggle{margin:8px 0}
+#settingsDialog .setting-select{margin:5px 0 11px}
+#settingsDialog #domains{margin:6px 0 7px}
+#settingsDialog .secondary{margin-top:13px}
+
+/* Lightweight settings glyph: no surrounding tile, only a color response. */
+#settingsBtn{color:var(--muted)}
+#settingsBtn:hover{background:transparent;color:var(--text)}
+#settingsBtn svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.65}
+
+/* Card-based settings screen, visually aligned with the main VPN panel. */
+#settingsDialog{background:radial-gradient(circle at 50% 7%,color-mix(in srgb,var(--accent) 7%,transparent),transparent 29%),var(--bg)}
+#settingsDialog form{display:flex;flex-direction:column;gap:10px;padding:14px 16px 13px}
+#settingsDialog .dialog-head{position:static;flex:0 0 auto;margin:-14px -16px 1px;padding:15px 17px 11px;border:0;background:transparent;backdrop-filter:none}
+#settingsDialog .settings-card{flex:0 0 auto;padding:11px 12px 10px;border:1px solid var(--line);border-radius:16px;background:color-mix(in srgb,var(--surface) 94%,transparent);box-shadow:0 10px 26px color-mix(in srgb,var(--text) 5%,transparent)}
+#settingsDialog .settings-card h3,#settingsDialog .settings-card h3:first-of-type{margin:0 0 9px;color:var(--text);font-size:11px;font-weight:650;letter-spacing:0;text-transform:none}
+#settingsDialog .settings-card h3 svg{color:var(--accent);width:17px;height:17px}
+.theme-options{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:4px;border-radius:12px;background:var(--surface2)}
+.theme-options button{display:flex;align-items:center;justify-content:center;gap:5px;min-width:0;height:32px;padding:0 5px;border:0;border-radius:9px;background:transparent;color:var(--muted);font:inherit;font-size:10px;cursor:pointer}
+.theme-options button span{font-family:"Segoe UI Symbol","Segoe UI",sans-serif;font-size:13px;line-height:1}
+.theme-options button:hover{color:var(--text)}
+.theme-options button.selected{background:var(--surface);color:var(--accent);box-shadow:0 2px 8px color-mix(in srgb,var(--text) 9%,transparent)}
+#settingsDialog .connection-card{padding-bottom:8px}
+#settingsDialog .connection-card .toggle{justify-content:space-between;width:100%;min-height:28px;margin:1px 0;color:var(--text);cursor:pointer}
+#settingsDialog .connection-card .toggle span{font-size:11px;color:var(--text)}
+#settingsDialog .connection-card .toggle input{appearance:none;position:relative;flex:0 0 auto;width:34px;height:20px;margin:0;padding:0;border:0;border-radius:999px;background:color-mix(in srgb,var(--muted) 25%,var(--surface2));box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--line) 72%,transparent);cursor:pointer;transition:background .2s}
+#settingsDialog .connection-card .toggle input::after{content:"";position:absolute;left:3px;top:3px;width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 1px 4px #0003;transition:transform .2s}
+#settingsDialog .connection-card .toggle input:checked{background:var(--good)}
+#settingsDialog .connection-card .toggle input:checked::after{transform:translateX(14px)}
+#settingsDialog .split-card{padding-bottom:9px}
+#settingsDialog .split-card>label{display:block;margin-bottom:2px}
+#settingsDialog .split-card .setting-select{margin:3px 0 7px}
+#settingsDialog .split-card .setting-trigger{min-height:35px;border-radius:11px;background:var(--surface2)}
+#settingsDialog .split-card #domains{height:65px;min-height:65px;max-height:65px;margin:4px 0 5px;border-radius:11px}
+#settingsDialog .split-card .hint{margin:4px 1px 0}
+#settingsDialog #settingsError{min-height:0;margin:0}
+.update-row{display:grid;grid-template-columns:21px 1fr;align-items:center;gap:9px;width:100%;min-height:48px;padding:7px 11px;border:1px solid var(--line);border-radius:14px;background:color-mix(in srgb,var(--surface) 94%,transparent);color:var(--muted);font:inherit;text-align:left;cursor:pointer;box-shadow:0 8px 22px color-mix(in srgb,var(--text) 4%,transparent)}
+.update-row:hover{background:var(--surface);color:var(--text)}
+.update-row svg{width:19px;height:19px;fill:none;stroke:var(--accent);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.update-row>span:not(.update-arrow){display:flex;min-width:0;flex-direction:column;gap:2px}
+.update-row strong{font-size:11px;font-weight:600;color:var(--text)}
+.update-row small{overflow:hidden;color:var(--muted);font-size:8.5px;line-height:1.2;white-space:nowrap;text-overflow:ellipsis}
+
+html,body{width:360px;height:600px;min-height:600px;margin:0;border:0;border-radius:0;background:var(--bg)!important;overflow:hidden}
+body{position:relative}
+body::after{display:none}
+main{box-sizing:border-box;width:360px;height:600px;min-height:600px;border:2px solid var(--good);border-radius:0;background:radial-gradient(circle at 50% 18%,color-mix(in srgb,var(--accent) 7%,transparent),transparent 34%),var(--bg);overflow:hidden;contain:paint}
+#settingsDialog[open]{box-sizing:border-box;inset:0;width:360px;height:600px;max-width:360px;max-height:600px;margin:0;padding:0;border:2px solid var(--good);border-radius:0;background:radial-gradient(circle at 50% 7%,color-mix(in srgb,var(--accent) 7%,transparent),transparent 29%),var(--bg);box-shadow:none;overflow:hidden;contain:paint}
+#settingsDialog[open]::backdrop{background:var(--bg);backdrop-filter:none}
+
+/* Sander Stripa editorial theme. Keep the existing application icons unchanged. */
+@font-face{font-family:"Montserrat VPN";src:url("assets/Montserrat.ttf") format("truetype");font-weight:100 900;font-style:normal;font-display:swap}
+:root{
+  --void:#0A0A0B;--glow:#111114;--silver:#E8E8E6;--dim:#9A9DA3;--faint:#92959B;--line:#33353A;
+  --bg:var(--void);--surface:var(--glow);--surface2:var(--void);--text:var(--silver);--muted:var(--dim);--accent:var(--faint);--accent2:var(--dim);--good:#3FD17B;--danger:var(--faint);--danger2:var(--faint);--shadow:none;
+  color-scheme:dark;font-family:"Montserrat VPN","Montserrat","Segoe UI Variable Text","Segoe UI",sans-serif
+}
+@media(prefers-color-scheme:light){:root{--void:#F5F5F3;--glow:#FFFFFF;--silver:#15171B;--dim:#555A60;--faint:#62676D;--line:#DDDEDA;--bg:var(--void);--surface:#FAFBFA;--surface2:var(--void);--text:var(--silver);--muted:var(--dim);--accent:var(--faint);--accent2:var(--dim);--danger:var(--faint);--danger2:var(--faint);color-scheme:light}}
+:root[data-theme=dark]{--void:#0A0A0B;--glow:#111114;--silver:#E8E8E6;--dim:#9A9DA3;--faint:#92959B;--line:#33353A;--bg:var(--void);--surface:var(--glow);--surface2:var(--void);--text:var(--silver);--muted:var(--dim);--accent:var(--faint);--accent2:var(--dim);--danger:var(--faint);--danger2:var(--faint);color-scheme:dark}
+:root[data-theme=light]{--void:#F5F5F3;--glow:#FFFFFF;--silver:#15171B;--dim:#555A60;--faint:#62676D;--line:#DDDEDA;--bg:var(--void);--surface:#FAFBFA;--surface2:var(--void);--text:var(--silver);--muted:var(--dim);--accent:var(--faint);--accent2:var(--dim);--danger:var(--faint);--danger2:var(--faint);color-scheme:light}
+html,body,button,input,textarea{font-family:"Montserrat VPN","Montserrat","Segoe UI Variable Text","Segoe UI",sans-serif}
+html,body{box-sizing:border-box;width:360px;height:600px;min-height:600px;margin:0;padding:0;overflow:hidden;background:var(--void)!important;color:var(--silver);transition:background-color .4s ease,color .4s ease}
+main{box-sizing:border-box;width:360px;height:600px;min-height:600px;overflow:hidden;contain:paint;border:0;border-radius:0;box-shadow:none;background:radial-gradient(70% 55% at 50% 42%,var(--glow) 0%,var(--void) 72%);transition:background .4s ease;color:var(--silver)}
+header{padding-top:1px}
+.round{color:var(--faint);background:transparent!important;border:0;box-shadow:none}
+.round:hover{color:var(--silver);background:transparent!important}
+#primaryAction{--power-color:var(--faint);border:2px solid var(--line);background:var(--glow);box-shadow:none}
+#primaryAction .power-core svg{color:var(--faint);filter:none}
+body[data-state=connected] #primaryAction{--power-color:var(--good);border:7px solid var(--good);background:var(--glow);box-shadow:none}
+body[data-state=connected] #primaryAction .power-core svg{color:var(--good);filter:none}
+body[data-state=connected] .hero .connection strong{color:var(--good)}
+.hero .connection strong{font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:var(--silver)}
+.hero .connection small{color:var(--dim);letter-spacing:.06em}
+.profile-card{background:transparent;border:0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);border-radius:0;box-shadow:none;padding:16px 0 12px}
+.profile-select>button{border:0;background:transparent;box-shadow:none;padding-left:3px;padding-right:3px}
+.profile-select>button:focus,.profile-select>button[aria-expanded=true]{border:0;box-shadow:none}
+.tools{justify-content:flex-start}.tools button{color:var(--faint)}.tools button:last-child{color:var(--faint)}.tools button:hover{color:var(--silver);background:transparent}
+.quick-actions button{color:var(--faint);font-weight:400;letter-spacing:.04em}.quick-actions button:hover{color:var(--silver)}
+.quick-actions .divider{background:var(--line)}
+#profileMenu,.setting-menu{background:var(--glow);border:1px solid var(--line);box-shadow:none}
+#profileMenu button.selected,.setting-menu button.selected{background:var(--void);color:var(--silver);font-weight:500}
+#settingsDialog[open]{box-sizing:border-box;inset:0;width:360px;height:600px;max-width:360px;max-height:600px;margin:0;padding:0;overflow:hidden;contain:paint;border:0;border-radius:0;box-shadow:none;background:radial-gradient(70% 55% at 50% 42%,var(--glow) 0%,var(--void) 72%)}
+#settingsDialog[open]::backdrop{background:var(--void)}
+#settingsDialog form{gap:0;padding:15px 20px 14px}
+#settingsDialog .dialog-head{margin:-15px -20px 0;padding:15px 20px 18px;border:0;background:transparent}
+#settingsDialog .dialog-head h2{font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:var(--silver)}
+#settingsDialog .settings-card{padding:17px 0 15px;border:0;border-top:1px solid var(--line);border-radius:0;background:transparent;box-shadow:none}
+#settingsDialog .settings-card h3,#settingsDialog .settings-card h3:first-of-type{margin:0 0 14px;color:var(--silver);font-weight:500;letter-spacing:.1em;text-transform:uppercase}
+#settingsDialog .settings-card h3 svg{color:var(--faint)}
+.theme-options{padding:0;background:transparent;gap:5px}
+.theme-options button{height:30px;border:1px solid transparent;border-radius:999px;color:var(--dim)}
+.theme-options button.selected{border-color:var(--line);background:transparent;color:var(--silver);box-shadow:none}
+#settingsDialog .connection-card .toggle{min-height:31px}
+#settingsDialog .connection-card .toggle input{appearance:none;width:38px;height:20px;border:1px solid color-mix(in srgb,var(--line) 72%,var(--dim));border-radius:999px;background:transparent;box-shadow:none;padding:3px}
+#settingsDialog .connection-card .toggle input::after{position:static;display:block;width:12px;height:12px;background:var(--faint);box-shadow:none}
+#settingsDialog .connection-card .toggle input:checked{background:transparent;border-color:var(--line)}
+#settingsDialog .connection-card .toggle input:checked::after{transform:translateX(18px);background:var(--silver)}
+#settingsDialog .split-card .setting-trigger,#settingsDialog .split-card #domains{border:1px solid var(--line);background:transparent;border-radius:14px}
+.update-row{border:0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);border-radius:0;background:transparent;box-shadow:none;padding-left:2px;padding-right:2px}
+.update-row:hover{background:transparent;color:var(--silver)}.update-row svg{stroke:var(--faint);stroke-width:1.55;shape-rendering:geometricPrecision}
+#settingsDialog .hint,#settingsDialog label:not(.toggle),#settingsDialog #settingsError{color:var(--dim);font-size:9.5px;line-height:1.45}
+.update-row small{color:var(--dim);font-size:9px;line-height:1.35}
+button,input,textarea,.settings-card,main,#settingsDialog{transition:color .4s ease,background-color .4s ease,border-color .4s ease}
+body[data-state=connecting] #primaryAction,body[data-state=reconnecting] #primaryAction,body[data-state=disconnecting] #primaryAction{--power-color:var(--dim);border-color:var(--line);background:var(--glow);box-shadow:none}
+body[data-state=connecting] #primaryAction .power-core svg,body[data-state=reconnecting] #primaryAction .power-core svg,body[data-state=disconnecting] #primaryAction .power-core svg{color:var(--dim);filter:none}
+.connecting .pulse,.reconnecting .pulse,.disconnecting .pulse,.error .pulse{background:var(--dim);box-shadow:none}
+
+/* Embedded Internet Browser side panel. */
+html,body{width:100%;min-width:0;height:100%;min-height:600px}
+main{width:360px;max-width:100%;height:600px;margin:0 auto}
+#settingsDialog[open]{width:100%;max-width:100%;height:100%;max-height:100%}

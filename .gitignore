@@ -1,0 +1,17 @@
+node_modules
+release/
+dist/
+Internet Browser Data/
+VPNRuntime/
+browser-settings.json
+vpn-settings.json
+history.json
+bookmarks.json
+passwords.json
+*.log
+
+# Downloaded third-party VPN runtime. Use npm run setup:vpn.
+vpn/native-host/xray/xray.exe
+vpn/native-host/xray/geoip.dat
+vpn/native-host/xray/geosite.dat
+vpn/native-host/xray/wintun.dll
