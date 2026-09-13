@@ -15,7 +15,13 @@ try {
   Invoke-WebRequest -Headers @{"User-Agent"="Internet-Browser-Build"} -Uri $asset.browser_download_url -OutFile $zip
   if ($asset.digest -and $asset.digest.StartsWith("sha256:")) {
     $expected = $asset.digest.Substring(7).ToLowerInvariant()
-    $actual = (Get-FileHash -Algorithm SHA256 $zip).Hash.ToLowerInvariant()
+    $sha256 = [System.Security.Cryptography.SHA256]::Create()
+    try {
+      $bytes = [System.IO.File]::ReadAllBytes($zip)
+      $actual = ([System.BitConverter]::ToString($sha256.ComputeHash($bytes))).Replace("-", "").ToLowerInvariant()
+    } finally {
+      $sha256.Dispose()
+    }
     if ($actual -ne $expected) { throw "Xray archive SHA-256 verification failed." }
   }
   Expand-Archive -Path $zip -DestinationPath $expanded -Force
