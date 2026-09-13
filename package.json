@@ -1,6 +1,6 @@
 {
   "name":"internet-browser","version":"0.5.1","description":"Electron browser with classic and compact interface layouts, configurable settings and built-in VLESS/XHTTP VPN.","main":"main.js","author":"Sander Stripa","license":"UNLICENSED",
-  "scripts":{"start":"electron .","setup:vpn":"powershell -ExecutionPolicy Bypass -File scripts/download-xray.ps1","build":"electron-builder --win nsis --x64","build:installer":"electron-builder --win nsis --x64"},
+  "scripts":{"start":"electron .","setup:vpn":"powershell -ExecutionPolicy Bypass -File scripts/download-xray.ps1","build":"electron-builder --win nsis --x64 --publish never","build:installer":"electron-builder --win nsis --x64 --publish never"},
   "devDependencies":{"electron":"44.0.0","electron-builder":"26.0.12","resedit":"^3.1.0"},
   "build":{"appId":"com.sanderstripa.internetbrowser","productName":"Internet Browser","asar":false,"electronLanguages":["en-US","ru"],"directories":{"output":"release"},"files":["main.js","preload.js","vpn-manager.js","ui/**/*","vpn/**/*"],"win":{"icon":"ui/browser-icon.ico","signAndEditExecutable":false,"target":[{"target":"nsis","arch":["x64"]}],"artifactName":"Internet-Browser-Setup-${version}-${arch}.${ext}"},"nsis":{"oneClick":false,"allowToChangeInstallationDirectory":true,"perMachine":false,"createDesktopShortcut":true,"createStartMenuShortcut":true,"shortcutName":"Internet Browser","uninstallDisplayName":"Internet Browser"}}
 }
