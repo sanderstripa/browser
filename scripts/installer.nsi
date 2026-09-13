@@ -2,14 +2,14 @@ Unicode True
 SetCompressor /SOLID lzma
 
 !define APP_NAME "Internet Browser"
-!define APP_VERSION "0.5.0"
+!define APP_VERSION "0.5.1"
 !define APP_PUBLISHER "Sander Stripa"
 !define APP_EXE "Internet Browser.exe"
 !define UNINSTALL_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\Internet Browser"
 
 Name "${APP_NAME}"
 Caption "Установка ${APP_NAME}"
-OutFile "..\release\Internet-Browser-Setup-0.5.0-x64.exe"
+OutFile "..\release\Internet-Browser-Setup-0.5.1-x64.exe"
 InstallDir "$LOCALAPPDATA\Programs\Internet Browser"
 InstallDirRegKey HKCU "${UNINSTALL_KEY}" "InstallLocation"
 RequestExecutionLevel user
@@ -18,7 +18,7 @@ BrandingText "${APP_NAME}"
 ShowInstDetails nevershow
 ShowUninstDetails nevershow
 
-VIProductVersion "0.5.0.0"
+VIProductVersion "0.5.1.0"
 VIAddVersionKey /LANG=1049 "ProductName" "${APP_NAME}"
 VIAddVersionKey /LANG=1049 "CompanyName" "${APP_PUBLISHER}"
 VIAddVersionKey /LANG=1049 "FileDescription" "Установщик ${APP_NAME}"
