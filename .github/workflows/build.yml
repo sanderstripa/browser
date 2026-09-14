@@ -21,13 +21,18 @@ jobs:
       - run: npm ci
       - run: npm run setup:vpn
       - run: npm run build:installer
+      - name: Read package version
+        id: package
+        run: node -e "require('fs').appendFileSync(process.env.GITHUB_OUTPUT, 'version=' + require('./package.json').version + '\n')"
       - uses: actions/upload-artifact@v4
         with:
           name: Internet-Browser-Windows
           path: release/Internet-Browser-Setup-*.exe
       - name: Publish GitHub release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.event.head_commit.message, 'Release ') || startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ steps.package.outputs.version }}
+          name: Internet Browser v${{ steps.package.outputs.version }}
           files: release/Internet-Browser-Setup-*.exe
           generate_release_notes: true
