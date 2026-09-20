@@ -6,6 +6,7 @@
 
 #include "examples/soulu/browser_client.h"
 #include "examples/soulu/resource.h"
+#include "include/cef_app.h"
 #include "include/cef_parser.h"
 #include "include/wrapper/cef_helpers.h"
 

@@ -38,6 +38,14 @@ jobs:
           repository: chromiumembedded/cef-project
           path: cef-project
 
+      - name: Cache CEF download and build
+        uses: actions/cache@v4
+        with:
+          path: |
+            cef-project/third_party/cef
+            cef-build
+          key: soulu-cef-win64-144-v1
+
       - name: Add Soulu target and assets
         shell: pwsh
         run: |

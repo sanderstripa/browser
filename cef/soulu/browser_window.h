@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "include/cef_browser.h"
+#include "include/cef_download_item.h"
 #include "include/cef_values.h"
 #include "include/wrapper/cef_message_router.h"
 
