@@ -125,6 +125,7 @@
         <h2 data-i18n="toolbar">Верхняя панель</h2>
         <label class="setting-line"><span><strong data-i18n="addressPosition">Положение адресной строки</strong><small data-i18n="addressPositionHint">По центру или слева</small></span><select id="addressPosition"><option value="center" data-i18n="center">По центру</option><option value="left" data-i18n="left">Слева</option></select></label>
         <label class="setting-line"><span><strong data-i18n="extensionsPosition">Закреплённые расширения</strong><small data-i18n="extensionsPositionHint">Относительно адресной строки</small></span><select id="extensionsPosition"><option value="left" data-i18n="leftOfAddress">Слева</option><option value="right" data-i18n="rightOfAddress">Справа</option></select></label>
+        <label class="setting-line"><span><strong data-i18n="vpnOnToolbar">VPN на панели</strong><small data-i18n="vpnOnToolbarHint">Показывать закреплённую кнопку VPN</small></span><input type="checkbox" id="vpnToolbarVisible"></label>
         <label class="setting-line"><span><strong data-i18n="downloadsVisibility">Иконка загрузок</strong><small data-i18n="downloadsVisibilityHint">Автоскрытие или постоянное отображение</small></span><select id="downloadsMode"><option value="dynamic" data-i18n="dynamic">Динамически</option><option value="always" data-i18n="always">Всегда</option></select></label>
       </section>
 
@@ -137,3 +138,14 @@
 
 
       <section><h2 data-i18n="startup">Стартовая страница</h2><div class="choice-row"><label><input type="radio" name="startPageMode" value="blank"><span data-i18n="blankPage">Пустая страница</span></label><label><input type="radio" name="startPageMode" value="custom"><span data-i18n="customPage">Свой адрес</span></label></div><input class="wide-input" id="startPageUrl" placeholder="https://example.com" spellcheck="false"></section>
+      <section><h2 data-i18n="downloads">Загрузки</h2><label class="check-line"><input type="checkbox" id="askDownloadLocation"><span data-i18n="askDownload">Всегда спрашивать место сохранения</span></label><div class="folder-row"><span id="downloadPathLabel">Папка не выбрана</span><button class="soft-button" id="chooseDownloadFolder" data-i18n="choose">Выбрать…</button></div></section>
+      <section><h2>VPN</h2><div class="setting-action"><span><strong data-i18n="vpnSettings">Настройки VPN</strong><small data-i18n="vpnHint">Профили, подключение и защита WebRTC</small></span><button class="soft-button" id="openVpnSettings" data-i18n="open">Открыть</button></div></section>
+      <section><h2 data-i18n="googleAccounts">Учётные записи Google</h2><p data-i18n="googleHint">Можно добавить несколько аккаунтов. Они работают в общей сессии браузера; синхронизация Chrome не включается.</p><div class="button-row"><button class="primary-button" id="addGoogleAccount" data-i18n="addAccount">Добавить аккаунт</button><button class="soft-button" id="manageGoogleAccounts" data-i18n="manageAccounts">Управление</button></div></section>
+      <section><h2 data-i18n="passwords">Пароли</h2><p data-i18n="passwordHint">Пароли шифруются средствами Windows и хранятся рядом с данными браузера. Автозаполнение пока не выполняется.</p><div class="password-form"><input id="passwordSite" data-i18n-placeholder="site" placeholder="Сайт"><input id="passwordUsername" data-i18n-placeholder="login" placeholder="Логин"><input id="passwordValue" type="password" data-i18n-placeholder="password" placeholder="Пароль"><button class="primary-button" id="savePassword" data-i18n="save">Сохранить</button></div><div id="passwordList"></div></section>
+    </div>
+  </aside>
+
+
+  <script src="renderer.js"></script>
+</body>
+</html>
