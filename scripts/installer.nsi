@@ -1,24 +1,24 @@
 Unicode True
 SetCompressor /SOLID lzma
 
-!define APP_NAME "Internet Browser"
-!define APP_VERSION "0.6.0"
+!define APP_NAME "Soulu"
+!define APP_VERSION "0.8.0"
 !define APP_PUBLISHER "Sander Stripa"
-!define APP_EXE "Internet Browser.exe"
-!define UNINSTALL_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\Internet Browser"
+!define APP_EXE "Soulu.exe"
+!define UNINSTALL_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu"
 
 Name "${APP_NAME}"
 Caption "Установка ${APP_NAME}"
-OutFile "..\release\Internet-Browser-Setup-0.6.0-x64.exe"
-InstallDir "$LOCALAPPDATA\Programs\Internet Browser"
+OutFile "..\release\Soulu-Setup-0.8.0-x64.exe"
+InstallDir "$LOCALAPPDATA\Programs\Soulu"
 InstallDirRegKey HKCU "${UNINSTALL_KEY}" "InstallLocation"
 RequestExecutionLevel user
-Icon "..\ui\browser-icon.ico"
+Icon "..\ui\soulu-installer-icon.ico"
 BrandingText "${APP_NAME}"
 ShowInstDetails nevershow
 ShowUninstDetails nevershow
 
-VIProductVersion "0.6.0.0"
+VIProductVersion "0.8.0.0"
 VIAddVersionKey /LANG=1049 "ProductName" "${APP_NAME}"
 VIAddVersionKey /LANG=1049 "CompanyName" "${APP_PUBLISHER}"
 VIAddVersionKey /LANG=1049 "FileDescription" "Установщик ${APP_NAME}"
@@ -36,10 +36,10 @@ Section "Install"
   File /r "..\release\installer-stage\*.*"
   WriteUninstaller "$INSTDIR\Uninstall.exe"
 
-  CreateDirectory "$SMPROGRAMS\Internet Browser"
-  CreateShortcut "$SMPROGRAMS\Internet Browser\Internet Browser.lnk" "$INSTDIR\${APP_EXE}"
-  CreateShortcut "$SMPROGRAMS\Internet Browser\Удалить Internet Browser.lnk" "$INSTDIR\Uninstall.exe"
-  CreateShortcut "$DESKTOP\Internet Browser.lnk" "$INSTDIR\${APP_EXE}"
+  CreateDirectory "$SMPROGRAMS\Soulu"
+  CreateShortcut "$SMPROGRAMS\Soulu\Soulu.lnk" "$INSTDIR\${APP_EXE}"
+  CreateShortcut "$SMPROGRAMS\Soulu\Удалить Soulu.lnk" "$INSTDIR\Uninstall.exe"
+  CreateShortcut "$DESKTOP\Soulu.lnk" "$INSTDIR\${APP_EXE}"
 
   WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayName" "${APP_NAME}"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayVersion" "${APP_VERSION}"
@@ -53,8 +53,8 @@ SectionEnd
 
 Section "Uninstall"
   SetShellVarContext current
-  Delete "$DESKTOP\Internet Browser.lnk"
-  RMDir /r "$SMPROGRAMS\Internet Browser"
+  Delete "$DESKTOP\Soulu.lnk"
+  RMDir /r "$SMPROGRAMS\Soulu"
   DeleteRegKey HKCU "${UNINSTALL_KEY}"
   RMDir /r "$INSTDIR"
 SectionEnd

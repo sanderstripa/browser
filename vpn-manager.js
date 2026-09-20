@@ -194,10 +194,16 @@ function createVpnManager({ app, browserSession, sourceDir, onState }) {
 
   async function initialize() {
     loadSettings();
+    // Soulu always starts with a direct connection. A previous VPN session must
+    // never silently reactivate when the browser is opened again.
+    settings.autoConnect = false;
+    settings.desiredConnected = false;
+    saveSettings();
     prepareRuntime();
     if (process.platform !== "win32") return;
-    if (settings.autoConnect && settings.lastProfileId) await connect(settings.lastProfileId);
-    else await status(false);
+    await disableProxy().catch(() => {});
+    await nativeMessage({ action: "disconnect" }).catch(() => {});
+    publish("disconnected", "", "");
     timer = setInterval(() => status(true).catch(() => {}), 30000);
   }
 

@@ -55,3 +55,50 @@ body[data-matte=true] .toolbar,body[data-matte=true] .compact-toolbar-surface{ba
 .layout-picker{grid-template-columns:repeat(2,1fr)}
 .preview-compact i{top:13px!important;height:7px!important}
 @media(max-width:1060px){.compact-tab-flow{max-width:calc(100% - 400px)}.compact-active-tab{flex-basis:190px;width:190px}.compact-control{flex-basis:31px;width:31px}.compact-window-button{flex-basis:38px;width:38px}.layout-card small{display:none}}
+
+/* Soulu toolbar architecture ------------------------------------------------ */
+.browser-toolbar{position:fixed;z-index:100;inset:0 0 auto;width:100%;user-select:none;background:var(--toolbar-bg);border-bottom:1px solid color-mix(in srgb,var(--text) 10%,transparent)}
+.browser-toolbar button,.browser-toolbar input,.browser-toolbar form,.browser-toolbar .tab-strip,.browser-toolbar .compact-tab-flow{-webkit-app-region:no-drag}
+.extension-slot{align-items:center;flex:0 0 auto}.extension-left,.extension-right{display:none}
+body[data-extensions-position=left] .extension-left,body[data-extensions-position=right] .extension-right{display:flex}
+.downloads-control{transition:opacity .18s ease,transform .18s ease,background .14s ease}
+.downloads-control.auto-hidden{display:none!important}
+.download-progress{display:none!important}.downloads-control.is-downloading .download-static{display:none}.downloads-control.is-downloading .download-progress{display:block!important}.downloads-control.is-downloading .progress-arc{stroke:var(--blue);stroke-width:2.5;stroke-dasharray:16 38;animation:download-spin 1s linear infinite;transform-origin:12px 12px}
+@keyframes download-spin{to{transform:rotate(360deg)}}
+.vpn-button.connected{color:var(--blue);background:var(--blue-soft)}.vpn-button.busy img{animation:vpn-pulse .85s ease-in-out infinite alternate}@keyframes vpn-pulse{to{opacity:.42;transform:scale(.9)}}
+
+/* Compact: a single physical row and one visual surface. */
+.compact-toolbar{height:54px;padding:0;pointer-events:none}
+.compact-toolbar-surface{display:flex;align-items:center;width:100%;height:54px;gap:3px;overflow:hidden;padding-left:8px;background:transparent;box-shadow:inset 0 1px 0 #ffffff57;-webkit-app-region:drag;pointer-events:auto}
+.compact-control{position:relative;display:grid;flex:0 0 34px;place-items:center;width:34px;height:34px;padding:0;color:var(--text);background:transparent;border-radius:50%;transition:background .14s ease,color .14s ease,transform .14s ease}
+.compact-control:hover{background:color-mix(in srgb,var(--text) 7%,transparent)}.compact-control:active{transform:scale(.96)}.compact-control:disabled{opacity:.3;pointer-events:none}
+.compact-control svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}.compact-control.vpn-button img{width:23px;height:23px}
+.compact-extension-slot{height:34px}
+.compact-tab-flow{display:flex;align-items:center;justify-content:center;flex:0 1 760px;min-width:210px;max-width:760px;height:40px;gap:4px;margin-inline:auto;padding:3px 5px;overflow-x:auto;overflow-y:hidden;white-space:nowrap;scrollbar-width:none;border:1px solid color-mix(in srgb,var(--text) 9%,transparent);border-radius:22px;background:color-mix(in srgb,var(--field) 72%,transparent);box-shadow:inset 0 1px 0 #ffffff73,0 2px 10px #0000000d}
+body[data-address-position=left] .compact-tab-flow{justify-content:flex-start;margin-left:4px;margin-right:auto}
+.compact-tab-flow::-webkit-scrollbar{display:none}
+.compact-tab{display:grid;flex:0 0 30px;place-items:center;width:30px;height:30px;padding:0;overflow:hidden;background:color-mix(in srgb,var(--text) 5%,transparent);border:1px solid color-mix(in srgb,var(--text) 7%,transparent);border-radius:50%;transition:background .14s ease,transform .14s ease,box-shadow .14s ease}
+.compact-tab:hover{background:color-mix(in srgb,var(--field) 92%,transparent);box-shadow:0 1px 5px #00000016}.compact-tab:active{transform:scale(.94)}.compact-tab .favicon{width:17px;height:17px;border-radius:50%}.compact-tab .favicon-fallback{font-size:7px}
+.compact-active-tab{position:relative;display:grid;grid-template-columns:23px 16px minmax(90px,1fr) 23px 21px;align-items:center;gap:2px;flex:1 1 430px;min-width:220px;max-width:540px;height:32px;padding:0 4px;background:color-mix(in srgb,var(--field) 96%,transparent);border:1px solid color-mix(in srgb,var(--text) 9%,transparent);border-radius:17px;box-shadow:inset 0 1px 0 #ffffff7a,0 1px 5px #0000000e;transition:flex-basis .2s ease,max-width .2s ease,background .15s ease}
+.compact-active-tab .favicon{width:16px;height:16px;border-radius:4px}.compact-active-tab .active-address{height:30px;padding:0 5px;font-size:12px;text-align:center}.compact-active-tab .active-address:focus{text-align:left}.compact-active-tab .tab-action{width:22px;height:22px;border-radius:50%}.compact-active-tab .tab-action svg{width:14px;height:14px}.compact-active-tab .page-action{color:var(--muted)}.compact-active-tab .page-action svg{fill:currentColor;stroke:none}.compact-active-tab .close-action{font-size:15px;font-weight:300}
+.compact-drag-space{flex:0 1 26px;min-width:6px;height:100%;-webkit-app-region:drag}.compact-divider-window{flex:0 0 1px;width:1px;height:22px;margin:0 2px;background:color-mix(in srgb,var(--text) 12%,transparent)}
+.compact-window-button{display:grid;flex:0 0 42px;place-items:center;width:42px;height:53px;padding:0;background:transparent;border-radius:0;-webkit-app-region:no-drag}.compact-window-button:hover{background:#00000010}.compact-window-button.window-close:hover{color:#fff;background:#e81123}.compact-window-button svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1}
+.active-suggestions{top:51px}
+
+/* Classic: address row above a dedicated tab row. */
+.classic-toolbar{height:82px;padding:0}
+.classic-main-row{display:flex;align-items:center;width:100%;height:45px;gap:4px;padding-left:9px;-webkit-app-region:drag}
+.classic-main-row .left-controls{display:flex;gap:2px}.classic-extension-slot{height:34px}.classic-address-wrap{display:flex;justify-content:center;flex:1 1 auto;min-width:220px}
+body[data-address-position=left] .classic-address-wrap{justify-content:flex-start}
+.classic-address-pill{position:relative;display:flex;align-items:center;gap:4px;width:min(760px,100%);height:32px;margin:0;padding:0 5px;background:var(--field);border:1px solid color-mix(in srgb,var(--text) 9%,transparent);border-radius:16px;box-shadow:inset 0 1px 0 #ffffff61,0 1px 4px #0000000b}
+.classic-address-pill input{flex:1;min-width:0;height:30px;padding:0 6px;color:var(--text);background:transparent;border:0;outline:0;text-align:center}.classic-address-pill input:focus{text-align:left}
+.address-menu-button{display:grid;place-items:center;flex:0 0 23px;width:23px;height:23px;padding:0;color:var(--muted);background:transparent;border-radius:50%}.address-menu-button:hover{color:var(--text);background:color-mix(in srgb,var(--text) 7%,transparent)}.address-menu-button svg{width:15px;height:15px;fill:currentColor;stroke:none}
+.classic-main-row>.downloads-control{margin-left:2px}.window-controls{display:flex;align-items:center;height:45px;margin-left:3px;border-left:1px solid var(--soft)}.window-controls button{display:grid;place-items:center;width:46px;height:45px;padding:0;background:transparent}.window-controls button:hover{background:#00000013}.window-controls .window-close:hover{color:#fff;background:#e81123}.window-controls svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1}
+.tabs-zone{display:flex;align-items:center;width:100%;height:37px;gap:4px;padding:0 8px;background:color-mix(in srgb,var(--text) 2.5%,transparent);border-top:1px solid color-mix(in srgb,var(--text) 5%,transparent);-webkit-app-region:drag}.tabs-zone .tab-strip{height:36px;padding:3px 0}.classic-tabs-drag{flex:1 1 40px;height:100%;-webkit-app-region:drag}.tabs-new-button{flex:0 0 30px;width:30px;height:30px}
+.classic-suggestions{top:42px}
+
+body[data-layout=compact] .classic-toolbar{display:none}body[data-layout=compact] .compact-toolbar{display:block}body[data-layout=compact] .sidebar,body[data-layout=compact] .side-panel,body[data-layout=compact] .vpn-panel,body[data-layout=compact] .settings-panel{top:54px}
+body[data-layout=classic] .compact-toolbar{display:none}body[data-layout=classic] .classic-toolbar{display:block}body[data-layout=classic] .sidebar,body[data-layout=classic] .side-panel,body[data-layout=classic] .vpn-panel,body[data-layout=classic] .settings-panel{top:82px}
+body[data-matte=true] .browser-toolbar{background:linear-gradient(112deg,color-mix(in srgb,var(--surface) 82%,#fff 18%),color-mix(in srgb,var(--surface) 70%,#a9c9e8 30%));backdrop-filter:saturate(145%) blur(22px)}
+
+@media(max-width:1060px){.compact-tab-flow{flex-basis:520px;max-width:520px}.compact-active-tab{min-width:190px}.compact-control{flex-basis:31px;width:31px}.compact-window-button{flex-basis:38px;width:38px}.classic-address-pill{max-width:560px}.layout-card small{display:none}}

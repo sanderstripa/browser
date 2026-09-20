@@ -1,18 +1,18 @@
 param([string]$Destination = "$PSScriptRoot\..\vpn\native-host\xray")
 
 $ErrorActionPreference = "Stop"
-$release = Invoke-RestMethod -Headers @{"User-Agent"="Internet-Browser-Build"} -Uri "https://api.github.com/repos/XTLS/Xray-core/releases/latest"
+$release = Invoke-RestMethod -Headers @{"User-Agent"="Soulu-Build"} -Uri "https://api.github.com/repos/XTLS/Xray-core/releases/latest"
 $asset = $release.assets | Where-Object { $_.name -eq "Xray-windows-64.zip" } | Select-Object -First 1
 if (-not $asset) { throw "Xray-windows-64.zip was not found in the latest release." }
 
-$temp = Join-Path ([System.IO.Path]::GetTempPath()) ("internet-browser-xray-" + [guid]::NewGuid())
+$temp = Join-Path ([System.IO.Path]::GetTempPath()) ("soulu-xray-" + [guid]::NewGuid())
 $zip = Join-Path $temp $asset.name
 $expanded = Join-Path $temp "expanded"
 New-Item -ItemType Directory -Path $expanded -Force | Out-Null
 New-Item -ItemType Directory -Path $Destination -Force | Out-Null
 
 try {
-  Invoke-WebRequest -Headers @{"User-Agent"="Internet-Browser-Build"} -Uri $asset.browser_download_url -OutFile $zip
+  Invoke-WebRequest -Headers @{"User-Agent"="Soulu-Build"} -Uri $asset.browser_download_url -OutFile $zip
   if ($asset.digest -and $asset.digest.StartsWith("sha256:")) {
     $expected = $asset.digest.Substring(7).ToLowerInvariant()
     $sha256 = [System.Security.Cryptography.SHA256]::Create()

@@ -23,19 +23,19 @@ ResEdit.Resource.IconGroupEntry.replaceIconsForResource(
 
 const versionInfo = ResEdit.Resource.VersionInfo.fromEntries(resources.entries)[0];
 if (versionInfo) {
-  versionInfo.setFileVersion(0, 6, 0, 0, 1033);
-  versionInfo.setProductVersion(0, 6, 0, 0, 1033);
+  versionInfo.setFileVersion(0, 8, 0, 0, 1033);
+  versionInfo.setProductVersion(0, 8, 0, 0, 1033);
   versionInfo.setStringValues(
     { lang: 1033, codepage: 1200 },
     {
       CompanyName: "Sander Stripa",
-      FileDescription: "Internet Browser",
-      InternalName: "Internet Browser",
+      FileDescription: "Soulu",
+      InternalName: "Soulu",
       LegalCopyright: "© 2026 Sander Stripa",
-      OriginalFilename: "Internet Browser.exe",
-      ProductName: "Internet Browser",
-      FileVersion: "0.6.0",
-      ProductVersion: "0.6.0"
+      OriginalFilename: "Soulu.exe",
+      ProductName: "Soulu",
+      FileVersion: "0.8.0",
+      ProductVersion: "0.8.0"
     }
   );
   versionInfo.outputToResourceEntries(resources.entries);
