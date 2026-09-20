@@ -421,15 +421,31 @@ void BrowserWindow::HandleBridge(const std::string& request,
     const int command = TrackPopupMenu(menu, TPM_RETURNCMD | TPM_RIGHTBUTTON,
                                        point.x, point.y, 0, hwnd_, nullptr);
     DestroyMenu(menu);
-    if (command == 1 && shell_)
-      shell_->GetMainFrame()->ExecuteJavaScript(
-          "(()=>{const a=document.getElementById('compactSettingsButton'),b=document.getElementById('settingsButton');(a&&a.offsetParent?a:b)?.click()})()",
-          shell_->GetMainFrame()->GetURL(), 0);
-    else if (command == 2 && shell_)
-      shell_->GetMainFrame()->ExecuteJavaScript(
-          "(()=>{const a=document.getElementById('compactDownloadsButton'),b=document.getElementById('downloadsButton');(a&&a.offsetParent?a:b)?.click()})()",
-          shell_->GetMainFrame()->GetURL(), 0);
+    if (command == 1) Emit("openSettings", EmptyValue());
+    else if (command == 2) Emit("openDownloads", EmptyValue());
     else if (command == 3) NewTab();
+  }
+  else if (action == "browser.pageMenu") {
+    POINT point = {}; GetCursorPos(&point);
+    HMENU menu = CreatePopupMenu();
+    AppendMenuW(menu, MF_STRING, 1, L"Копировать адрес");
+    AppendMenuW(menu, MF_STRING, 2, L"Добавить в избранное");
+    AppendMenuW(menu, MF_STRING, 3, L"Найти на странице");
+    AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+    AppendMenuW(menu, MF_STRING, 4, L"Настройки Soulu");
+    const int command = TrackPopupMenu(menu, TPM_RETURNCMD | TPM_RIGHTBUTTON,
+                                       point.x, point.y, 0, hwnd_, nullptr);
+    DestroyMenu(menu);
+    if (command == 1) {
+      if (auto* t = ActiveTab(); t && OpenClipboard(hwnd_)) {
+        EmptyClipboard(); const std::wstring wide = CefString(t->url).ToWString();
+        HGLOBAL memory = GlobalAlloc(GMEM_MOVEABLE, (wide.size() + 1) * sizeof(wchar_t));
+        if (memory) { memcpy(GlobalLock(memory), wide.c_str(), (wide.size() + 1) * sizeof(wchar_t)); GlobalUnlock(memory); SetClipboardData(CF_UNICODETEXT, memory); }
+        CloseClipboard();
+      }
+    } else if (command == 2) Emit("openFavorites", EmptyValue());
+    else if (command == 3) Emit("requestFind", EmptyValue());
+    else if (command == 4) Emit("openSettings", EmptyValue());
   }
   else if (action == "browser.shareMenu") {
     if (auto* t = ActiveTab()) {

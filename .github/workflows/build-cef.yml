@@ -101,7 +101,7 @@ jobs:
           if-no-files-found: error
 
       - name: Publish CEF prerelease
-        if: github.event_name == 'workflow_dispatch' && inputs.publish
+        if: github.event_name == 'push' || inputs.publish
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ env.PREVIEW_VERSION }}
