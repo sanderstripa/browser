@@ -63,6 +63,9 @@ class BrowserWindow final : public CefBaseRefCounted {
   Profile* ActiveProfile();
   CefRefPtr<CefRequestContext> ContextForNewTab(bool incognito);
   void ApplyProxy(CefRefPtr<CefRequestContext> context);
+  void ApplyWindowAppearance();
+  CefRefPtr<CefDictionaryValue> SendVpnHelper(
+      CefRefPtr<CefDictionaryValue> request) const;
   void NewTab(const std::string& url = "about:blank", bool incognito = false);
   void CloseTab(int id);
   void SwitchTab(int id);

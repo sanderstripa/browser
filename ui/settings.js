@@ -116,8 +116,17 @@
   }
 
   async function patch(value) {
-    settings = await window.browserShell.setSettings(value);
+    const previous = {...settings};
+    settings = {...settings, ...value};
     fill();
+    try {
+      settings = await window.browserShell.setSettings(value);
+      fill();
+    } catch (error) {
+      settings = previous;
+      fill();
+      console.error("Soulu setting was not applied", error);
+    }
   }
 
   $$(".nav-item").forEach(button => button.onclick = () => {
@@ -144,7 +153,7 @@
   $("#openIncognito").onclick=()=>window.browserShell.newIncognito();
   $("#checkUpdates").onclick=async()=>{browserState.update=await window.browserShell.checkUpdates();renderUpdate(browserState.update);};
   $("#parseVpn").onclick=parseVpnLink;
-  $("#saveVpn").onclick=async()=>{const parsed=await parseVpnLink();if(!parsed)return;await window.vpn.settingsSet(parsed);$("#vpnMessage").textContent="Конфигурация сохранена. Она действует только внутри Soulu.";};
+  $("#saveVpn").onclick=async()=>{const parsed=await parseVpnLink();if(!parsed)return;$("#vpnMessage").textContent="Сохраняю конфигурацию…";try{const saved=await window.vpn.settingsSet(parsed);if(saved?.ok===false)throw new Error(saved.error||"Не удалось сохранить конфигурацию");$("#vpnMessage").textContent="Конфигурация сохранена и готова к подключению внутри Soulu.";}catch(error){$("#vpnMessage").textContent=`Ошибка VPN: ${error.message}`;}};
   $$('[name="vpnProtocol"]').forEach(el=>el.onchange=()=>{$("#vpnMessage").textContent="";parseVpnLink();});
   window.vpn.settingsGet().then(value=>{if(!value)return;const p=value.protocol||"vless";const radio=document.querySelector(`[name="vpnProtocol"][value="${p}"]`);if(radio)radio.checked=true;$("#vpnLink").value=value.link||"";if(value.link)parseVpnLink();}).catch(()=>{});
 

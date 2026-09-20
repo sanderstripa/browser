@@ -4,6 +4,13 @@ html.cef-runtime body {
   background: transparent;
 }
 
+html.cef-runtime body[data-matte="false"] .compact-toolbar,
+html.cef-runtime body[data-matte="false"] .classic-toolbar {
+  background: var(--solid);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
 html.cef-runtime body[data-matte="true"] {
   --toolbar-bg: color-mix(in srgb, var(--surface, #f5f7fa) 74%, transparent);
 }

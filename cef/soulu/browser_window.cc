@@ -4,6 +4,7 @@
 #include <ws2tcpip.h>
 
 #include <algorithm>
+#include <cstdint>
 #include <dwmapi.h>
 #include <filesystem>
 #include <fstream>
@@ -61,6 +62,15 @@ CefRefPtr<CefValue> EmptyValue() {
   auto value = CefValue::Create();
   value->SetNull();
   return value;
+}
+
+bool IsWindowsDarkMode() {
+  DWORD value = 1;
+  DWORD size = sizeof(value);
+  RegGetValueW(HKEY_CURRENT_USER,
+               L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+               L"AppsUseLightTheme", RRF_RT_REG_DWORD, nullptr, &value, &size);
+  return value == 0;
 }
 }
 
@@ -151,11 +161,7 @@ bool BrowserWindow::CreateNativeWindow() {
                           x, y, width, height, nullptr, nullptr, wc.hInstance, this);
   if (!hwnd_) return false;
 
-  // Windows 11 system backdrop gives the frameless shell a native matte surface.
-  const DWORD backdrop = 2;  // DWMSBT_MAINWINDOW
-  DwmSetWindowAttribute(hwnd_, 38, &backdrop, sizeof(backdrop));
-  const MARGINS glass = {0, 0, 0, 0};
-  DwmExtendFrameIntoClientArea(hwnd_, &glass);
+  ApplyWindowAppearance();
 
   ShowWindow(hwnd_, SW_SHOW);
   UpdateWindow(hwnd_);
@@ -264,6 +270,102 @@ void BrowserWindow::ApplyProxy(CefRefPtr<CefRequestContext> context) {
   value->SetDictionary(proxy);
   CefString error;
   context->SetPreference("proxy", value, error);
+}
+
+void BrowserWindow::ApplyWindowAppearance() {
+  if (!hwnd_) return;
+  const std::string theme = settings_->GetString("theme");
+  const BOOL dark = theme == "dark" || (theme == "system" && IsWindowsDarkMode());
+  DwmSetWindowAttribute(hwnd_, 20, &dark, sizeof(dark));
+
+  // Windows 11: rounded top-level window and real Mica only while matte mode is on.
+  const DWORD corner = 2;  // DWMWCP_ROUND
+  DwmSetWindowAttribute(hwnd_, 33, &corner, sizeof(corner));
+  const DWORD backdrop = settings_->GetBool("mattePanel") ? 2 : 1;
+  DwmSetWindowAttribute(hwnd_, 38, &backdrop, sizeof(backdrop));
+  const MARGINS glass = settings_->GetBool("mattePanel")
+      ? MARGINS{-1, -1, -1, -1} : MARGINS{0, 0, 0, 0};
+  DwmExtendFrameIntoClientArea(hwnd_, &glass);
+  RedrawWindow(hwnd_, nullptr, nullptr,
+               RDW_INVALIDATE | RDW_FRAME | RDW_ALLCHILDREN);
+}
+
+CefRefPtr<CefDictionaryValue> BrowserWindow::SendVpnHelper(
+    CefRefPtr<CefDictionaryValue> request) const {
+  auto result = CefDictionaryValue::Create();
+  const auto helper = std::filesystem::u8path(ExecutableDirectory()) /
+                      "vpn" / "native-host" / "VlessXhttpNativeHost.exe";
+  if (!std::filesystem::exists(helper)) {
+    result->SetBool("ok", false);
+    result->SetString("error", "VPN helper is missing from the installation.");
+    return result;
+  }
+
+  SECURITY_ATTRIBUTES security = {sizeof(SECURITY_ATTRIBUTES), nullptr, TRUE};
+  HANDLE input_read = nullptr, input_write = nullptr;
+  HANDLE output_read = nullptr, output_write = nullptr;
+  if (!CreatePipe(&input_read, &input_write, &security, 0) ||
+      !CreatePipe(&output_read, &output_write, &security, 0)) {
+    result->SetBool("ok", false);
+    result->SetString("error", "Cannot create VPN helper pipes.");
+    return result;
+  }
+  SetHandleInformation(input_write, HANDLE_FLAG_INHERIT, 0);
+  SetHandleInformation(output_read, HANDLE_FLAG_INHERIT, 0);
+
+  STARTUPINFOW startup = {sizeof(STARTUPINFOW)};
+  startup.dwFlags = STARTF_USESTDHANDLES | STARTF_USESHOWWINDOW;
+  startup.wShowWindow = SW_HIDE;
+  startup.hStdInput = input_read;
+  startup.hStdOutput = output_write;
+  startup.hStdError = output_write;
+  PROCESS_INFORMATION process = {};
+  std::wstring command = L"\"" + helper.wstring() + L"\"";
+  const BOOL started = CreateProcessW(
+      nullptr, command.data(), nullptr, nullptr, TRUE, CREATE_NO_WINDOW,
+      nullptr, helper.parent_path().c_str(), &startup, &process);
+  CloseHandle(input_read);
+  CloseHandle(output_write);
+  if (!started) {
+    CloseHandle(input_write);
+    CloseHandle(output_read);
+    result->SetBool("ok", false);
+    result->SetString("error", "VPN helper could not be started.");
+    return result;
+  }
+
+  const std::string json = Json(request);
+  const uint32_t length = static_cast<uint32_t>(json.size());
+  DWORD written = 0;
+  const bool sent = WriteFile(input_write, &length, sizeof(length), &written, nullptr) &&
+                    written == sizeof(length) &&
+                    WriteFile(input_write, json.data(), length, &written, nullptr) &&
+                    written == length;
+  CloseHandle(input_write);
+
+  uint32_t response_length = 0;
+  DWORD read = 0;
+  bool received = sent && ReadFile(output_read, &response_length,
+                                   sizeof(response_length), &read, nullptr) &&
+                  read == sizeof(response_length) && response_length < 4 * 1024 * 1024;
+  std::string response(received ? response_length : 0, '\0');
+  if (received && response_length) {
+    received = ReadFile(output_read, response.data(), response_length,
+                        &read, nullptr) && read == response_length;
+  }
+  CloseHandle(output_read);
+  WaitForSingleObject(process.hProcess, 15000);
+  CloseHandle(process.hThread);
+  CloseHandle(process.hProcess);
+
+  if (received) {
+    auto parsed = CefParseJSON(response, JSON_PARSER_RFC);
+    if (parsed && parsed->GetType() == VTYPE_DICTIONARY)
+      return parsed->GetDictionary()->Copy(false);
+  }
+  result->SetBool("ok", false);
+  result->SetString("error", "VPN helper returned an invalid response.");
+  return result;
 }
 
 void BrowserWindow::SwitchProfile(const std::string& id) {
@@ -494,7 +596,7 @@ void BrowserWindow::Layout() {
   GetClientRect(hwnd_, &client);
   const int width = client.right;
   const int height = client.bottom;
-  const int toolbar = settings_->GetString("layout") == "classic" ? 76 : 48;
+  const int toolbar = settings_->GetString("layout") == "classic" ? 82 : 48;
   if (shell_) {
     HWND shell_hwnd = shell_->GetHost()->GetWindowHandle();
     const bool expanded_shell =
@@ -561,8 +663,8 @@ CefRefPtr<CefDictionaryValue> BrowserWindow::State() const {
   }
   state->SetList("profiles", profiles);
   auto update = CefDictionaryValue::Create();
-  update->SetString("soulu", "0.9.0-cef-preview.4");
-  update->SetString("recommended", "0.9.0-cef-preview.4");
+  update->SetString("soulu", "0.9.0-cef-preview.5");
+  update->SetString("recommended", "0.9.0-cef-preview.5");
   update->SetString("cef", "144.0.6");
   update->SetString("chromium", "144");
   update->SetBool("available", false);
@@ -620,6 +722,7 @@ void BrowserWindow::SetSetting(const std::string& key, CefRefPtr<CefValue> value
   settings_->SetValue(key, value->Copy());
   SaveSettings();
   if (key == "layout") Layout();
+  if (key == "theme" || key == "mattePanel") ApplyWindowAppearance();
 }
 
 void BrowserWindow::HandleBridge(const std::string& request,
@@ -655,8 +758,8 @@ void BrowserWindow::HandleBridge(const std::string& request,
   }
   else if (action == "browser.update.check") {
     auto update = CefDictionaryValue::Create();
-    update->SetString("soulu", "0.9.0-cef-preview.4");
-    update->SetString("recommended", "0.9.0-cef-preview.4");
+    update->SetString("soulu", "0.9.0-cef-preview.5");
+    update->SetString("recommended", "0.9.0-cef-preview.5");
     update->SetString("cef", "144.0.6");
     update->SetString("chromium", "144");
     update->SetBool("available", false);
@@ -750,24 +853,48 @@ void BrowserWindow::HandleBridge(const std::string& request,
     if (payload && payload->GetType() == VTYPE_DICTIONARY) {
       auto patch = payload->GetDictionary(); CefDictionaryValue::KeyList keys; patch->GetKeys(keys);
       for (const auto& key : keys) vpn_settings_->SetValue(key, patch->GetValue(key)->Copy());
+      auto native = CefDictionaryValue::Create();
+      native->SetString("action", "save_profile");
+      native->SetString("id", vpn_settings_->GetString("lastProfileId"));
+      native->SetString("name", vpn_settings_->GetString("region").empty()
+          ? "Soulu VPN" : vpn_settings_->GetString("region"));
+      native->SetString("country", vpn_settings_->GetString("region"));
+      native->SetString("url", vpn_settings_->GetString("link"));
+      auto saved = SendVpnHelper(native);
+      if (!saved->GetBool("ok")) return Reply(callback, saved);
+      std::string id = saved->GetString("id");
+      if (id.empty()) id = saved->GetString("profileId");
+      if (!id.empty()) vpn_settings_->SetString("lastProfileId", id);
       SaveSettings();
     }
     return Reply(callback, vpn_settings_->Copy(false));
   }
   else if (action == "vpn.send") {
     std::string command;
+    auto arguments = CefDictionaryValue::Create();
     if (payload && payload->GetType() == VTYPE_DICTIONARY)
       command = payload->GetDictionary()->GetString("action");
-    if (command == "connect") vpn_enabled_ = true;
-    else if (command == "disconnect") vpn_enabled_ = false;
+    arguments->SetString("action", command == "status" ? "status" : command);
+    if (command == "connect") {
+      std::string id = vpn_settings_->GetString("lastProfileId");
+      if (payload && payload->GetType() == VTYPE_DICTIONARY) {
+        auto options = payload->GetDictionary()->GetDictionary("payload");
+        if (options && !options->GetString("profileId").empty())
+          id = options->GetString("profileId");
+      }
+      arguments->SetString("profileId", id);
+    }
+    auto helper_result = SendVpnHelper(arguments);
+    if (!helper_result->GetBool("ok")) return Reply(callback, helper_result);
+    vpn_enabled_ = command == "connect" ||
+        (command == "status" && helper_result->GetBool("connected"));
+    if (command == "disconnect") vpn_enabled_ = false;
     for (auto& profile : profiles_) ApplyProxy(profile.context);
     ApplyProxy(incognito_context_);
-    auto result = CefDictionaryValue::Create();
-    result->SetBool("ok", true);
-    result->SetString("state", vpn_enabled_ ? "connected" : "disconnected");
-    result->SetString("scope", "soulu-only");
-    Emit("vpnState", Wrap(result->Copy(false)));
-    return Reply(callback, result);
+    helper_result->SetString("state", vpn_enabled_ ? "connected" : "disconnected");
+    helper_result->SetString("scope", "soulu-only");
+    Emit("vpnState", Wrap(helper_result->Copy(false)));
+    return Reply(callback, helper_result);
   }
   else if (action == "window.minimize") ShowWindow(hwnd_, SW_MINIMIZE);
   else if (action == "window.maximize") ShowWindow(hwnd_, IsZoomed(hwnd_) ? SW_RESTORE : SW_MAXIMIZE);
