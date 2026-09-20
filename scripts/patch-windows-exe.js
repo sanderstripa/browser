@@ -23,8 +23,8 @@ ResEdit.Resource.IconGroupEntry.replaceIconsForResource(
 
 const versionInfo = ResEdit.Resource.VersionInfo.fromEntries(resources.entries)[0];
 if (versionInfo) {
-  versionInfo.setFileVersion(0, 8, 1, 0, 1033);
-  versionInfo.setProductVersion(0, 8, 1, 0, 1033);
+  versionInfo.setFileVersion(0, 8, 2, 0, 1033);
+  versionInfo.setProductVersion(0, 8, 2, 0, 1033);
   versionInfo.setStringValues(
     { lang: 1033, codepage: 1200 },
     {
@@ -34,8 +34,8 @@ if (versionInfo) {
       LegalCopyright: "© 2026 Sander Stripa",
       OriginalFilename: "Soulu.exe",
       ProductName: "Soulu",
-      FileVersion: "0.8.1",
-      ProductVersion: "0.8.1"
+      FileVersion: "0.8.2",
+      ProductVersion: "0.8.2"
     }
   );
   versionInfo.outputToResourceEntries(resources.entries);
