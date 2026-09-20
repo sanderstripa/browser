@@ -33,12 +33,13 @@ bool BrowserClient::OnProcessMessageReceived(CefRefPtr<CefBrowser> browser,
 
 void BrowserClient::OnAfterCreated(CefRefPtr<CefBrowser> browser) {
   CEF_REQUIRE_UI_THREAD();
-  if (role_ == BrowserRole::kShell) {
+  if (role_ != BrowserRole::kContent) {
     CefMessageRouterConfig config;
     router_ = CefMessageRouterBrowserSide::Create(config);
     bridge_ = std::make_unique<BridgeHandler>(owner_);
     router_->AddHandler(bridge_.get(), false);
-    owner_->AttachShell(browser);
+    if (role_ == BrowserRole::kShell) owner_->AttachShell(browser);
+    else owner_->AttachSettings(browser);
   } else {
     owner_->AttachContent(tab_id_, browser);
   }
@@ -53,7 +54,9 @@ void BrowserClient::OnBeforeClose(CefRefPtr<CefBrowser> browser) {
     bridge_.reset();
     router_ = nullptr;
   }
-  owner_->BrowserClosed(browser, tab_id_, role_ == BrowserRole::kShell);
+  owner_->BrowserClosed(browser, tab_id_,
+                        role_ == BrowserRole::kShell,
+                        role_ == BrowserRole::kSettings);
 }
 
 void BrowserClient::OnTitleChange(CefRefPtr<CefBrowser>, const CefString& title) {

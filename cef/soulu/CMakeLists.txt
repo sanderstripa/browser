@@ -27,8 +27,11 @@ else()
 endif()
 
 add_dependencies(${EXAMPLE_TARGET} shared)
-target_link_libraries(${EXAMPLE_TARGET} shared)
+target_link_libraries(${EXAMPLE_TARGET} shared dwmapi)
 target_compile_definitions(${EXAMPLE_TARGET} PRIVATE UNICODE _UNICODE NOMINMAX)
+if(MSVC)
+  target_compile_options(${EXAMPLE_TARGET} PRIVATE /utf-8)
+endif()
 set_target_properties(${EXAMPLE_TARGET} PROPERTIES OUTPUT_NAME "Soulu")
 
 add_custom_command(TARGET ${EXAMPLE_TARGET} POST_BUILD

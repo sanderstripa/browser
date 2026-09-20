@@ -1,0 +1,112 @@
+/* CEF-native shell refinements. Kept separate from the Electron-compatible base UI. */
+html.cef-runtime,
+html.cef-runtime body {
+  background: transparent;
+}
+
+html.cef-runtime body[data-matte="true"] {
+  --toolbar-bg: color-mix(in srgb, var(--surface, #f5f7fa) 74%, transparent);
+}
+
+html.cef-runtime body[data-matte="true"] .compact-toolbar,
+html.cef-runtime body[data-matte="true"] .classic-toolbar {
+  background:
+    linear-gradient(105deg, rgba(255,255,255,.62), rgba(238,244,250,.42)),
+    color-mix(in srgb, var(--toolbar-bg) 68%, transparent);
+  backdrop-filter: blur(26px) saturate(145%);
+  -webkit-backdrop-filter: blur(26px) saturate(145%);
+}
+
+html.cef-runtime .compact-toolbar,
+html.cef-runtime .compact-toolbar-surface {
+  height: 48px;
+}
+
+html.cef-runtime .compact-toolbar-surface {
+  padding-left: 7px;
+  gap: 1px;
+}
+
+html.cef-runtime .compact-control {
+  flex-basis: 30px;
+  width: 30px;
+  height: 30px;
+}
+
+html.cef-runtime .compact-control svg {
+  width: 17px;
+  height: 17px;
+}
+
+html.cef-runtime .compact-control.vpn-button img {
+  width: 20px;
+  height: 20px;
+}
+
+html.cef-runtime .compact-center-cluster {
+  min-height: 36px;
+}
+
+html.cef-runtime .compact-tab-flow {
+  height: 36px;
+  padding: 2px 3px;
+  border-radius: 18px;
+}
+
+html.cef-runtime .compact-tab {
+  flex-basis: 28px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+}
+
+html.cef-runtime .compact-active-tab {
+  height: 30px;
+  border-radius: 15px;
+  overflow: visible;
+}
+
+html.cef-runtime .compact-active-tab .active-address {
+  height: 28px;
+}
+
+html.cef-runtime .compact-window-button {
+  flex-basis: 42px;
+  width: 42px;
+  height: 47px;
+}
+
+html.cef-runtime .compact-active-tab:has(.reload-action.loading)::after,
+html.cef-runtime .classic-address-pill:has(.classic-reload.loading)::after {
+  content: "";
+  position: absolute;
+  z-index: 9;
+  left: 13px;
+  right: 13px;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 2px;
+  transform-origin: left center;
+  background: linear-gradient(90deg, #7ea5dc, #4f83cf 65%, #9bb9e4);
+  box-shadow: 0 0 4px rgba(74, 126, 201, .28);
+  animation: soulu-loading-line 1.35s cubic-bezier(.3,.1,.2,1) infinite;
+}
+
+@keyframes soulu-loading-line {
+  0% { transform: scaleX(.06); opacity: .55; }
+  55% { transform: scaleX(.72); opacity: 1; }
+  100% { transform: scaleX(1); opacity: .22; }
+}
+
+body[data-show-sidebar="false"] .sidebar-button,
+body[data-show-back="false"] #backButton,
+body[data-show-back="false"] #compactBackButton,
+body[data-show-favorites="false"] [data-favorites],
+body[data-show-favorites="false"] #favoritesButton,
+body[data-show-new-tab="false"] #newTabButton,
+body[data-show-new-tab="false"] #compactNewTabButton,
+body[data-show-downloads="false"] #downloadsButton,
+body[data-show-downloads="false"] #compactDownloadsButton,
+body[data-show-vpn="false"] .vpn-button {
+  display: none !important;
+}

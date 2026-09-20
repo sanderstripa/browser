@@ -6,7 +6,7 @@
 namespace soulu {
 class BrowserWindow;
 
-enum class BrowserRole { kShell, kContent };
+enum class BrowserRole { kShell, kSettings, kContent };
 
 class BrowserClient final : public CefClient,
                             public CefDisplayHandler,

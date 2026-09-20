@@ -1,6 +1,7 @@
 #include "examples/soulu/browser_window.h"
 
 #include <algorithm>
+#include <dwmapi.h>
 #include <filesystem>
 #include <sstream>
 
@@ -53,12 +54,17 @@ BrowserWindow::BrowserWindow()
   settings_->SetString("layout", "compact");
   settings_->SetString("theme", "system");
   settings_->SetString("language", "ru");
-  settings_->SetBool("mattePanel", false);
+  settings_->SetBool("mattePanel", true);
   settings_->SetString("searchEngine", "google");
   settings_->SetString("addressOpenMode", "current");
   settings_->SetString("addressPosition", "center");
   settings_->SetString("extensionsPosition", "left");
   settings_->SetBool("vpnToolbarVisible", true);
+  settings_->SetBool("showSidebar", true);
+  settings_->SetBool("showBack", true);
+  settings_->SetBool("showFavorites", true);
+  settings_->SetBool("showNewTab", true);
+  settings_->SetBool("showDownloads", true);
   settings_->SetString("downloadsMode", "dynamic");
   settings_->SetString("startPageMode", "blank");
   settings_->SetString("startPageUrl", "");
@@ -95,6 +101,13 @@ bool BrowserWindow::CreateNativeWindow() {
                               WS_MAXIMIZEBOX | WS_SYSMENU,
                           x, y, width, height, nullptr, nullptr, wc.hInstance, this);
   if (!hwnd_) return false;
+
+  // Windows 11 system backdrop gives the frameless shell a native matte surface.
+  const DWORD backdrop = 2;  // DWMSBT_MAINWINDOW
+  DwmSetWindowAttribute(hwnd_, 38, &backdrop, sizeof(backdrop));
+  const MARGINS glass = {-1};
+  DwmExtendFrameIntoClientArea(hwnd_, &glass);
+
   ShowWindow(hwnd_, SW_SHOW);
   UpdateWindow(hwnd_);
   return true;
@@ -106,9 +119,31 @@ void BrowserWindow::CreateShellBrowser() {
   CefWindowInfo info;
   info.SetAsChild(hwnd_, CefRect(0, 0, rect.right, rect.bottom));
   CefBrowserSettings settings;
+  settings.background_color = CefColorSetARGB(0, 0, 0, 0);
   const auto url = FileUrl(std::filesystem::u8path(ExecutableDirectory()) / "ui" / "index.html");
   CefBrowserHost::CreateBrowser(info, new BrowserClient(this, BrowserRole::kShell),
                                 url, settings, nullptr, nullptr);
+}
+
+void BrowserWindow::OpenSettingsWindow() {
+  if (settings_browser_) {
+    HWND settings_hwnd = settings_browser_->GetHost()->GetWindowHandle();
+    ShowWindow(settings_hwnd, SW_RESTORE);
+    SetForegroundWindow(settings_hwnd);
+    return;
+  }
+
+  CefWindowInfo info;
+  const std::wstring title =
+      settings_->GetString("language") == "en" ? L"Soulu Settings" : L"Настройки Soulu";
+  info.SetAsPopup(hwnd_, title);
+  CefBrowserSettings browser_settings;
+  browser_settings.background_color = CefColorSetARGB(255, 246, 247, 249);
+  const auto url = FileUrl(std::filesystem::u8path(ExecutableDirectory()) / "ui" /
+                           "settings.html");
+  CefBrowserHost::CreateBrowser(info,
+      new BrowserClient(this, BrowserRole::kSettings), url,
+      browser_settings, nullptr, nullptr);
 }
 
 void BrowserWindow::NewTab(const std::string& url) {
@@ -121,7 +156,7 @@ void BrowserWindow::NewTab(const std::string& url) {
   RECT rect = {};
   GetClientRect(hwnd_, &rect);
   CefWindowInfo info;
-  info.SetAsChild(hwnd_, CefRect(0, 54, rect.right, std::max(1L, rect.bottom - 54L)));
+  info.SetAsChild(hwnd_, CefRect(0, 48, rect.right, std::max(1L, rect.bottom - 48L)));
   CefBrowserSettings settings;
   CefBrowserHost::CreateBrowser(info, new BrowserClient(this, BrowserRole::kContent, id),
                                 url, settings, nullptr, nullptr);
@@ -132,6 +167,19 @@ void BrowserWindow::AttachShell(CefRefPtr<CefBrowser> browser) {
   shell_ = browser;
   NewTab();
   Layout();
+}
+
+void BrowserWindow::AttachSettings(CefRefPtr<CefBrowser> browser) {
+  settings_browser_ = browser;
+  HWND settings_hwnd = browser->GetHost()->GetWindowHandle();
+  RECT work = {};
+  SystemParametersInfoW(SPI_GETWORKAREA, 0, &work, 0);
+  const int width = std::min(1040L, work.right - work.left - 100L);
+  const int height = std::min(760L, work.bottom - work.top - 90L);
+  const int x = work.left + (work.right - work.left - width) / 2;
+  const int y = work.top + (work.bottom - work.top - height) / 2;
+  SetWindowPos(settings_hwnd, HWND_TOP, x, y, width, height,
+               SWP_SHOWWINDOW);
 }
 
 void BrowserWindow::AttachContent(int tab_id, CefRefPtr<CefBrowser> browser) {
@@ -172,8 +220,10 @@ void BrowserWindow::CloseTab(int id) {
   EmitState();
 }
 
-void BrowserWindow::BrowserClosed(CefRefPtr<CefBrowser> browser, int tab_id, bool shell) {
+void BrowserWindow::BrowserClosed(CefRefPtr<CefBrowser> browser, int tab_id,
+                                  bool shell, bool settings) {
   if (shell) shell_ = nullptr;
+  else if (settings) settings_browser_ = nullptr;
   else {
     tabs_.erase(std::remove_if(tabs_.begin(), tabs_.end(),
                                [tab_id](const Tab& tab) { return tab.id == tab_id; }),
@@ -181,7 +231,7 @@ void BrowserWindow::BrowserClosed(CefRefPtr<CefBrowser> browser, int tab_id, boo
     if (active_tab_id_ == tab_id) active_tab_id_ = tabs_.empty() ? 0 : tabs_.front().id;
     if (!closing_ && tabs_.empty()) NewTab();
   }
-  if (closing_ && !shell_ && tabs_.empty()) DestroyWindow(hwnd_);
+  if (closing_ && !shell_ && !settings_browser_ && tabs_.empty()) DestroyWindow(hwnd_);
   else { Layout(); EmitState(); }
 }
 
@@ -252,7 +302,7 @@ void BrowserWindow::Layout() {
     HWND shell_hwnd = shell_->GetHost()->GetWindowHandle();
     SetWindowPos(shell_hwnd, HWND_BOTTOM, 0, 0, width, height, SWP_NOACTIVATE);
   }
-  const int toolbar = settings_->GetString("layout") == "classic" ? 82 : 54;
+  const int toolbar = settings_->GetString("layout") == "classic" ? 76 : 48;
   const int x = sidebar_visible_ ? 276 : 0;
   const int y = std::max(toolbar, suggestions_height_);
   for (auto& tab : tabs_) {
@@ -312,9 +362,12 @@ void BrowserWindow::ReplyEmpty(CefRefPtr<CefMessageRouterBrowserSide::Callback> 
   Reply(callback, EmptyValue());
 }
 void BrowserWindow::Emit(const std::string& event, CefRefPtr<CefValue> value) {
-  if (!shell_ || !shell_->GetMainFrame()) return;
   const std::string script = "window.__souluEmit&&window.__souluEmit(\"" + event + "\"," + Json(value) + ");";
-  shell_->GetMainFrame()->ExecuteJavaScript(script, shell_->GetMainFrame()->GetURL(), 0);
+  for (const auto& browser : {shell_, settings_browser_}) {
+    if (browser && browser->GetMainFrame())
+      browser->GetMainFrame()->ExecuteJavaScript(
+          script, browser->GetMainFrame()->GetURL(), 0);
+  }
 }
 void BrowserWindow::EmitState() { Emit("state", Wrap(State())); }
 
@@ -367,6 +420,7 @@ void BrowserWindow::HandleBridge(const std::string& request,
     return Reply(callback, Wrap(bookmarks_->Copy()));
   }
   else if (action == "browser.bookmarks.open") Navigate(payload->GetString());
+  else if (action == "browser.settings.openWindow") OpenSettingsWindow();
   else if (action == "browser.settings.get") return Reply(callback, settings_->Copy(false));
   else if (action == "browser.settings.set") {
     if (payload && payload->GetType() == VTYPE_DICTIONARY) {
@@ -421,7 +475,7 @@ void BrowserWindow::HandleBridge(const std::string& request,
     const int command = TrackPopupMenu(menu, TPM_RETURNCMD | TPM_RIGHTBUTTON,
                                        point.x, point.y, 0, hwnd_, nullptr);
     DestroyMenu(menu);
-    if (command == 1) Emit("openSettings", EmptyValue());
+    if (command == 1) OpenSettingsWindow();
     else if (command == 2) Emit("openDownloads", EmptyValue());
     else if (command == 3) NewTab();
   }
@@ -445,7 +499,7 @@ void BrowserWindow::HandleBridge(const std::string& request,
       }
     } else if (command == 2) Emit("openFavorites", EmptyValue());
     else if (command == 3) Emit("requestFind", EmptyValue());
-    else if (command == 4) Emit("openSettings", EmptyValue());
+    else if (command == 4) OpenSettingsWindow();
   }
   else if (action == "browser.shareMenu") {
     if (auto* t = ActiveTab()) {
@@ -464,8 +518,9 @@ void BrowserWindow::CloseAll() {
   if (closing_) return;
   closing_ = true;
   for (auto& tab : tabs_) if (tab.browser) tab.browser->GetHost()->CloseBrowser(true);
+  if (settings_browser_) settings_browser_->GetHost()->CloseBrowser(true);
   if (shell_) shell_->GetHost()->CloseBrowser(true);
-  if (!shell_ && tabs_.empty()) DestroyWindow(hwnd_);
+  if (!shell_ && !settings_browser_ && tabs_.empty()) DestroyWindow(hwnd_);
 }
 
 LRESULT CALLBACK BrowserWindow::WindowProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam) {

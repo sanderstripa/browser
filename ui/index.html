@@ -6,6 +6,7 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self';style-src 'self';script-src 'self';img-src 'self' data: https: http:;frame-src 'self';">
   <title>Soulu</title>
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="cef-overrides.css">
 </head>
 <body data-layout="compact" data-theme="system" data-matte="false" data-address-position="center" data-extensions-position="left">
   <div class="window-drag-strip" aria-hidden="true"></div>
@@ -113,7 +114,7 @@
         <h2 data-i18n="appearance">Оформление</h2>
         <div class="layout-picker">
           <button class="layout-card" data-layout-choice="classic"><span class="layout-preview preview-classic"><i></i><i></i></span><strong data-i18n="classic">Классический</strong><small data-i18n="classicHint">Адрес сверху, вкладки ниже</small></button>
-          <button class="layout-card" data-layout-choice="compact"><span class="layout-preview preview-compact"><i></i></span><strong data-i18n="compact">Компактный</strong><small data-i18n="compactHint">Всё в одной строке</small></button>
+          <button class="layout-card" data-layout-choice="compact"><span class="layout-preview preview-compact"><i></i></span><strong data-i18n="compact">Основная</strong><small data-i18n="compactHint">Всё в одной строке</small></button>
         </div>
         <label class="setting-line"><strong data-i18n="theme">Тема</strong><select id="themeSelect"><option value="system" data-i18n="system">Системная</option><option value="light" data-i18n="light">Светлая</option><option value="dark" data-i18n="dark">Тёмная</option></select></label>
         <label class="setting-line"><span><strong data-i18n="mattePanel">Матовая панель</strong><small data-i18n="mattePanelHint">Полупрозрачность и мягкий градиент</small></span><input type="checkbox" id="mattePanelToggle"></label>
@@ -148,5 +149,6 @@
 
   <script src="cef-bridge.js"></script>
   <script src="renderer.js"></script>
+  <script src="cef-enhancements.js"></script>
 </body>
 </html>

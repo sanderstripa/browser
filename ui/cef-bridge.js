@@ -1,4 +1,5 @@
 (() => {
+  document.documentElement.classList.add("cef-runtime");
   // Electron exposes this API from preload.js. CEF exposes cefQuery instead.
   if (window.browserShell || typeof window.cefQuery !== "function") return;
 
@@ -46,6 +47,7 @@
     addBookmark: () => invoke("browser.bookmarks.add"),
     removeBookmark: id => invoke("browser.bookmarks.remove", id),
     openBookmark: url => invoke("browser.bookmarks.open", url),
+    openSettingsWindow: () => invoke("browser.settings.openWindow"),
     getSettings: () => invoke("browser.settings.get"),
     setSettings: value => invoke("browser.settings.set", value),
     chooseDownloadFolder: () => invoke("browser.downloads.chooseFolder"),

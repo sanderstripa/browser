@@ -16,8 +16,10 @@ class BrowserWindow final : public CefBaseRefCounted {
   static void Create();
 
   void AttachShell(CefRefPtr<CefBrowser> browser);
+  void AttachSettings(CefRefPtr<CefBrowser> browser);
   void AttachContent(int tab_id, CefRefPtr<CefBrowser> browser);
-  void BrowserClosed(CefRefPtr<CefBrowser> browser, int tab_id, bool shell);
+  void BrowserClosed(CefRefPtr<CefBrowser> browser, int tab_id,
+                     bool shell, bool settings);
   void UpdateTitle(int tab_id, const std::string& title);
   void UpdateAddress(int tab_id, const std::string& url);
   void UpdateFavicon(int tab_id, const std::string& url);
@@ -44,6 +46,7 @@ class BrowserWindow final : public CefBaseRefCounted {
   static LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam);
   bool CreateNativeWindow();
   void CreateShellBrowser();
+  void OpenSettingsWindow();
   void NewTab(const std::string& url = "about:blank");
   void CloseTab(int id);
   void SwitchTab(int id);
@@ -67,6 +70,7 @@ class BrowserWindow final : public CefBaseRefCounted {
 
   HWND hwnd_ = nullptr;
   CefRefPtr<CefBrowser> shell_;
+  CefRefPtr<CefBrowser> settings_browser_;
   std::vector<Tab> tabs_;
   CefRefPtr<CefDictionaryValue> settings_;
   CefRefPtr<CefListValue> bookmarks_;

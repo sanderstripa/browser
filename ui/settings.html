@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self';style-src 'self';script-src 'self';img-src 'self' data:;">
+  <title>Настройки Soulu</title>
+  <link rel="stylesheet" href="settings.css">
+</head>
+<body>
+  <main class="settings-shell">
+    <aside class="settings-nav">
+      <div class="brand"><span class="brand-mark">S</span><span><strong>Soulu</strong><small data-t="settings">Настройки</small></span></div>
+      <nav>
+        <button class="nav-item active" data-section="appearance"><span>◐</span><b data-t="appearance">Оформление</b></button>
+        <button class="nav-item" data-section="toolbar"><span>▰</span><b data-t="toolbar">Панель</b></button>
+        <button class="nav-item" data-section="search"><span>⌕</span><b data-t="search">Поиск</b></button>
+        <button class="nav-item" data-section="startup"><span>⌂</span><b data-t="startup">Запуск</b></button>
+        <button class="nav-item" data-section="downloads"><span>↓</span><b data-t="downloads">Загрузки</b></button>
+        <button class="nav-item" data-section="vpn"><span>≈</span><b>VPN</b></button>
+        <button class="nav-item" data-section="accounts"><span>◎</span><b data-t="accounts">Аккаунты</b></button>
+        <button class="nav-item" data-section="passwords"><span>⌁</span><b data-t="passwords">Пароли</b></button>
+      </nav>
+      <div class="version">Soulu CEF Preview 0.9</div>
+    </aside>
+
+    <section class="settings-content">
+      <header><h1 id="sectionTitle">Оформление</h1><p id="sectionHint">Настройте вид браузера и основной панели.</p></header>
+
+      <div class="settings-section active" data-page="appearance">
+        <article class="card">
+          <h2 data-t="panelMode">Режим панели</h2>
+          <div class="segmented">
+            <label><input type="radio" name="layout" value="compact"><span data-t="mainMode">Основная</span></label>
+            <label><input type="radio" name="layout" value="classic"><span data-t="classicMode">Классическая</span></label>
+          </div>
+          <p class="note" data-t="mainDefault">Основная — компактная панель Soulu и режим по умолчанию.</p>
+        </article>
+        <article class="card rows">
+          <label class="row"><span><b data-t="theme">Тема</b><small data-t="themeHint">Оформление интерфейса</small></span><select id="theme"><option value="system" data-t="system">Системная</option><option value="light" data-t="light">Светлая</option><option value="dark" data-t="dark">Тёмная</option></select></label>
+          <label class="row"><span><b data-t="matte">Матовая прозрачность</b><small data-t="matteHint">Размытие и мягкий градиент панели</small></span><input class="switch" id="mattePanel" type="checkbox"></label>
+          <label class="row"><span><b data-t="language">Язык</b><small data-t="languageHint">Язык меню и настроек</small></span><select id="language"><option value="ru">Русский</option><option value="en">English</option></select></label>
+        </article>
+      </div>
+
+      <div class="settings-section" data-page="toolbar">
+        <article class="card">
+          <h2 data-t="visibleWidgets">Элементы панели</h2>
+          <p class="note" data-t="widgetsHint">Отключённые элементы исчезают сразу. Вернуть их можно здесь.</p>
+          <div class="toggle-grid">
+            <label><span data-t="sidebar">Боковая панель</span><input class="switch" data-setting="showSidebar" type="checkbox"></label>
+            <label><span data-t="back">Назад</span><input class="switch" data-setting="showBack" type="checkbox"></label>
+            <label><span data-t="favorites">Избранное</span><input class="switch" data-setting="showFavorites" type="checkbox"></label>
+            <label><span data-t="newTab">Новая вкладка</span><input class="switch" data-setting="showNewTab" type="checkbox"></label>
+            <label><span data-t="downloads">Загрузки</span><input class="switch" data-setting="showDownloads" type="checkbox"></label>
+            <label><span>VPN</span><input class="switch" data-setting="vpnToolbarVisible" type="checkbox"></label>
+          </div>
+        </article>
+        <article class="card rows">
+          <label class="row"><span><b data-t="addressPosition">Положение адресной строки</b></span><select id="addressPosition"><option value="center" data-t="center">По центру</option><option value="left" data-t="left">Слева</option></select></label>
+          <label class="row"><span><b data-t="extensionsPosition">Положение расширений</b></span><select id="extensionsPosition"><option value="left" data-t="leftOfAddress">Слева от адреса</option><option value="right" data-t="rightOfAddress">Справа от адреса</option></select></label>
+          <label class="row"><span><b data-t="downloadIcon">Иконка загрузок</b></span><select id="downloadsMode"><option value="dynamic" data-t="dynamic">Динамически</option><option value="always" data-t="always">Всегда</option></select></label>
+        </article>
+      </div>
+
+      <div class="settings-section" data-page="search">
+        <article class="card rows">
+          <label class="row"><span><b data-t="searchEngine">Поисковая система</b></span><select id="searchEngine"><option value="google">Google</option><option value="bing">Bing</option><option value="duckduckgo">DuckDuckGo</option></select></label>
+          <label class="row"><span><b data-t="addressBehavior">Открывать адрес</b></span><select id="addressOpenMode"><option value="current" data-t="currentTab">В текущей вкладке</option><option value="newIfOccupied" data-t="newIfOccupied">В новой, если текущая занята</option></select></label>
+        </article>
+      </div>
+
+      <div class="settings-section" data-page="startup">
+        <article class="card rows">
+          <label class="row"><span><b data-t="startPage">Стартовая страница</b></span><select id="startPageMode"><option value="blank" data-t="blank">Пустая</option><option value="custom" data-t="custom">Свой адрес</option></select></label>
+          <label class="field"><span data-t="startUrl">Адрес стартовой страницы</span><input id="startPageUrl" placeholder="https://"></label>
+        </article>
+      </div>
+
+      <div class="settings-section" data-page="downloads">
+        <article class="card rows">
+          <label class="row"><span><b data-t="askLocation">Спрашивать место сохранения</b></span><input class="switch" id="askDownloadLocation" type="checkbox"></label>
+          <label class="field"><span data-t="downloadPath">Папка загрузок</span><input id="downloadPath" placeholder="По умолчанию Windows"></label>
+        </article>
+      </div>
+
+      <div class="settings-section" data-page="vpn">
+        <article class="card">
+          <h2>VPN</h2>
+          <p class="note" data-t="vpnHint">VPN выключен по умолчанию. Кнопку на панели можно скрыть в разделе «Панель».</p>
+          <label class="row"><span><b data-t="vpnButton">Показывать кнопку VPN</b></span><input class="switch" data-setting="vpnToolbarVisible" type="checkbox"></label>
+        </article>
+      </div>
+
+      <div class="settings-section" data-page="accounts">
+        <article class="card"><h2 data-t="accounts">Аккаунты</h2><p class="note" data-t="accountsHint">Вход в Google выполняется в общей сессии браузера. Синхронизация Chrome пока не включена.</p></article>
+      </div>
+
+      <div class="settings-section" data-page="passwords">
+        <article class="card"><h2 data-t="passwords">Пароли</h2><p class="note" data-t="passwordsHint">Хранилище паролей будет подключено к нативной CEF-реализации на следующем этапе.</p></article>
+      </div>
+    </section>
+  </main>
+  <script src="cef-bridge.js"></script>
+  <script src="settings.js"></script>
+</body>
+</html>
