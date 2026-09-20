@@ -55,6 +55,10 @@ BrowserWindow::BrowserWindow()
   settings_->SetBool("mattePanel", false);
   settings_->SetString("searchEngine", "google");
   settings_->SetString("addressOpenMode", "current");
+  settings_->SetString("addressPosition", "center");
+  settings_->SetString("extensionsPosition", "left");
+  settings_->SetBool("vpnToolbarVisible", true);
+  settings_->SetString("downloadsMode", "dynamic");
   settings_->SetString("startPageMode", "blank");
   settings_->SetString("startPageUrl", "");
   settings_->SetBool("askDownloadLocation", true);
@@ -116,7 +120,7 @@ void BrowserWindow::NewTab(const std::string& url) {
   RECT rect = {};
   GetClientRect(hwnd_, &rect);
   CefWindowInfo info;
-  info.SetAsChild(hwnd_, CefRect(0, 52, rect.right, std::max(1L, rect.bottom - 52L)));
+  info.SetAsChild(hwnd_, CefRect(0, 54, rect.right, std::max(1L, rect.bottom - 54L)));
   CefBrowserSettings settings;
   CefBrowserHost::CreateBrowser(info, new BrowserClient(this, BrowserRole::kContent, id),
                                 url, settings, nullptr, nullptr);
@@ -247,7 +251,7 @@ void BrowserWindow::Layout() {
     HWND shell_hwnd = shell_->GetHost()->GetWindowHandle();
     SetWindowPos(shell_hwnd, HWND_BOTTOM, 0, 0, width, height, SWP_NOACTIVATE);
   }
-  const int toolbar = settings_->GetString("layout") == "classic" ? 84 : 52;
+  const int toolbar = settings_->GetString("layout") == "classic" ? 82 : 54;
   const int x = sidebar_visible_ ? 276 : 0;
   const int y = std::max(toolbar, suggestions_height_);
   for (auto& tab : tabs_) {
@@ -393,6 +397,15 @@ void BrowserWindow::HandleBridge(const std::string& request,
     return Reply(callback, Wrap(result));
   }
   else if (action == "browser.passwords.get") return Reply(callback, Wrap(CefListValue::Create()));
+  else if (action == "vpn.settings.get") {
+    auto result = CefDictionaryValue::Create(); result->SetString("lastProfileId", "");
+    return Reply(callback, result);
+  }
+  else if (action == "vpn.settings.set") return Reply(callback, payload);
+  else if (action == "vpn.send") {
+    auto result = CefDictionaryValue::Create(); result->SetBool("ok", true); result->SetString("state", "disconnected");
+    return Reply(callback, result);
+  }
   else if (action == "window.minimize") ShowWindow(hwnd_, SW_MINIMIZE);
   else if (action == "window.maximize") ShowWindow(hwnd_, IsZoomed(hwnd_) ? SW_RESTORE : SW_MAXIMIZE);
   else if (action == "window.close") PostMessage(hwnd_, WM_CLOSE, 0, 0);

@@ -1,2 +1,2 @@
 #include "../resource.h"
-IDI_SOULU ICON "assets/ui/browser-app-icon.ico"
+IDI_SOULU ICON "../assets/ui/browser-app-icon.ico"

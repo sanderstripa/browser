@@ -35,7 +35,7 @@ class BrowserClient final : public CefClient,
                           const std::vector<CefString>& icon_urls) override;
   void OnLoadingStateChange(CefRefPtr<CefBrowser> browser, bool is_loading,
                             bool can_go_back, bool can_go_forward) override;
-  void OnBeforeDownload(CefRefPtr<CefBrowser> browser,
+  bool OnBeforeDownload(CefRefPtr<CefBrowser> browser,
                         CefRefPtr<CefDownloadItem> download_item,
                         const CefString& suggested_name,
                         CefRefPtr<CefBeforeDownloadCallback> callback) override;

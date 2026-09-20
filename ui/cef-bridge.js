@@ -58,11 +58,19 @@
     minimize: () => invoke("window.minimize"),
     maximize: () => invoke("window.maximize"),
     close: () => invoke("window.close"),
+    dragStart: () => invoke("window.beginDrag"),
+    dragMove: () => Promise.resolve(),
+    dragEnd: () => Promise.resolve(),
+    toolbarMenu: () => invoke("window.toolbarMenu"),
     getState: () => invoke("browser.state.get"),
     onState: callback => subscribe("state", callback),
     onDownloads: callback => subscribe("downloads", callback),
     onFocusAddress: callback => subscribe("focusAddress", callback),
-    onRequestFind: callback => subscribe("requestFind", callback)
+    onRequestFind: callback => subscribe("requestFind", callback),
+    onOpenSettings: callback => subscribe("openSettings", callback),
+    onOpenDownloads: callback => subscribe("openDownloads", callback),
+    onOpenFavorites: callback => subscribe("openFavorites", callback),
+    onOpenVpnSettings: callback => subscribe("openVpnSettings", callback)
   };
 
   window.vpn = {
@@ -72,18 +80,4 @@
     onState: callback => subscribe("vpnState", callback)
   };
 
-  document.addEventListener("mousedown", event => {
-    if (event.button !== 0) return;
-    if (event.target.closest(".window-drag-strip,.compact-drag-space")) {
-      event.preventDefault();
-      invoke("window.beginDrag");
-    }
-  });
-
-  document.addEventListener("contextmenu", event => {
-    const toolbar = event.target.closest(".toolbar,.compact-toolbar");
-    if (!toolbar || event.target.closest("input,button,select,.suggestions")) return;
-    event.preventDefault();
-    invoke("window.toolbarMenu");
-  });
 })();

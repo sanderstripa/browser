@@ -15,7 +15,6 @@ std::wstring LocalDataPath() {
 }
 
 int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, wchar_t*, int) {
-  CefEnableHighDPISupport();
   CefMainArgs main_args(instance);
   auto command_line = CefCommandLine::CreateCommandLine();
   command_line->InitFromString(GetCommandLineW());

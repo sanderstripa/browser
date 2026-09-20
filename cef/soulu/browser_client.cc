@@ -77,11 +77,12 @@ void BrowserClient::OnLoadingStateChange(CefRefPtr<CefBrowser>, bool loading,
     owner_->UpdateLoading(tab_id_, loading, can_go_back);
 }
 
-void BrowserClient::OnBeforeDownload(CefRefPtr<CefBrowser>,
+bool BrowserClient::OnBeforeDownload(CefRefPtr<CefBrowser>,
                                      CefRefPtr<CefDownloadItem>,
                                      const CefString& suggested_name,
                                      CefRefPtr<CefBeforeDownloadCallback> callback) {
   callback->Continue(suggested_name, true);
+  return true;
 }
 
 void BrowserClient::OnDownloadUpdated(CefRefPtr<CefBrowser>,
