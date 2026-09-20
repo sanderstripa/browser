@@ -22,9 +22,9 @@ ManifestDPIAware true
 
 !define MUI_ICON "${BUILD_DIR}\ui\browser-app-icon.ico"
 !define MUI_UNICON "${BUILD_DIR}\ui\browser-app-icon.ico"
-!define MUI_WELCOMEFINISHPAGE_BITMAP "${__FILEDIR__}\installer-side.bmp"
+!define MUI_WELCOMEFINISHPAGE_BITMAP "browser\scripts\installer-side.bmp"
 !define MUI_HEADERIMAGE
-!define MUI_HEADERIMAGE_BITMAP "${__FILEDIR__}\installer-header.bmp"
+!define MUI_HEADERIMAGE_BITMAP "browser\scripts\installer-header.bmp"
 !define MUI_HEADERIMAGE_RIGHT
 !define MUI_ABORTWARNING
 !define MUI_WELCOMEPAGE_TITLE "Добро пожаловать в Soulu"
