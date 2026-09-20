@@ -38,8 +38,8 @@
     const lang = settings.language === "en" ? "en" : "ru";
     document.documentElement.lang = lang;
     document.title = lang === "en" ? "Soulu Settings" : "Настройки Soulu";
-    $("[data-t]").forEach(el => { const v=copy[lang][el.dataset.t]; if(v) el.textContent=v; });
-    $("[data-t-placeholder]").forEach(el => { const v=copy[lang][el.dataset.tPlaceholder]; if(v) el.placeholder=v; });
+    $$("[data-t]").forEach(el => { const v=copy[lang][el.dataset.t]; if(v) el.textContent=v; });
+    $$("[data-t-placeholder]").forEach(el => { const v=copy[lang][el.dataset.tPlaceholder]; if(v) el.placeholder=v; });
     const active=$(".nav-item.active")?.dataset.section || "appearance";
     $("#sectionTitle").textContent = titles[active] === "VPN" ? "VPN" : copy[lang][titles[active]];
     $("#sectionHint").textContent = sectionHints[lang][active];
