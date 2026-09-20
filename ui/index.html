@@ -7,19 +7,21 @@
   <title>Soulu</title>
   <link rel="stylesheet" href="styles.css">
 </head>
-<body data-layout="classic" data-theme="system" data-matte="false" data-address-position="center" data-extensions-position="left">
+<body data-layout="compact" data-theme="system" data-matte="false" data-address-position="center" data-extensions-position="left">
   <div class="window-drag-strip" aria-hidden="true"></div>
 
   <header class="compact-toolbar browser-toolbar" aria-label="Компактная панель Soulu">
     <div class="compact-toolbar-surface" data-toolbar-surface>
       <button class="compact-control sidebar-button" id="compactSidebarButton" data-i18n-title="tabs"><svg viewBox="0 0 24 24"><rect x="3.25" y="4.25" width="17.5" height="15.5" rx="2.4"/><path d="M8.7 4.7v14.6"/></svg></button>
       <button class="compact-control" id="compactBackButton" data-i18n-title="back" disabled><svg viewBox="0 0 24 24"><path d="m14.5 5.5-6 6.5 6 6.5"/></svg></button>
+      <button class="compact-control" id="compactFavoritesButton" data-i18n-title="favorites"><svg viewBox="0 0 24 24"><path d="m12 3 2.75 5.57 6.15.9-4.45 4.33 1.05 6.12L12 17.03l-5.5 2.89 1.05-6.12L3.1 9.47l6.15-.9L12 3Z"/></svg></button>
 
       <div class="extension-slot compact-extension-slot extension-left" aria-label="Закреплённые расширения">
         <button class="compact-control vpn-button" id="compactVpnButton" title="VPN" aria-pressed="false"><img id="compactVpnToolbarIcon" src="vpn/icons/icon-off-32.svg" alt=""></button>
       </div>
 
       <div class="compact-tab-flow" id="compactTabFlow"><template id="compactTabsAnchor"></template></div>
+      <button class="compact-control compact-new-tab" id="compactNewTabButton" data-i18n-title="newTab"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
 
       <div class="extension-slot compact-extension-slot extension-right" aria-label="Закреплённые расширения">
         <button class="compact-control vpn-button" id="compactVpnButtonRight" title="VPN" aria-pressed="false"><img id="compactVpnToolbarIconRight" src="vpn/icons/icon-off-32.svg" alt=""></button>
@@ -30,8 +32,6 @@
         <svg class="download-progress" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path class="progress-arc" d="M12 3.5a8.5 8.5 0 0 1 8.5 8.5"/></svg>
         <span class="downloads-badge" id="compactDownloadsBadge"></span>
       </button>
-      <button class="compact-control" id="compactNewTabButton" data-i18n-title="newTab"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
-
       <span class="compact-drag-space" aria-hidden="true"></span>
       <span class="compact-divider compact-divider-window" aria-hidden="true"></span>
       <button class="compact-window-button" id="compactWindowMinimize" data-i18n-title="minimize"><svg viewBox="0 0 16 16"><path d="M3 8.5h10"/></svg></button>
@@ -45,6 +45,7 @@
       <div class="left-controls">
         <button class="toolbar-button sidebar-button" id="sidebarButton" data-i18n-title="tabs"><svg viewBox="0 0 24 24"><rect x="3.25" y="4.25" width="17.5" height="15.5" rx="2.4"/><path d="M8.7 4.7v14.6"/></svg></button>
         <button class="toolbar-button" id="backButton" data-i18n-title="back" disabled><svg viewBox="0 0 24 24"><path d="m14.5 5.5-6 6.5 6 6.5"/></svg></button>
+        <button class="toolbar-button" id="favoritesButton" data-i18n-title="favorites"><svg viewBox="0 0 24 24"><path d="m12 3 2.75 5.57 6.15.9-4.45 4.33 1.05 6.12L12 17.03l-5.5 2.89 1.05-6.12L3.1 9.47l6.15-.9L12 3Z"/></svg></button>
       </div>
 
       <div class="extension-slot classic-extension-slot extension-left" aria-label="Закреплённые расширения">
@@ -53,7 +54,7 @@
 
       <div class="classic-address-wrap">
         <form class="classic-address-pill" id="classicAddressForm">
-          <button class="address-menu-button" type="button" id="classicPageMenu" data-i18n-title="pageMenu"><svg viewBox="0 0 20 20"><circle cx="5" cy="10" r="1"/><circle cx="10" cy="10" r="1"/><circle cx="15" cy="10" r="1"/></svg></button>
+          <button class="address-menu-button" type="button" id="classicPageMenu" data-i18n-title="pageMenu"><svg viewBox="0 0 20 20"><path d="M4 5.5h12M4 10h12M4 14.5h7"/></svg></button>
           <input id="classicAddress" data-i18n-placeholder="addressPlaceholder" placeholder="Поиск или адрес" autocomplete="off" spellcheck="false">
           <button class="tab-action classic-reload" type="button" data-reload data-i18n-title="reload"><svg class="reload-svg" viewBox="0 0 20 20"><path d="M15.4 7A6 6 0 1 0 16 12M15.5 4v3.5H12"/></svg><svg class="stop-svg" viewBox="0 0 20 20"><rect x="6.5" y="6.5" width="7" height="7" rx="1"/></svg></button>
           <button class="tab-action close-action classic-close-tab" id="classicCloseTab" type="button" data-i18n-title="close">×</button>
