@@ -110,3 +110,17 @@ body[data-show-downloads="false"] #compactDownloadsButton,
 body[data-show-vpn="false"] .vpn-button {
   display: none !important;
 }
+
+
+/* The CEF shell must start exactly at the client edge; the legacy drag strip
+   created the unexplained translucent band seen above the toolbar. */
+html.cef-runtime .window-drag-strip { display: none !important; }
+
+html.cef-runtime body[data-incognito="true"] .compact-toolbar {
+  background: linear-gradient(105deg, rgba(39,43,52,.88), rgba(55,61,73,.78));
+  color: #f4f6fa;
+}
+html.cef-runtime body[data-incognito="true"] .compact-control,
+html.cef-runtime body[data-incognito="true"] .compact-window-button {
+  color: #f4f6fa;
+}

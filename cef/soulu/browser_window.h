@@ -7,6 +7,7 @@
 
 #include "include/cef_browser.h"
 #include "include/cef_download_item.h"
+#include "include/cef_request_context.h"
 #include "include/cef_values.h"
 #include "include/wrapper/cef_message_router.h"
 
@@ -16,10 +17,8 @@ class BrowserWindow final : public CefBaseRefCounted {
   static void Create();
 
   void AttachShell(CefRefPtr<CefBrowser> browser);
-  void AttachSettings(CefRefPtr<CefBrowser> browser);
   void AttachContent(int tab_id, CefRefPtr<CefBrowser> browser);
-  void BrowserClosed(CefRefPtr<CefBrowser> browser, int tab_id,
-                     bool shell, bool settings);
+  void BrowserClosed(CefRefPtr<CefBrowser> browser, int tab_id, bool shell);
   void UpdateTitle(int tab_id, const std::string& title);
   void UpdateAddress(int tab_id, const std::string& url);
   void UpdateFavicon(int tab_id, const std::string& url);
@@ -37,8 +36,16 @@ class BrowserWindow final : public CefBaseRefCounted {
     std::string title = "New Tab";
     std::string url = "about:blank";
     std::string favicon;
+    std::string profile_id = "personal";
+    bool incognito = false;
     bool loading = false;
     bool can_go_back = false;
+  };
+
+  struct Profile {
+    std::string id;
+    std::string name;
+    CefRefPtr<CefRequestContext> context;
   };
 
   BrowserWindow();
@@ -46,17 +53,28 @@ class BrowserWindow final : public CefBaseRefCounted {
   static LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam);
   bool CreateNativeWindow();
   void CreateShellBrowser();
-  void OpenSettingsWindow();
-  void NewTab(const std::string& url = "about:blank");
+  void OpenSettingsTab();
+  void InitializeProfiles();
+  void CreateProfile(const std::string& name, const std::string& requested_id = "");
+  void SaveProfiles() const;
+  void SwitchProfile(const std::string& id);
+  Profile* ActiveProfile();
+  CefRefPtr<CefRequestContext> ContextForNewTab(bool incognito);
+  void ApplyProxy(CefRefPtr<CefRequestContext> context);
+  void NewTab(const std::string& url = "about:blank", bool incognito = false);
   void CloseTab(int id);
   void SwitchTab(int id);
   void Navigate(const std::string& value);
+  void FocusAddress();
   void Layout();
   void CloseAll();
   Tab* ActiveTab();
   Tab* FindTab(int id);
+  std::string VisibleProfileId() const;
   std::string NormalizeAddress(const std::string& value) const;
   CefRefPtr<CefDictionaryValue> State() const;
+  CefRefPtr<CefListValue> ProfileBookmarks() const;
+  CefRefPtr<CefListValue> ProfileDownloads() const;
   std::string Json(CefRefPtr<CefValue> value) const;
   std::string Json(CefRefPtr<CefDictionaryValue> value) const;
   void Reply(CefRefPtr<CefMessageRouterBrowserSide::Callback> callback,
@@ -70,16 +88,19 @@ class BrowserWindow final : public CefBaseRefCounted {
 
   HWND hwnd_ = nullptr;
   CefRefPtr<CefBrowser> shell_;
-  CefRefPtr<CefBrowser> settings_browser_;
   std::vector<Tab> tabs_;
+  std::vector<Profile> profiles_;
+  CefRefPtr<CefRequestContext> incognito_context_;
   CefRefPtr<CefDictionaryValue> settings_;
   CefRefPtr<CefListValue> bookmarks_;
   CefRefPtr<CefListValue> downloads_;
+  std::string active_profile_id_ = "personal";
   int next_tab_id_ = 1;
   int active_tab_id_ = 0;
   int right_panel_width_ = 0;
   int suggestions_height_ = 0;
   bool sidebar_visible_ = false;
+  bool vpn_enabled_ = false;
   bool closing_ = false;
   IMPLEMENT_REFCOUNTING(BrowserWindow);
 };

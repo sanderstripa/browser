@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <dwmapi.h>
 #include <filesystem>
+#include <fstream>
 #include <sstream>
 
 #include "examples/soulu/browser_client.h"
@@ -19,6 +20,18 @@ std::string ExecutableDirectory() {
   wchar_t path[MAX_PATH] = {};
   GetModuleFileNameW(nullptr, path, MAX_PATH);
   return std::filesystem::path(path).parent_path().u8string();
+}
+
+std::filesystem::path UserDataDirectory() {
+  wchar_t local_app_data[MAX_PATH] = {};
+  const DWORD length = GetEnvironmentVariableW(
+      L"LOCALAPPDATA", local_app_data, MAX_PATH);
+  std::filesystem::path root =
+      length ? std::filesystem::path(local_app_data)
+             : std::filesystem::path(ExecutableDirectory());
+  const auto directory = root / L"Soulu" / L"User Data";
+  std::filesystem::create_directories(directory);
+  return directory;
 }
 
 std::string FileUrl(std::filesystem::path path) {
@@ -70,6 +83,8 @@ BrowserWindow::BrowserWindow()
   settings_->SetString("startPageUrl", "");
   settings_->SetBool("askDownloadLocation", true);
   settings_->SetString("downloadPath", "");
+  settings_->SetString("updateChannel", "stable");
+  settings_->SetBool("automaticUpdates", true);
 }
 
 void BrowserWindow::Create() {
@@ -125,61 +140,161 @@ void BrowserWindow::CreateShellBrowser() {
                                 url, settings, nullptr, nullptr);
 }
 
-void BrowserWindow::OpenSettingsWindow() {
-  if (settings_browser_) {
-    HWND settings_hwnd = settings_browser_->GetHost()->GetWindowHandle();
-    ShowWindow(settings_hwnd, SW_RESTORE);
-    SetForegroundWindow(settings_hwnd);
-    return;
+void BrowserWindow::InitializeProfiles() {
+  if (!profiles_.empty()) return;
+  const auto file_path = UserDataDirectory() / L"profiles.json";
+  std::ifstream file(file_path, std::ios::binary);
+  if (file) {
+    std::stringstream buffer;
+    buffer << file.rdbuf();
+    auto parsed = CefParseJSON(buffer.str(), JSON_PARSER_RFC);
+    if (parsed && parsed->GetType() == VTYPE_LIST) {
+      auto list = parsed->GetList();
+      for (size_t i = 0; i < list->GetSize(); ++i) {
+        auto profile = list->GetDictionary(i);
+        if (profile)
+          CreateProfile(profile->GetString("name"),
+                        profile->GetString("id"));
+      }
+    }
   }
-
-  CefWindowInfo info;
-  const std::wstring title =
-      settings_->GetString("language") == "en" ? L"Soulu Settings" : L"Настройки Soulu";
-  info.SetAsPopup(hwnd_, title);
-  CefBrowserSettings browser_settings;
-  browser_settings.background_color = CefColorSetARGB(255, 246, 247, 249);
-  const auto url = FileUrl(std::filesystem::u8path(ExecutableDirectory()) / "ui" /
-                           "settings.html");
-  CefBrowserHost::CreateBrowser(info,
-      new BrowserClient(this, BrowserRole::kSettings), url,
-      browser_settings, nullptr, nullptr);
+  if (profiles_.empty()) CreateProfile("Личный", "personal");
+  active_profile_id_ = profiles_.front().id;
 }
 
-void BrowserWindow::NewTab(const std::string& url) {
+void BrowserWindow::CreateProfile(const std::string& name,
+                                  const std::string& requested_id) {
+  std::string id = requested_id.empty()
+      ? (profiles_.empty() ? "personal"
+                           : "profile-" + std::to_string(profiles_.size() + 1))
+      : requested_id;
+  CefRequestContextSettings context_settings;
+  const auto profile_path = UserDataDirectory() /
+      std::filesystem::u8path("Profiles/" + id);
+  std::filesystem::create_directories(profile_path);
+  CefString(&context_settings.cache_path) = profile_path.wstring();
+  context_settings.persist_session_cookies = 1;
+  context_settings.persist_user_preferences = 1;
+
+  Profile profile;
+  profile.id = id;
+  profile.name = name.empty() ? "Профиль" : name;
+  profile.context = CefRequestContext::CreateContext(context_settings, nullptr);
+  ApplyProxy(profile.context);
+  profiles_.push_back(profile);
+  SaveProfiles();
+}
+
+void BrowserWindow::SaveProfiles() const {
+  auto list = CefListValue::Create();
+  for (size_t i = 0; i < profiles_.size(); ++i) {
+    auto row = CefDictionaryValue::Create();
+    row->SetString("id", profiles_[i].id);
+    row->SetString("name", profiles_[i].name);
+    list->SetDictionary(i, row);
+  }
+  auto value = CefValue::Create();
+  value->SetList(list);
+  std::ofstream file(UserDataDirectory() / L"profiles.json",
+                     std::ios::binary | std::ios::trunc);
+  file << CefWriteJSON(value, JSON_WRITER_DEFAULT);
+}
+
+BrowserWindow::Profile* BrowserWindow::ActiveProfile() {
+  auto it = std::find_if(profiles_.begin(), profiles_.end(),
+      [this](const Profile& profile) { return profile.id == active_profile_id_; });
+  return it == profiles_.end() ? nullptr : &*it;
+}
+
+CefRefPtr<CefRequestContext> BrowserWindow::ContextForNewTab(bool incognito) {
+  if (incognito) {
+    if (!incognito_context_) {
+      CefRequestContextSettings context_settings;
+      incognito_context_ = CefRequestContext::CreateContext(context_settings, nullptr);
+      ApplyProxy(incognito_context_);
+    }
+    return incognito_context_;
+  }
+  if (auto* profile = ActiveProfile()) return profile->context;
+  return CefRequestContext::GetGlobalContext();
+}
+
+void BrowserWindow::ApplyProxy(CefRefPtr<CefRequestContext> context) {
+  if (!context) return;
+  auto proxy = CefDictionaryValue::Create();
+  proxy->SetString("mode", vpn_enabled_ ? "fixed_servers" : "direct");
+  if (vpn_enabled_) {
+    proxy->SetString("server", "socks5://127.0.0.1:17890");
+    proxy->SetString("bypass_list", "<-loopback>");
+  }
+  auto value = CefValue::Create();
+  value->SetDictionary(proxy);
+  CefString error;
+  context->SetPreference("proxy", value, error);
+}
+
+void BrowserWindow::SwitchProfile(const std::string& id) {
+  const auto it = std::find_if(profiles_.begin(), profiles_.end(),
+      [&id](const Profile& profile) { return profile.id == id; });
+  if (it == profiles_.end()) return;
+  active_profile_id_ = id;
+  auto tab = std::find_if(tabs_.begin(), tabs_.end(),
+      [&id](const Tab& item) { return !item.incognito && item.profile_id == id; });
+  if (tab == tabs_.end()) NewTab();
+  else {
+    active_tab_id_ = tab->id;
+    Layout();
+    EmitState();
+  }
+}
+
+void BrowserWindow::OpenSettingsTab() {
+  const auto url = FileUrl(std::filesystem::u8path(ExecutableDirectory()) /
+                           "ui" / "settings.html");
+  auto existing = std::find_if(tabs_.begin(), tabs_.end(),
+      [&url, this](const Tab& tab) {
+        return !tab.incognito && tab.profile_id == active_profile_id_ &&
+               tab.url == url;
+      });
+  if (existing != tabs_.end()) SwitchTab(existing->id);
+  else NewTab(url);
+}
+
+void BrowserWindow::NewTab(const std::string& url, bool incognito) {
+  InitializeProfiles();
   const int id = next_tab_id_++;
   Tab tab;
   tab.id = id;
   tab.url = url;
+  tab.incognito = incognito;
+  tab.profile_id = incognito ? "__incognito__" : active_profile_id_;
+  if (url.find("/ui/settings.html") != std::string::npos)
+    tab.title = settings_->GetString("language") == "en" ? "Settings" : "Настройки";
   tabs_.push_back(tab);
   active_tab_id_ = id;
+
   RECT rect = {};
   GetClientRect(hwnd_, &rect);
   CefWindowInfo info;
-  info.SetAsChild(hwnd_, CefRect(0, 48, rect.right, std::max(1L, rect.bottom - 48L)));
-  CefBrowserSettings settings;
-  CefBrowserHost::CreateBrowser(info, new BrowserClient(this, BrowserRole::kContent, id),
-                                url, settings, nullptr, nullptr);
+  info.SetAsChild(hwnd_, CefRect(0, 48, rect.right,
+                                std::max(1L, rect.bottom - 48L)));
+  CefBrowserSettings browser_settings;
+  const BrowserRole role =
+      url.find("/ui/settings.html") != std::string::npos
+          ? BrowserRole::kSettings : BrowserRole::kContent;
+  CefBrowserHost::CreateBrowser(
+      info, new BrowserClient(this, role, id), url, browser_settings,
+      nullptr, ContextForNewTab(incognito));
   EmitState();
+  if (url == "about:blank") FocusAddress();
 }
 
 void BrowserWindow::AttachShell(CefRefPtr<CefBrowser> browser) {
   shell_ = browser;
+  InitializeProfiles();
   NewTab();
   Layout();
-}
-
-void BrowserWindow::AttachSettings(CefRefPtr<CefBrowser> browser) {
-  settings_browser_ = browser;
-  HWND settings_hwnd = browser->GetHost()->GetWindowHandle();
-  RECT work = {};
-  SystemParametersInfoW(SPI_GETWORKAREA, 0, &work, 0);
-  const int width = std::min(1040L, work.right - work.left - 100L);
-  const int height = std::min(760L, work.bottom - work.top - 90L);
-  const int x = work.left + (work.right - work.left - width) / 2;
-  const int y = work.top + (work.bottom - work.top - height) / 2;
-  SetWindowPos(settings_hwnd, HWND_TOP, x, y, width, height,
-               SWP_SHOWWINDOW);
+  FocusAddress();
 }
 
 void BrowserWindow::AttachContent(int tab_id, CefRefPtr<CefBrowser> browser) {
@@ -195,6 +310,12 @@ BrowserWindow::Tab* BrowserWindow::FindTab(int id) {
 
 BrowserWindow::Tab* BrowserWindow::ActiveTab() { return FindTab(active_tab_id_); }
 
+std::string BrowserWindow::VisibleProfileId() const {
+  auto it = std::find_if(tabs_.begin(), tabs_.end(),
+      [this](const Tab& tab) { return tab.id == active_tab_id_; });
+  return it != tabs_.end() && it->incognito ? "__incognito__" : active_profile_id_;
+}
+
 void BrowserWindow::SwitchTab(int id) {
   if (!FindTab(id)) return;
   active_tab_id_ = id;
@@ -203,36 +324,48 @@ void BrowserWindow::SwitchTab(int id) {
 }
 
 void BrowserWindow::CloseTab(int id) {
-  auto it = std::find_if(tabs_.begin(), tabs_.end(), [id](const Tab& tab) { return tab.id == id; });
+  auto it = std::find_if(tabs_.begin(), tabs_.end(),
+      [id](const Tab& tab) { return tab.id == id; });
   if (it == tabs_.end()) return;
+  if (it->browser) {
+    it->browser->GetHost()->CloseBrowser(true);
+    return;
+  }
   const bool active = id == active_tab_id_;
-  auto browser = it->browser;
-  if (!browser) {
-    tabs_.erase(it);
-  } else {
-    browser->GetHost()->CloseBrowser(true);
-  }
-  if (active && tabs_.size() > 1) {
-    auto next = std::find_if(tabs_.begin(), tabs_.end(), [id](const Tab& tab) { return tab.id != id; });
-    if (next != tabs_.end()) active_tab_id_ = next->id;
-  }
+  tabs_.erase(it);
+  if (active) active_tab_id_ = 0;
+  if (!closing_ && active_tab_id_ == 0) NewTab();
   Layout();
   EmitState();
 }
 
 void BrowserWindow::BrowserClosed(CefRefPtr<CefBrowser> browser, int tab_id,
-                                  bool shell, bool settings) {
+                                  bool shell) {
   if (shell) shell_ = nullptr;
-  else if (settings) settings_browser_ = nullptr;
   else {
     tabs_.erase(std::remove_if(tabs_.begin(), tabs_.end(),
                                [tab_id](const Tab& tab) { return tab.id == tab_id; }),
                 tabs_.end());
-    if (active_tab_id_ == tab_id) active_tab_id_ = tabs_.empty() ? 0 : tabs_.front().id;
-    if (!closing_ && tabs_.empty()) NewTab();
+    if (active_tab_id_ == tab_id) {
+      const std::string visible = active_profile_id_;
+      auto next = std::find_if(tabs_.begin(), tabs_.end(),
+          [&visible](const Tab& item) {
+            return !item.incognito && item.profile_id == visible;
+          });
+      active_tab_id_ = next == tabs_.end() ? 0 : next->id;
+    }
+    if (!closing_ && active_tab_id_ == 0) NewTab();
   }
-  if (closing_ && !shell_ && !settings_browser_ && tabs_.empty()) DestroyWindow(hwnd_);
+  if (closing_ && !shell_ && tabs_.empty()) DestroyWindow(hwnd_);
   else { Layout(); EmitState(); }
+}
+
+void BrowserWindow::FocusAddress() {
+  if (!shell_ || !shell_->GetMainFrame()) return;
+  const std::string script =
+      "setTimeout(()=>window.__souluEmit&&window.__souluEmit('focusAddress',null),0)";
+  shell_->GetMainFrame()->ExecuteJavaScript(
+      script, shell_->GetMainFrame()->GetURL(), 0);
 }
 
 void BrowserWindow::Navigate(const std::string& value) {
@@ -281,6 +414,7 @@ void BrowserWindow::UpdateDownload(CefRefPtr<CefDownloadItem> item) {
   row->SetDouble("receivedBytes", static_cast<double>(item->GetReceivedBytes()));
   row->SetDouble("totalBytes", static_cast<double>(item->GetTotalBytes()));
   row->SetString("state", item->IsComplete() ? "completed" : item->IsCanceled() ? "cancelled" : "progressing");
+  row->SetString("profileId", VisibleProfileId());
   bool replaced = false;
   for (size_t i = 0; i < downloads_->GetSize(); ++i) {
     auto current = downloads_->GetDictionary(i);
@@ -289,7 +423,31 @@ void BrowserWindow::UpdateDownload(CefRefPtr<CefDownloadItem> item) {
     }
   }
   if (!replaced) downloads_->SetDictionary(downloads_->GetSize(), row);
-  Emit("downloads", Wrap(downloads_->Copy()));
+  Emit("downloads", Wrap(ProfileDownloads()));
+}
+
+CefRefPtr<CefListValue> BrowserWindow::ProfileBookmarks() const {
+  auto result = CefListValue::Create();
+  size_t output = 0;
+  const std::string profile = VisibleProfileId();
+  for (size_t i = 0; i < bookmarks_->GetSize(); ++i) {
+    auto item = bookmarks_->GetDictionary(i);
+    if (item && item->GetString("profileId") == profile)
+      result->SetDictionary(output++, item->Copy(false));
+  }
+  return result;
+}
+
+CefRefPtr<CefListValue> BrowserWindow::ProfileDownloads() const {
+  auto result = CefListValue::Create();
+  size_t output = 0;
+  const std::string profile = VisibleProfileId();
+  for (size_t i = 0; i < downloads_->GetSize(); ++i) {
+    auto item = downloads_->GetDictionary(i);
+    if (item && item->GetString("profileId") == profile)
+      result->SetDictionary(output++, item->Copy(false));
+  }
+  return result;
 }
 
 void BrowserWindow::Layout() {
@@ -298,17 +456,26 @@ void BrowserWindow::Layout() {
   GetClientRect(hwnd_, &client);
   const int width = client.right;
   const int height = client.bottom;
+  const int toolbar = settings_->GetString("layout") == "classic" ? 76 : 48;
   if (shell_) {
     HWND shell_hwnd = shell_->GetHost()->GetWindowHandle();
-    SetWindowPos(shell_hwnd, HWND_BOTTOM, 0, 0, width, height, SWP_NOACTIVATE);
+    const bool expanded_shell =
+        sidebar_visible_ || right_panel_width_ > 0 ||
+        suggestions_height_ > toolbar;
+    const int shell_height = expanded_shell ? height : toolbar;
+    SetWindowPos(shell_hwnd, HWND_TOP, 0, 0, width, shell_height,
+                 SWP_NOACTIVATE | SWP_SHOWWINDOW);
   }
-  const int toolbar = settings_->GetString("layout") == "classic" ? 76 : 48;
   const int x = sidebar_visible_ ? 276 : 0;
   const int y = std::max(toolbar, suggestions_height_);
+  const std::string visible_profile = VisibleProfileId();
   for (auto& tab : tabs_) {
     if (!tab.browser) continue;
     HWND child = tab.browser->GetHost()->GetWindowHandle();
-    if (tab.id == active_tab_id_) {
+    const bool belongs =
+        tab.incognito ? visible_profile == "__incognito__"
+                      : tab.profile_id == visible_profile;
+    if (belongs && tab.id == active_tab_id_) {
       SetWindowPos(child, HWND_TOP, x, y, std::max(1, width - x - right_panel_width_),
                    std::max(1, height - y), SWP_SHOWWINDOW | SWP_NOACTIVATE);
     } else ShowWindow(child, SW_HIDE);
@@ -318,28 +485,63 @@ void BrowserWindow::Layout() {
 CefRefPtr<CefDictionaryValue> BrowserWindow::State() const {
   auto state = CefDictionaryValue::Create();
   auto list = CefListValue::Create();
+  size_t output_index = 0;
+  const std::string visible_profile = VisibleProfileId();
   for (size_t i = 0; i < tabs_.size(); ++i) {
     const auto& tab = tabs_[i];
+    if (tab.incognito ? visible_profile != "__incognito__"
+                      : tab.profile_id != visible_profile) continue;
     auto row = CefDictionaryValue::Create();
     row->SetInt("id", tab.id);
-    row->SetString("title", tab.title);
-    row->SetString("url", tab.url == "about:blank" ? "" : tab.url);
-    row->SetString("label", tab.url == "about:blank" ? "" : tab.url);
+    const bool is_settings = tab.url.find("/ui/settings.html") != std::string::npos;
+    row->SetString("title", is_settings
+        ? (settings_->GetString("language") == "en" ? "Settings" : "Настройки")
+        : tab.title);
+    row->SetString("url", tab.url == "about:blank" ? "" :
+        (is_settings ? "soulu://settings" : tab.url));
+    row->SetString("label", tab.url == "about:blank" ? "" :
+        (is_settings ? "Настройки Soulu" : tab.url));
     row->SetString("favicon", tab.favicon);
     row->SetBool("loading", tab.loading);
     row->SetBool("active", tab.id == active_tab_id_);
-    list->SetDictionary(i, row);
+    row->SetBool("incognito", tab.incognito);
+    list->SetDictionary(output_index++, row);
   }
   state->SetList("tabs", list);
   state->SetInt("activeTabId", active_tab_id_);
   state->SetBool("sidebarVisible", sidebar_visible_);
   state->SetBool("maximized", IsZoomed(hwnd_) != FALSE);
+  state->SetString("activeProfileId", active_profile_id_);
+  state->SetBool("incognito", visible_profile == "__incognito__");
+  auto profiles = CefListValue::Create();
+  for (size_t i = 0; i < profiles_.size(); ++i) {
+    auto profile = CefDictionaryValue::Create();
+    profile->SetString("id", profiles_[i].id);
+    profile->SetString("name", profiles_[i].name);
+    profile->SetBool("active", profiles_[i].id == active_profile_id_);
+    profiles->SetDictionary(i, profile);
+  }
+  state->SetList("profiles", profiles);
+  auto update = CefDictionaryValue::Create();
+  update->SetString("soulu", "0.9.0-cef-preview.3");
+  update->SetString("recommended", "0.9.0-cef-preview.3");
+  update->SetString("cef", "144.0.6");
+  update->SetString("chromium", "144");
+  update->SetBool("available", false);
+  update->SetBool("security", false);
+  state->SetDictionary("update", update);
   state->SetDictionary("settings", settings_->Copy(false));
   if (auto* tab = const_cast<BrowserWindow*>(this)->ActiveTab()) {
     auto page = CefDictionaryValue::Create();
-    page->SetString("title", tab->title);
-    page->SetString("url", tab->url == "about:blank" ? "" : tab->url);
-    page->SetString("label", tab->url == "about:blank" ? "" : tab->url);
+    const bool is_settings =
+        tab->url.find("/ui/settings.html") != std::string::npos;
+    page->SetString("title", is_settings
+        ? (settings_->GetString("language") == "en" ? "Settings" : "Настройки")
+        : tab->title);
+    page->SetString("url", tab->url == "about:blank" ? "" :
+        (is_settings ? "soulu://settings" : tab->url));
+    page->SetString("label", tab->url == "about:blank" ? "" :
+        (is_settings ? "Настройки Soulu" : tab->url));
     page->SetString("favicon", tab->favicon);
     page->SetBool("loading", tab->loading);
     page->SetBool("canGoBack", tab->can_go_back);
@@ -362,11 +564,16 @@ void BrowserWindow::ReplyEmpty(CefRefPtr<CefMessageRouterBrowserSide::Callback> 
   Reply(callback, EmptyValue());
 }
 void BrowserWindow::Emit(const std::string& event, CefRefPtr<CefValue> value) {
-  const std::string script = "window.__souluEmit&&window.__souluEmit(\"" + event + "\"," + Json(value) + ");";
-  for (const auto& browser : {shell_, settings_browser_}) {
-    if (browser && browser->GetMainFrame())
-      browser->GetMainFrame()->ExecuteJavaScript(
-          script, browser->GetMainFrame()->GetURL(), 0);
+  const std::string script =
+      "window.__souluEmit&&window.__souluEmit(\"" + event + "\"," +
+      Json(value) + ");";
+  if (shell_ && shell_->GetMainFrame())
+    shell_->GetMainFrame()->ExecuteJavaScript(
+        script, shell_->GetMainFrame()->GetURL(), 0);
+  if (auto* tab = ActiveTab(); tab && tab->browser &&
+      tab->url.find("/ui/settings.html") != std::string::npos) {
+    tab->browser->GetMainFrame()->ExecuteJavaScript(
+        script, tab->browser->GetMainFrame()->GetURL(), 0);
   }
 }
 void BrowserWindow::EmitState() { Emit("state", Wrap(State())); }
@@ -394,6 +601,29 @@ void BrowserWindow::HandleBridge(const std::string& request,
     if (auto* t = ActiveTab(); t && t->browser) t->loading ? t->browser->StopLoad() : t->browser->Reload();
   }
   else if (action == "browser.newTab") NewTab();
+  else if (action == "browser.newIncognito") NewTab("about:blank", true);
+  else if (action == "browser.profile.create") {
+    std::string name = payload && payload->GetType() == VTYPE_STRING
+        ? payload->GetString() : "Профиль";
+    CreateProfile(name);
+    active_profile_id_ = profiles_.back().id;
+    NewTab();
+    return Reply(callback, State());
+  }
+  else if (action == "browser.profile.switch") {
+    SwitchProfile(payload->GetString());
+    return Reply(callback, State());
+  }
+  else if (action == "browser.update.check") {
+    auto update = CefDictionaryValue::Create();
+    update->SetString("soulu", "0.9.0-cef-preview.3");
+    update->SetString("recommended", "0.9.0-cef-preview.3");
+    update->SetString("cef", "144.0.6");
+    update->SetString("chromium", "144");
+    update->SetBool("available", false);
+    update->SetBool("security", false);
+    return Reply(callback, update);
+  }
   else if (action == "browser.switchTab") SwitchTab(payload->GetInt());
   else if (action == "browser.closeTab") CloseTab(payload->GetInt());
   else if (action == "browser.toggleSidebar") { sidebar_visible_ = !sidebar_visible_; Layout(); EmitState(); }
@@ -402,25 +632,26 @@ void BrowserWindow::HandleBridge(const std::string& request,
   else if (action == "browser.find") {
     if (auto* t = ActiveTab(); t && t->browser) t->browser->GetHost()->Find(payload->GetString(), true, false, false);
   }
-  else if (action == "browser.downloads.get") return Reply(callback, Wrap(downloads_->Copy()));
-  else if (action == "browser.bookmarks.get") return Reply(callback, Wrap(bookmarks_->Copy()));
+  else if (action == "browser.downloads.get") return Reply(callback, Wrap(ProfileDownloads()));
+  else if (action == "browser.bookmarks.get") return Reply(callback, Wrap(ProfileBookmarks()));
   else if (action == "browser.bookmarks.add") {
     if (auto* t = ActiveTab(); t && t->url != "about:blank") {
       auto mark = CefDictionaryValue::Create();
       mark->SetInt("id", static_cast<int>(bookmarks_->GetSize() + 1));
       mark->SetString("title", t->title); mark->SetString("url", t->url); mark->SetString("favicon", t->favicon);
+      mark->SetString("profileId", VisibleProfileId());
       bookmarks_->SetDictionary(bookmarks_->GetSize(), mark);
     }
-    return Reply(callback, Wrap(bookmarks_->Copy()));
+    return Reply(callback, Wrap(ProfileBookmarks()));
   }
   else if (action == "browser.bookmarks.remove") {
     const int id = payload->GetInt();
     for (size_t i = 0; i < bookmarks_->GetSize(); ++i)
       if (bookmarks_->GetDictionary(i)->GetInt("id") == id) { bookmarks_->Remove(i); break; }
-    return Reply(callback, Wrap(bookmarks_->Copy()));
+    return Reply(callback, Wrap(ProfileBookmarks()));
   }
   else if (action == "browser.bookmarks.open") Navigate(payload->GetString());
-  else if (action == "browser.settings.openWindow") OpenSettingsWindow();
+  else if (action == "browser.settings.openWindow") OpenSettingsTab();
   else if (action == "browser.settings.get") return Reply(callback, settings_->Copy(false));
   else if (action == "browser.settings.set") {
     if (payload && payload->GetType() == VTYPE_DICTIONARY) {
@@ -435,7 +666,10 @@ void BrowserWindow::HandleBridge(const std::string& request,
     std::string query = payload->GetString();
     std::string lower = query; std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
     size_t out = 0;
+    const std::string visible_profile = VisibleProfileId();
     for (const auto& tab : tabs_) {
+      if (tab.incognito ? visible_profile != "__incognito__"
+                        : tab.profile_id != visible_profile) continue;
       std::string hay = tab.title + " " + tab.url;
       std::transform(hay.begin(), hay.end(), hay.begin(), ::tolower);
       if (!query.empty() && hay.find(lower) != std::string::npos && tab.url != "about:blank") {
@@ -445,7 +679,9 @@ void BrowserWindow::HandleBridge(const std::string& request,
       }
     }
     for (size_t i = 0; i < bookmarks_->GetSize() && out < 8; ++i) {
-      auto mark = bookmarks_->GetDictionary(i); std::string hay = mark->GetString("title").ToString() + " " + mark->GetString("url").ToString();
+      auto mark = bookmarks_->GetDictionary(i);
+      if (!mark || mark->GetString("profileId") != visible_profile) continue;
+      std::string hay = mark->GetString("title").ToString() + " " + mark->GetString("url").ToString();
       std::transform(hay.begin(), hay.end(), hay.begin(), ::tolower);
       if (hay.find(lower) != std::string::npos) { auto row = mark->Copy(false); row->SetString("source", "bookmark"); result->SetDictionary(out++, row); }
     }
@@ -458,7 +694,18 @@ void BrowserWindow::HandleBridge(const std::string& request,
   }
   else if (action == "vpn.settings.set") return Reply(callback, payload);
   else if (action == "vpn.send") {
-    auto result = CefDictionaryValue::Create(); result->SetBool("ok", true); result->SetString("state", "disconnected");
+    std::string command;
+    if (payload && payload->GetType() == VTYPE_DICTIONARY)
+      command = payload->GetDictionary()->GetString("action");
+    if (command == "connect") vpn_enabled_ = true;
+    else if (command == "disconnect") vpn_enabled_ = false;
+    for (auto& profile : profiles_) ApplyProxy(profile.context);
+    ApplyProxy(incognito_context_);
+    auto result = CefDictionaryValue::Create();
+    result->SetBool("ok", true);
+    result->SetString("state", vpn_enabled_ ? "connected" : "disconnected");
+    result->SetString("scope", "soulu-only");
+    Emit("vpnState", Wrap(result->Copy(false)));
     return Reply(callback, result);
   }
   else if (action == "window.minimize") ShowWindow(hwnd_, SW_MINIMIZE);
@@ -472,12 +719,14 @@ void BrowserWindow::HandleBridge(const std::string& request,
     AppendMenuW(menu, MF_STRING, 2, L"Загрузки");
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(menu, MF_STRING, 3, L"Новая вкладка");
+    AppendMenuW(menu, MF_STRING, 4, L"Новая вкладка инкогнито");
     const int command = TrackPopupMenu(menu, TPM_RETURNCMD | TPM_RIGHTBUTTON,
                                        point.x, point.y, 0, hwnd_, nullptr);
     DestroyMenu(menu);
-    if (command == 1) OpenSettingsWindow();
+    if (command == 1) OpenSettingsTab();
     else if (command == 2) Emit("openDownloads", EmptyValue());
     else if (command == 3) NewTab();
+    else if (command == 4) NewTab("about:blank", true);
   }
   else if (action == "browser.pageMenu") {
     POINT point = {}; GetCursorPos(&point);
@@ -499,7 +748,7 @@ void BrowserWindow::HandleBridge(const std::string& request,
       }
     } else if (command == 2) Emit("openFavorites", EmptyValue());
     else if (command == 3) Emit("requestFind", EmptyValue());
-    else if (command == 4) OpenSettingsWindow();
+    else if (command == 4) OpenSettingsTab();
   }
   else if (action == "browser.shareMenu") {
     if (auto* t = ActiveTab()) {
@@ -518,9 +767,8 @@ void BrowserWindow::CloseAll() {
   if (closing_) return;
   closing_ = true;
   for (auto& tab : tabs_) if (tab.browser) tab.browser->GetHost()->CloseBrowser(true);
-  if (settings_browser_) settings_browser_->GetHost()->CloseBrowser(true);
   if (shell_) shell_->GetHost()->CloseBrowser(true);
-  if (!shell_ && !settings_browser_ && tabs_.empty()) DestroyWindow(hwnd_);
+  if (!shell_ && tabs_.empty()) DestroyWindow(hwnd_);
 }
 
 LRESULT CALLBACK BrowserWindow::WindowProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam) {

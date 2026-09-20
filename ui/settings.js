@@ -2,6 +2,7 @@
   const $ = s => document.querySelector(s);
   const $$ = s => [...document.querySelectorAll(s)];
   let settings = {};
+  let browserState = { profiles: [], update: null };
   const copy = {
     ru: {
       settings:"Настройки",appearance:"Оформление",toolbar:"Панель",search:"Поиск",startup:"Запуск",downloads:"Загрузки",accounts:"Аккаунты",passwords:"Пароли",
@@ -24,17 +25,21 @@
       accountsHint:"Google sign-in uses the shared browser session. Chrome Sync is not enabled.",passwordsHint:"Password storage will be connected to the native CEF implementation in a later step."
     }
   };
+  Object.assign(copy.ru, {profiles:"Профили",updates:"Обновления",profilesHint:"У каждого профиля отдельные cookies, кэш, сессии сайтов и хранилища.",profileName:"Название профиля",createProfile:"Создать профиль",incognito:"Режим инкогнито",incognitoHint:"Данные вкладок инкогнито не записываются на диск.",openIncognito:"Открыть вкладку",souluUpdates:"Обновления Soulu",recommended:"Рекомендуемая",automaticUpdates:"Автоматически проверять обновления",checkUpdates:"Проверить",updateRestart:"Обновить и перезапустить"});
+  Object.assign(copy.en, {profiles:"Profiles",updates:"Updates",profilesHint:"Every profile has separate cookies, cache, site sessions and storage.",profileName:"Profile name",createProfile:"Create profile",incognito:"Incognito mode",incognitoHint:"Incognito tab data is never written to disk.",openIncognito:"Open tab",souluUpdates:"Soulu updates",recommended:"Recommended",automaticUpdates:"Automatically check for updates",checkUpdates:"Check",updateRestart:"Update and restart"});
+
   const sectionHints = {
-    ru:{appearance:"Настройте вид браузера и основной панели.",toolbar:"Выберите состав и расположение элементов.",search:"Поиск и поведение адресной строки.",startup:"Что Soulu открывает при запуске.",downloads:"Папка и поведение загрузок.",vpn:"Параметры встроенного VPN.",accounts:"Учётные записи и веб-сессии.",passwords:"Сохранённые данные входа."},
-    en:{appearance:"Customize the browser and main toolbar.",toolbar:"Choose toolbar items and placement.",search:"Search and address bar behavior.",startup:"What Soulu opens on launch.",downloads:"Download folder and behavior.",vpn:"Built-in VPN preferences.",accounts:"Accounts and web sessions.",passwords:"Saved sign-in details."}
+    ru:{appearance:"Настройте вид браузера и основной панели.",toolbar:"Выберите состав и расположение элементов.",search:"Поиск и поведение адресной строки.",startup:"Что Soulu открывает при запуске.",downloads:"Папка и поведение загрузок.",vpn:"Параметры встроенного VPN.",profiles:"Независимые пространства для личной и рабочей жизни.",accounts:"Учётные записи и веб-сессии.",passwords:"Сохранённые данные входа.",updates:"Версии Soulu, CEF и Chromium."},
+    en:{appearance:"Customize the browser and main toolbar.",toolbar:"Choose toolbar items and placement.",search:"Search and address bar behavior.",startup:"What Soulu opens on launch.",downloads:"Download folder and behavior.",vpn:"Built-in VPN preferences.",profiles:"Independent spaces for personal and work use.",accounts:"Accounts and web sessions.",passwords:"Saved sign-in details.",updates:"Soulu, CEF and Chromium versions."}
   };
-  const titles = {appearance:"appearance",toolbar:"toolbar",search:"search",startup:"startup",downloads:"downloads",vpn:"VPN",accounts:"accounts",passwords:"passwords"};
+  const titles = {appearance:"appearance",toolbar:"toolbar",search:"search",startup:"startup",downloads:"downloads",vpn:"VPN",profiles:"profiles",accounts:"accounts",passwords:"passwords",updates:"updates"};
 
   function translate() {
     const lang = settings.language === "en" ? "en" : "ru";
     document.documentElement.lang = lang;
     document.title = lang === "en" ? "Soulu Settings" : "Настройки Soulu";
-    $$("[data-t]").forEach(el => { const v=copy[lang][el.dataset.t]; if(v) el.textContent=v; });
+    $("[data-t]").forEach(el => { const v=copy[lang][el.dataset.t]; if(v) el.textContent=v; });
+    $("[data-t-placeholder]").forEach(el => { const v=copy[lang][el.dataset.tPlaceholder]; if(v) el.placeholder=v; });
     const active=$(".nav-item.active")?.dataset.section || "appearance";
     $("#sectionTitle").textContent = titles[active] === "VPN" ? "VPN" : copy[lang][titles[active]];
     $("#sectionHint").textContent = sectionHints[lang][active];
@@ -46,8 +51,41 @@
     for(const [id,fallback] of Object.entries(values)){const el=$("#"+id);if(el)el.value=settings[id] ?? fallback;}
     $("#mattePanel").checked = settings.mattePanel !== false;
     $("#askDownloadLocation").checked = settings.askDownloadLocation !== false;
-    $$("[data-setting]").forEach(el => el.checked = settings[el.dataset.setting] !== false);
+    $("[data-setting]").forEach(el => el.checked = settings[el.dataset.setting] !== false);
+    $("#automaticUpdates").checked = settings.automaticUpdates !== false;
+    renderProfiles();
+    renderUpdate(browserState.update);
     translate();
+  }
+
+  function renderProfiles() {
+    const box = $("#profileList");
+    if (!box) return;
+    box.innerHTML = (browserState.profiles || []).map(profile =>
+      `<div class="profile-row${profile.active ? " active" : ""}"><span><b>${profile.name}</b><small>${profile.id}</small></span><button data-profile-id="${profile.id}" ${profile.active ? "disabled" : ""}>${profile.active ? "✓" : "Открыть"}</button></div>`
+    ).join("");
+    box.querySelectorAll("[data-profile-id]").forEach(button =>
+      button.onclick = async () => {
+        browserState = await window.browserShell.switchProfile(button.dataset.profileId);
+        settings = browserState.settings || settings;
+        fill();
+      });
+  }
+
+  function renderUpdate(update) {
+    if (!update) return;
+    $("#souluVersion").textContent = update.soulu || "—";
+    $("#recommendedVersion").textContent = update.recommended || "—";
+    $("#cefVersion").textContent = update.cef || "—";
+    $("#chromiumVersion").textContent = update.chromium || "—";
+    const lang = settings.language === "en" ? "en" : "ru";
+    $("#updateStatus").textContent = update.available
+      ? (update.security ? (lang === "en" ? "Critical security update" : "Критическое обновление безопасности") : (lang === "en" ? "Update available" : "Доступно обновление"))
+      : (lang === "en" ? "Soulu is up to date" : "Установлена актуальная версия");
+    $("#updatePill").textContent = update.available ? (lang === "en" ? "Update" : "Обновление") : "OK";
+    $("#updatePill").classList.toggle("security", Boolean(update.security));
+    $("#updateDot").classList.toggle("visible", Boolean(update.available));
+    $("#installUpdate").disabled = !update.available;
   }
 
   async function patch(value) {
@@ -66,8 +104,19 @@
   }
   $("#mattePanel").onchange=e=>patch({mattePanel:e.target.checked});
   $("#askDownloadLocation").onchange=e=>patch({askDownloadLocation:e.target.checked});
-  $$("[data-setting]").forEach(el=>el.onchange=e=>patch({[el.dataset.setting]:e.target.checked}));
+  $("#automaticUpdates").onchange=e=>patch({automaticUpdates:e.target.checked});
+  $("[data-setting]").forEach(el=>el.onchange=e=>patch({[el.dataset.setting]:e.target.checked}));
+  $("#createProfile").onclick=async()=>{
+    const name=$("#profileName").value.trim();
+    if(!name)return;
+    browserState=await window.browserShell.createProfile(name);
+    settings=browserState.settings||settings;
+    $("#profileName").value="";
+    fill();
+  };
+  $("#openIncognito").onclick=()=>window.browserShell.newIncognito();
+  $("#checkUpdates").onclick=async()=>{browserState.update=await window.browserShell.checkUpdates();renderUpdate(browserState.update);};
 
-  window.browserShell.onState(state => {settings=state.settings||settings;fill();});
-  window.browserShell.getSettings().then(value=>{settings=value||{};fill();});
+  window.browserShell.onState(state => {browserState=state;settings=state.settings||settings;fill();});
+  Promise.all([window.browserShell.getSettings(),window.browserShell.getState()]).then(([value,state])=>{settings=value||{};browserState=state||browserState;fill();});
 })();

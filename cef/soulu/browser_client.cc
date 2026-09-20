@@ -1,5 +1,7 @@
 #include "examples/soulu/browser_client.h"
 
+#include <string>
+
 #include "examples/soulu/browser_window.h"
 #include "include/wrapper/cef_helpers.h"
 
@@ -12,6 +14,12 @@ class BridgeHandler final : public CefMessageRouterBrowserSide::Handler {
                const CefString& request, bool,
                CefRefPtr<Callback> callback) override {
     if (!frame->IsMain()) return false;
+    const std::string url = frame->GetURL();
+    if (url.rfind("file://", 0) != 0 ||
+        (url.find("/ui/index.html") == std::string::npos &&
+         url.find("/ui/settings.html") == std::string::npos)) {
+      return false;
+    }
     owner_->HandleBridge(request, callback);
     return true;
   }
@@ -38,11 +46,9 @@ void BrowserClient::OnAfterCreated(CefRefPtr<CefBrowser> browser) {
     router_ = CefMessageRouterBrowserSide::Create(config);
     bridge_ = std::make_unique<BridgeHandler>(owner_);
     router_->AddHandler(bridge_.get(), false);
-    if (role_ == BrowserRole::kShell) owner_->AttachShell(browser);
-    else owner_->AttachSettings(browser);
-  } else {
-    owner_->AttachContent(tab_id_, browser);
   }
+  if (role_ == BrowserRole::kShell) owner_->AttachShell(browser);
+  else owner_->AttachContent(tab_id_, browser);
 }
 
 bool BrowserClient::DoClose(CefRefPtr<CefBrowser>) { return false; }
@@ -54,29 +60,27 @@ void BrowserClient::OnBeforeClose(CefRefPtr<CefBrowser> browser) {
     bridge_.reset();
     router_ = nullptr;
   }
-  owner_->BrowserClosed(browser, tab_id_,
-                        role_ == BrowserRole::kShell,
-                        role_ == BrowserRole::kSettings);
+  owner_->BrowserClosed(browser, tab_id_, role_ == BrowserRole::kShell);
 }
 
 void BrowserClient::OnTitleChange(CefRefPtr<CefBrowser>, const CefString& title) {
-  if (role_ == BrowserRole::kContent) owner_->UpdateTitle(tab_id_, title);
+  if (role_ != BrowserRole::kShell) owner_->UpdateTitle(tab_id_, title);
 }
 
 void BrowserClient::OnAddressChange(CefRefPtr<CefBrowser>, CefRefPtr<CefFrame> frame,
                                     const CefString& url) {
-  if (role_ == BrowserRole::kContent && frame->IsMain()) owner_->UpdateAddress(tab_id_, url);
+  if (role_ != BrowserRole::kShell && frame->IsMain()) owner_->UpdateAddress(tab_id_, url);
 }
 
 void BrowserClient::OnFaviconURLChange(CefRefPtr<CefBrowser>,
                                        const std::vector<CefString>& icon_urls) {
-  if (role_ == BrowserRole::kContent)
+  if (role_ != BrowserRole::kShell)
     owner_->UpdateFavicon(tab_id_, icon_urls.empty() ? "" : icon_urls.front());
 }
 
 void BrowserClient::OnLoadingStateChange(CefRefPtr<CefBrowser>, bool loading,
                                          bool can_go_back, bool) {
-  if (role_ == BrowserRole::kContent)
+  if (role_ != BrowserRole::kShell)
     owner_->UpdateLoading(tab_id_, loading, can_go_back);
 }
 

@@ -18,10 +18,12 @@
         <button class="nav-item" data-section="startup"><span>⌂</span><b data-t="startup">Запуск</b></button>
         <button class="nav-item" data-section="downloads"><span>↓</span><b data-t="downloads">Загрузки</b></button>
         <button class="nav-item" data-section="vpn"><span>≈</span><b>VPN</b></button>
+        <button class="nav-item" data-section="profiles"><span>◉</span><b data-t="profiles">Профили</b></button>
         <button class="nav-item" data-section="accounts"><span>◎</span><b data-t="accounts">Аккаунты</b></button>
         <button class="nav-item" data-section="passwords"><span>⌁</span><b data-t="passwords">Пароли</b></button>
+        <button class="nav-item" data-section="updates"><span>↻</span><b data-t="updates">Обновления</b><i class="update-dot" id="updateDot"></i></button>
       </nav>
-      <div class="version">Soulu CEF Preview 0.9</div>
+      <div class="version">Soulu CEF Preview 0.9.0 Preview 3</div>
     </aside>
 
     <section class="settings-content">
@@ -92,12 +94,37 @@
         </article>
       </div>
 
+      <div class="settings-section" data-page="profiles">
+        <article class="card">
+          <h2 data-t="profiles">Профили</h2>
+          <p class="note" data-t="profilesHint">У каждого профиля отдельные cookies, кэш, сессии сайтов и хранилища.</p>
+          <div class="profile-list" id="profileList"></div>
+          <div class="profile-create"><input id="profileName" data-t-placeholder="profileName" placeholder="Название профиля"><button id="createProfile" data-t="createProfile">Создать профиль</button></div>
+        </article>
+        <article class="card">
+          <div class="row"><span><b data-t="incognito">Режим инкогнито</b><small data-t="incognitoHint">Данные вкладок инкогнито не записываются на диск.</small></span><button class="secondary" id="openIncognito" data-t="openIncognito">Открыть вкладку</button></div>
+        </article>
+      </div>
+
       <div class="settings-section" data-page="accounts">
         <article class="card"><h2 data-t="accounts">Аккаунты</h2><p class="note" data-t="accountsHint">Вход в Google выполняется в общей сессии браузера. Синхронизация Chrome пока не включена.</p></article>
       </div>
 
       <div class="settings-section" data-page="passwords">
-        <article class="card"><h2 data-t="passwords">Пароли</h2><p class="note" data-t="passwordsHint">Хранилище паролей будет подключено к нативной CEF-реализации на следующем этапе.</p></article>
+        <article class="card"><h2 data-t="passwords">Пароли</h2><p class="note" data-t="passwordsHint">Пароли каждого профиля хранятся изолированно от остальных профилей.</p></article>
+      </div>
+
+      <div class="settings-section" data-page="updates">
+        <article class="card update-card">
+          <div class="update-heading"><div><h2 data-t="souluUpdates">Обновления Soulu</h2><p class="note" id="updateStatus">Проверка версии…</p></div><span class="status-pill" id="updatePill">—</span></div>
+          <div class="version-grid">
+            <div><span>Soulu</span><strong id="souluVersion">—</strong></div>
+            <div><span data-t="recommended">Рекомендуемая</span><strong id="recommendedVersion">—</strong></div>
+            <div><span>CEF</span><strong id="cefVersion">—</strong></div>
+            <div><span>Chromium</span><strong id="chromiumVersion">—</strong></div>
+          </div>
+          <div class="update-actions"><label><input class="switch" id="automaticUpdates" type="checkbox"><span data-t="automaticUpdates">Автоматически проверять обновления</span></label><button class="secondary" id="checkUpdates" data-t="checkUpdates">Проверить</button><button class="primary-update" id="installUpdate" data-t="updateRestart" disabled>Обновить и перезапустить</button></div>
+        </article>
       </div>
     </section>
   </main>

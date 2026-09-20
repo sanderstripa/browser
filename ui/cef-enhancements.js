@@ -12,6 +12,7 @@
     set("showNewTab", settings.showNewTab);
     set("showDownloads", settings.showDownloads);
     set("showVpn", settings.vpnToolbarVisible);
+    document.body.dataset.incognito = String(Boolean(state?.incognito));
   };
 
   window.browserShell.onState(apply);
