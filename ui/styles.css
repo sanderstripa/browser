@@ -9,7 +9,7 @@ body[data-theme=dark]{color-scheme:dark;--surface:#202124f5;--solid:#26272a;--pa
 
 /* Compact mode: one physical surface. The active tab is also the address field;
    inactive tabs stay favicon-sized in the same horizontal flow. */
-.window-drag-strip{position:fixed;z-index:125;top:0;right:138px;left:0;height:7px;-webkit-app-region:drag}
+.window-drag-strip{display:none}
 .compact-toolbar{position:fixed;z-index:100;inset:0 0 auto;width:100%;height:52px;padding:0;background:var(--toolbar-bg);border-bottom:1px solid color-mix(in srgb,var(--text) 11%,transparent);user-select:none;pointer-events:none}
 .compact-toolbar-surface{display:flex;align-items:center;width:100%;height:52px;gap:2px;overflow:hidden;padding-left:8px;white-space:nowrap;background:transparent;box-shadow:inset 0 1px 0 #ffffff54;-webkit-app-region:drag;pointer-events:auto}
 .compact-toolbar-surface button,.compact-toolbar-surface form,.compact-tab-flow{-webkit-app-region:no-drag}
@@ -75,7 +75,7 @@ body[data-vpn-toolbar=false] .extension-slot{display:none!important}
 
 /* Compact: a single physical row and one visual surface. */
 .compact-toolbar{height:54px;padding:0;pointer-events:none}
-.compact-toolbar-surface{display:flex;align-items:center;width:100%;height:54px;gap:3px;overflow:hidden;padding-left:8px;background:transparent;box-shadow:inset 0 1px 0 #ffffff57;-webkit-app-region:drag;pointer-events:auto}
+.compact-toolbar-surface{display:flex;align-items:center;width:100%;height:54px;gap:3px;overflow:hidden;padding-left:8px;background:transparent;box-shadow:inset 0 1px 0 #ffffff57;-webkit-app-region:no-drag;pointer-events:auto}
 .compact-control{position:relative;display:grid;flex:0 0 34px;place-items:center;width:34px;height:34px;padding:0;color:var(--text);background:transparent;border-radius:50%;transition:background .14s ease,color .14s ease,transform .14s ease}
 .compact-control:hover{background:color-mix(in srgb,var(--text) 7%,transparent)}.compact-control:active{transform:scale(.96)}.compact-control:disabled{opacity:.3;pointer-events:none}
 .compact-control svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}.compact-control.vpn-button img{width:23px;height:23px}
@@ -94,14 +94,14 @@ body[data-address-position=left] .compact-tab-flow{justify-content:flex-start}
 
 /* Classic: address row above a dedicated tab row. */
 .classic-toolbar{height:82px;padding:0}
-.classic-main-row{display:flex;align-items:center;width:100%;height:45px;gap:4px;padding-left:9px;-webkit-app-region:drag}
+.classic-main-row{display:flex;align-items:center;width:100%;height:45px;gap:4px;padding-left:9px;-webkit-app-region:no-drag}
 .classic-main-row .left-controls{display:flex;gap:2px}.classic-extension-slot{height:34px}.classic-address-wrap{display:flex;justify-content:center;flex:1 1 auto;min-width:220px}
 body[data-address-position=left] .classic-address-wrap{justify-content:flex-start}
 .classic-address-pill{position:relative;display:flex;align-items:center;gap:4px;width:min(760px,100%);height:32px;margin:0;padding:0 5px;background:var(--field);border:1px solid color-mix(in srgb,var(--text) 9%,transparent);border-radius:16px;box-shadow:inset 0 1px 0 #ffffff61,0 1px 4px #0000000b}
 .classic-address-pill input{flex:1;min-width:0;height:30px;padding:0 6px;color:var(--text);background:transparent;border:0;outline:0;text-align:center}.classic-address-pill input:focus{text-align:left}.classic-address-pill .address-favorite svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.45}.classic-address-pill .close-action svg{width:16px;height:16px;stroke-width:1.7}
 .address-menu-button{display:grid;place-items:center;flex:0 0 23px;width:23px;height:23px;padding:0;color:var(--muted);background:transparent;border-radius:50%}.address-menu-button:hover{color:var(--text);background:color-mix(in srgb,var(--text) 7%,transparent)}.address-menu-button svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.45;stroke-linecap:round}
 .classic-main-row>.downloads-control{margin-left:2px}.window-controls{display:flex;align-items:center;height:45px;margin-left:3px;border-left:1px solid var(--soft)}.window-controls button{display:grid;place-items:center;width:46px;height:45px;padding:0;background:transparent}.window-controls button:hover{background:#00000013}.window-controls .window-close:hover{color:#fff;background:#e81123}.window-controls svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1}
-.tabs-zone{display:flex;align-items:center;width:100%;height:37px;gap:4px;padding:0 8px;background:color-mix(in srgb,var(--text) 2.5%,transparent);border-top:1px solid color-mix(in srgb,var(--text) 5%,transparent);-webkit-app-region:drag}.tabs-zone .tab-strip{height:36px;padding:3px 0}.classic-tabs-drag{flex:1 1 40px;height:100%;-webkit-app-region:no-drag}.tabs-new-button{flex:0 0 30px;width:30px;height:30px}
+.tabs-zone{display:flex;align-items:center;width:100%;height:37px;gap:4px;padding:0 8px;background:color-mix(in srgb,var(--text) 2.5%,transparent);border-top:1px solid color-mix(in srgb,var(--text) 5%,transparent);-webkit-app-region:no-drag}.tabs-zone .tab-strip{height:36px;padding:3px 0}.classic-tabs-drag{flex:1 1 40px;height:100%;-webkit-app-region:no-drag}.tabs-new-button{flex:0 0 30px;width:30px;height:30px}
 .classic-suggestions{top:42px}
 
 
@@ -121,6 +121,6 @@ body[data-address-position=left] .compact-center-cluster{position:static;max-wid
 .compact-tab-flow{justify-content:flex-start;flex:0 1 auto;width:min(var(--compact-flow-width,466px),calc(100vw - 420px));min-width:280px;max-width:620px;height:36px;gap:3px;margin:0;padding:2px 3px;border-radius:18px}
 .compact-active-tab{flex:1 1 420px;width:auto;min-width:220px;max-width:none;height:30px;border-radius:15px}
 .compact-active-tab .active-address{height:28px}.compact-active-tab .tab-action{width:21px;height:21px}
-.compact-drag-space{flex:1 1 auto;min-width:42px;-webkit-app-region:drag}
-body[data-layout=classic] .classic-tabs-drag{-webkit-app-region:drag}
+.compact-drag-space{flex:1 1 auto;min-width:42px;-webkit-app-region:no-drag}
+body[data-layout=classic] .classic-tabs-drag{-webkit-app-region:no-drag}
 @media(max-width:1060px){.compact-center-cluster{max-width:calc(100vw - 230px)}.compact-tab-flow{width:min(var(--compact-flow-width,466px),calc(100vw - 390px));min-width:260px;max-width:520px}.compact-active-tab{flex-basis:360px;width:auto;min-width:190px}}

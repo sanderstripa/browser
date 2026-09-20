@@ -1,6 +1,6 @@
 {
   "name": "soulu-browser",
-  "version": "0.8.4",
+  "version": "0.8.5",
   "description": "Soulu — a minimal Chromium/Electron browser with classic and compact interface layouts and built-in VLESS/XHTTP VPN.",
   "main": "main.js",
   "author": "Sander Stripa",
