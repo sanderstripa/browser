@@ -6,6 +6,7 @@
 .settings-panel{width:440px;overflow:hidden}.settings-header{display:flex;align-items:center;justify-content:space-between;height:66px;padding:0 18px;border-bottom:1px solid var(--line)}.settings-header div{display:grid;gap:3px}.settings-header strong{font-size:17px}.settings-header small{color:var(--muted);font-size:11px}.settings-header button{width:30px;height:30px;background:transparent;border-radius:8px;font-size:20px}.settings-scroll{height:calc(100% - 66px);overflow:auto;padding:4px 14px 26px}.settings-scroll section{margin:12px 0;padding:15px;background:var(--field);border:1px solid var(--soft);border-radius:14px}.settings-scroll h2{margin:0 0 13px;font-size:13px}.settings-scroll p{margin:0 0 12px;color:var(--muted);font-size:11px;line-height:1.45}.layout-picker{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-bottom:14px}.layout-card{display:grid;justify-items:start;gap:5px;min-width:0;padding:8px;color:var(--muted);background:transparent;border:1px solid var(--soft);border-radius:10px;text-align:left}.layout-card.selected{color:var(--blue);border-color:#0879e66b;background:var(--blue-soft)}.layout-card strong{font-size:11px}.layout-card small{font-size:9px}.layout-preview{position:relative;width:100%;height:34px;background:#eef0f3;border:1px solid var(--soft);border-radius:6px}.layout-preview i{position:absolute;left:4px;right:4px;height:5px;background:#b8bdc5;border-radius:3px}.preview-classic i:first-child,.preview-compact i{top:5px}.preview-classic i:last-child{top:13px}.setting-line,.setting-action,.folder-row{display:flex;align-items:center;justify-content:space-between;gap:14px;min-height:42px}.setting-line+ .setting-line{border-top:1px solid var(--soft)}.setting-line span,.setting-action span{display:grid;gap:3px}.setting-line strong,.setting-action strong{font-size:12px}.setting-line small,.setting-action small{color:var(--muted);font-size:10px}.settings-panel select,.wide-input,.password-form input{height:32px;padding:0 9px;color:var(--text);background:var(--solid);border:1px solid var(--line);border-radius:8px}.choice-row,.check-line,.button-row{display:flex;align-items:center;gap:12px;font-size:12px}.choice-row{margin-bottom:10px}.wide-input{width:100%}.wide-input:disabled{opacity:.5}.folder-row{margin-top:10px}.folder-row>span{min-width:0;overflow:hidden;color:var(--muted);font-size:10px;text-overflow:ellipsis;white-space:nowrap}.soft-button,.primary-button{min-height:31px;padding:0 11px;border-radius:8px;font-size:11px;font-weight:600}.soft-button{background:#0000000b;border:1px solid var(--soft)}.primary-button{color:#fff;background:var(--blue)}.password-form{display:grid;grid-template-columns:1fr 1fr;gap:7px}.password-form input:first-child{grid-column:1/-1}#passwordList{display:grid;gap:5px;margin-top:12px}.password-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px;background:#00000008;border-radius:9px}.password-row>span{display:grid;min-width:0}.password-row strong,.password-row small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.password-row strong{font-size:11px}.password-row small{color:var(--muted);font-size:10px}.password-row button{height:26px;min-width:26px;padding:0 5px;background:transparent;border-radius:6px}.mini-empty{padding:15px;color:var(--muted);font-size:11px;text-align:center}
 body[data-theme=dark]{color-scheme:dark;--surface:#202124f5;--solid:#26272a;--panel:#242529fa;--line:#ffffff20;--soft:#ffffff13;--text:#f1f1f3;--muted:#a6a8ae;--pill:#34363aeb;--field:#303236f5;--blue:#409cff;--blue-soft:#2589ff2b;--shadow:#00000055;background:#191a1d}body[data-theme=dark] .layout-preview{background:#34363a}@media(prefers-color-scheme:dark){body[data-theme=system]{color-scheme:dark;--surface:#202124f5;--solid:#26272a;--panel:#242529fa;--line:#ffffff20;--soft:#ffffff13;--text:#f1f1f3;--muted:#a6a8ae;--pill:#34363aeb;--field:#303236f5;--blue:#409cff;--blue-soft:#2589ff2b;--shadow:#00000055;background:#191a1d}}@media(max-width:1060px){.toolbar{gap:6px}.right-controls{gap:1px}.active-tab{flex-basis:240px}.layout-card small{display:none}}
 
+
 /* Compact mode: one physical surface. The active tab is also the address field;
    inactive tabs stay favicon-sized in the same horizontal flow. */
 .window-drag-strip{position:fixed;z-index:125;top:0;right:138px;left:0;height:7px;-webkit-app-region:drag}
@@ -29,6 +30,7 @@ body[data-theme=dark]{color-scheme:dark;--surface:#202124f5;--solid:#26272a;--pa
 body[data-layout=compact] .classic-toolbar{display:none}
 body[data-layout=compact] .sidebar,body[data-layout=compact] .side-panel,body[data-layout=compact] .vpn-panel,body[data-layout=compact] .settings-panel{top:52px}
 
+
 body[data-layout=classic] .compact-toolbar{display:none}
 body[data-layout=classic] .toolbar{grid-template-columns:auto minmax(270px,1fr) auto auto;grid-template-rows:46px 38px;height:84px;gap:0 7px;padding-left:9px;background:var(--toolbar-bg)}
 body[data-layout=classic] .left-controls{grid-column:1;grid-row:1;gap:2px}
@@ -47,6 +49,7 @@ body[data-layout=classic] .classic-tab button:hover{opacity:1;background:color-m
 body[data-layout=classic] .tabs-new-button{flex:0 0 30px;width:30px;height:30px;margin-left:1px}
 body[data-layout=classic] .sidebar,body[data-layout=classic] .side-panel,body[data-layout=classic] .vpn-panel,body[data-layout=classic] .settings-panel{top:84px}
 
+
 body[data-matte=true]{--toolbar-bg:linear-gradient(112deg,color-mix(in srgb,var(--surface) 84%,#fff 16%),color-mix(in srgb,var(--surface) 70%,#a9c9e8 30%))}
 body[data-matte=true] .toolbar,body[data-matte=true] .compact-toolbar-surface{backdrop-filter:saturate(145%) blur(22px)}
 .suggestions{max-height:376px;overflow-y:auto;background:var(--panel);border-color:var(--line);box-shadow:0 16px 44px var(--shadow)}
@@ -55,6 +58,7 @@ body[data-matte=true] .toolbar,body[data-matte=true] .compact-toolbar-surface{ba
 .layout-picker{grid-template-columns:repeat(2,1fr)}
 .preview-compact i{top:13px!important;height:7px!important}
 @media(max-width:1060px){.compact-tab-flow{max-width:calc(100% - 400px)}.compact-active-tab{flex-basis:190px;width:190px}.compact-control{flex-basis:31px;width:31px}.compact-window-button{flex-basis:38px;width:38px}.layout-card small{display:none}}
+
 
 /* Soulu toolbar architecture ------------------------------------------------ */
 .browser-toolbar{position:fixed;z-index:100;inset:0 0 auto;width:100%;user-select:none;background:var(--toolbar-bg);border-bottom:1px solid color-mix(in srgb,var(--text) 10%,transparent)}
@@ -66,6 +70,7 @@ body[data-extensions-position=left] .extension-left,body[data-extensions-positio
 .download-progress{display:none!important}.downloads-control.is-downloading .download-static{display:none}.downloads-control.is-downloading .download-progress{display:block!important}.downloads-control.is-downloading .progress-arc{stroke:var(--blue);stroke-width:2.5;stroke-dasharray:16 38;animation:download-spin 1s linear infinite;transform-origin:12px 12px}
 @keyframes download-spin{to{transform:rotate(360deg)}}
 .vpn-button img{opacity:.78;transition:opacity .18s ease,filter .18s ease,transform .18s ease}.vpn-button.connected{color:#27b86b;background:#2dcc7017;box-shadow:inset 0 0 0 1px #35d77d35,0 0 12px #32d77c22}.vpn-button.connected img{opacity:1;filter:drop-shadow(0 0 4px #39dd83)}.vpn-button.busy img{animation:vpn-pulse .85s ease-in-out infinite alternate}@keyframes vpn-pulse{to{opacity:.42;transform:scale(.9)}}
+
 
 /* Compact: a single physical row and one visual surface. */
 .compact-toolbar{height:54px;padding:0;pointer-events:none}
@@ -85,6 +90,7 @@ body[data-address-position=left] .compact-tab-flow{justify-content:flex-start}
 .compact-window-button{display:grid;flex:0 0 42px;place-items:center;width:42px;height:53px;padding:0;background:transparent;border-radius:0;-webkit-app-region:no-drag}.compact-window-button:hover{background:#00000010}.compact-window-button.window-close:hover{color:#fff;background:#e81123}.compact-window-button svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1}
 .active-suggestions{top:51px}
 
+
 /* Classic: address row above a dedicated tab row. */
 .classic-toolbar{height:82px;padding:0}
 .classic-main-row{display:flex;align-items:center;width:100%;height:45px;gap:4px;padding-left:9px;-webkit-app-region:drag}
@@ -97,8 +103,22 @@ body[data-address-position=left] .classic-address-wrap{justify-content:flex-star
 .tabs-zone{display:flex;align-items:center;width:100%;height:37px;gap:4px;padding:0 8px;background:color-mix(in srgb,var(--text) 2.5%,transparent);border-top:1px solid color-mix(in srgb,var(--text) 5%,transparent);-webkit-app-region:drag}.tabs-zone .tab-strip{height:36px;padding:3px 0}.classic-tabs-drag{flex:1 1 40px;height:100%;-webkit-app-region:no-drag}.tabs-new-button{flex:0 0 30px;width:30px;height:30px}
 .classic-suggestions{top:42px}
 
+
 body[data-layout=compact] .classic-toolbar{display:none}body[data-layout=compact] .compact-toolbar{display:block}body[data-layout=compact] .sidebar,body[data-layout=compact] .side-panel,body[data-layout=compact] .vpn-panel,body[data-layout=compact] .settings-panel{top:54px}
 body[data-layout=classic] .compact-toolbar{display:none}body[data-layout=classic] .classic-toolbar{display:block}body[data-layout=classic] .sidebar,body[data-layout=classic] .side-panel,body[data-layout=classic] .vpn-panel,body[data-layout=classic] .settings-panel{top:82px}
 body[data-matte=true] .browser-toolbar{background:linear-gradient(112deg,color-mix(in srgb,var(--surface) 82%,#fff 18%),color-mix(in srgb,var(--surface) 70%,#a9c9e8 30%));backdrop-filter:saturate(145%) blur(22px)}
 
+
 @media(max-width:1060px){.compact-tab-flow{flex-basis:520px;max-width:520px}.compact-active-tab{min-width:190px}.compact-control{flex-basis:31px;width:31px}.compact-window-button{flex-basis:38px;width:38px}.classic-address-pill{max-width:560px}.layout-card small{display:none}}
+
+
+/* Compact geometry: the address/tabs capsule shrink-wraps its real content,
+   remains centered, and grows only as tabs are added. */
+.compact-toolbar-surface{position:relative}
+.compact-center-cluster{position:absolute;z-index:2;left:50%;display:flex;align-items:center;gap:3px;max-width:calc(100vw - 260px);transform:translateX(-50%);-webkit-app-region:no-drag}
+body[data-address-position=left] .compact-center-cluster{position:static;max-width:calc(100vw - 260px);transform:none}
+.compact-tab-flow{justify-content:flex-start;flex:0 1 max-content;width:max-content;min-width:0;max-width:min(620px,calc(100vw - 420px));height:36px;gap:3px;margin:0;padding:2px 3px;border-radius:18px}
+.compact-active-tab{flex:0 1 clamp(280px,38vw,520px);width:clamp(280px,38vw,520px);min-width:220px;max-width:520px;height:30px;border-radius:15px}
+.compact-active-tab .active-address{height:28px}.compact-active-tab .tab-action{width:21px;height:21px}
+.compact-drag-space{flex:1 1 auto;min-width:42px;-webkit-app-region:no-drag}
+@media(max-width:1060px){.compact-center-cluster{max-width:calc(100vw - 230px)}.compact-tab-flow{max-width:calc(100vw - 390px)}.compact-active-tab{flex-basis:clamp(220px,36vw,420px);width:clamp(220px,36vw,420px);min-width:190px}}

@@ -1,10 +1,12 @@
 const fs = require("fs");
 const ResEdit = require("resedit");
 
+
 const [, , sourcePath, iconPath, outputPath] = process.argv;
 if (!sourcePath || !iconPath || !outputPath) {
   throw new Error("Usage: node patch-windows-exe.js <source.exe> <icon.ico> <output.exe>");
 }
+
 
 const executable = ResEdit.NtExecutable.from(fs.readFileSync(sourcePath), { ignoreCert: true });
 const resources = ResEdit.NtExecutableResource.from(executable);
@@ -12,7 +14,9 @@ const iconFile = ResEdit.Data.IconFile.from(fs.readFileSync(iconPath));
 const iconGroups = ResEdit.Resource.IconGroupEntry.fromEntries(resources.entries);
 const iconGroup = iconGroups[0];
 
+
 if (!iconGroup) throw new Error("The executable has no icon group to replace");
+
 
 ResEdit.Resource.IconGroupEntry.replaceIconsForResource(
   resources.entries,
@@ -21,10 +25,11 @@ ResEdit.Resource.IconGroupEntry.replaceIconsForResource(
   iconFile.icons.map((item) => item.data)
 );
 
+
 const versionInfo = ResEdit.Resource.VersionInfo.fromEntries(resources.entries)[0];
 if (versionInfo) {
-  versionInfo.setFileVersion(0, 8, 2, 0, 1033);
-  versionInfo.setProductVersion(0, 8, 2, 0, 1033);
+  versionInfo.setFileVersion(0, 8, 3, 0, 1033);
+  versionInfo.setProductVersion(0, 8, 3, 0, 1033);
   versionInfo.setStringValues(
     { lang: 1033, codepage: 1200 },
     {
@@ -34,12 +39,13 @@ if (versionInfo) {
       LegalCopyright: "© 2026 Sander Stripa",
       OriginalFilename: "Soulu.exe",
       ProductName: "Soulu",
-      FileVersion: "0.8.2",
-      ProductVersion: "0.8.2"
+      FileVersion: "0.8.3",
+      ProductVersion: "0.8.3"
     }
   );
   versionInfo.outputToResourceEntries(resources.entries);
 }
+
 
 resources.outputResource(executable);
 const generated = executable.generate();

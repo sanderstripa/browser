@@ -10,21 +10,28 @@
 <body data-layout="compact" data-theme="system" data-matte="false" data-address-position="center" data-extensions-position="left">
   <div class="window-drag-strip" aria-hidden="true"></div>
 
+
   <header class="compact-toolbar browser-toolbar" aria-label="Компактная панель Soulu">
     <div class="compact-toolbar-surface" data-toolbar-surface>
       <button class="compact-control sidebar-button" id="compactSidebarButton" data-i18n-title="tabs"><svg viewBox="0 0 24 24"><rect x="3.25" y="4.25" width="17.5" height="15.5" rx="2.4"/><path d="M8.7 4.7v14.6"/></svg></button>
       <button class="compact-control" id="compactBackButton" data-i18n-title="back" disabled><svg viewBox="0 0 24 24"><path d="m14.5 5.5-6 6.5 6 6.5"/></svg></button>
 
-      <div class="extension-slot compact-extension-slot extension-left" aria-label="Закреплённые расширения">
-        <button class="compact-control vpn-button" id="compactVpnButton" title="VPN" aria-pressed="false"><img id="compactVpnToolbarIcon" src="vpn/icons/icon-off-32.svg" alt=""></button>
+
+      <div class="compact-center-cluster">
+        <div class="extension-slot compact-extension-slot extension-left" aria-label="Закреплённые расширения">
+          <button class="compact-control vpn-button" id="compactVpnButton" title="VPN" aria-pressed="false"><img id="compactVpnToolbarIcon" src="vpn/icons/icon-off-32.svg" alt=""></button>
+        </div>
+
+
+        <div class="compact-tab-flow" id="compactTabFlow"><template id="compactTabsAnchor"></template></div>
+
+
+        <div class="extension-slot compact-extension-slot extension-right" aria-label="Закреплённые расширения">
+          <button class="compact-control vpn-button" id="compactVpnButtonRight" title="VPN" aria-pressed="false"><img id="compactVpnToolbarIconRight" src="vpn/icons/icon-off-32.svg" alt=""></button>
+        </div>
+        <button class="compact-control compact-new-tab" id="compactNewTabButton" data-i18n-title="newTab"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
       </div>
 
-      <div class="compact-tab-flow" id="compactTabFlow"><template id="compactTabsAnchor"></template></div>
-
-      <div class="extension-slot compact-extension-slot extension-right" aria-label="Закреплённые расширения">
-        <button class="compact-control vpn-button" id="compactVpnButtonRight" title="VPN" aria-pressed="false"><img id="compactVpnToolbarIconRight" src="vpn/icons/icon-off-32.svg" alt=""></button>
-      </div>
-      <button class="compact-control compact-new-tab" id="compactNewTabButton" data-i18n-title="newTab"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
 
       <button class="compact-control downloads-control auto-hidden" id="compactDownloadsButton" data-i18n-title="downloads" aria-expanded="false">
         <svg class="download-static" viewBox="0 0 24 24"><path d="M12 3v11m0 0 4-4m-4 4-4-4M5 19h14"/></svg>
@@ -39,6 +46,7 @@
     </div>
   </header>
 
+
   <header class="classic-toolbar browser-toolbar" aria-label="Классическая панель Soulu">
     <div class="classic-main-row" data-toolbar-surface>
       <div class="left-controls">
@@ -46,9 +54,11 @@
         <button class="toolbar-button" id="backButton" data-i18n-title="back" disabled><svg viewBox="0 0 24 24"><path d="m14.5 5.5-6 6.5 6 6.5"/></svg></button>
       </div>
 
+
       <div class="extension-slot classic-extension-slot extension-left" aria-label="Закреплённые расширения">
         <button class="toolbar-button vpn-button" id="vpnButton" title="VPN" aria-pressed="false"><img id="vpnToolbarIcon" src="vpn/icons/icon-off-32.svg" alt=""></button>
       </div>
+
 
       <div class="classic-address-wrap">
         <form class="classic-address-pill" id="classicAddressForm">
@@ -61,15 +71,18 @@
         </form>
       </div>
 
+
       <div class="extension-slot classic-extension-slot extension-right" aria-label="Закреплённые расширения">
         <button class="toolbar-button vpn-button" id="vpnButtonRight" title="VPN" aria-pressed="false"><img id="vpnToolbarIconRight" src="vpn/icons/icon-off-32.svg" alt=""></button>
       </div>
+
 
       <button class="toolbar-button downloads-control auto-hidden" id="downloadsButton" data-i18n-title="downloads" aria-expanded="false">
         <svg class="download-static" viewBox="0 0 24 24"><path d="M12 3v11m0 0 4-4m-4 4-4-4M5 19h14"/></svg>
         <svg class="download-progress" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path class="progress-arc" d="M12 3.5a8.5 8.5 0 0 1 8.5 8.5"/></svg>
         <span class="downloads-badge" id="downloadsBadge"></span>
       </button>
+
 
       <div class="window-controls">
         <button id="windowMinimize" data-i18n-title="minimize"><svg viewBox="0 0 16 16"><path d="M3 8.5h10"/></svg></button>
@@ -78,6 +91,7 @@
       </div>
     </div>
 
+
     <div class="tabs-zone" data-toolbar-surface>
       <div class="tab-strip" id="tabStrip" role="tablist"></div>
       <button class="toolbar-button tabs-new-button" id="newTabButton" data-i18n-title="newTab"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
@@ -85,10 +99,12 @@
     </div>
   </header>
 
+
   <aside class="sidebar" id="sidebar"><div class="panel-heading"><div><strong data-i18n="tabs">Вкладки</strong><small id="sidebarCount"></small></div><button id="sidebarNewTab">+</button></div><div id="sidebarTabs"></div></aside>
   <aside class="side-panel" id="favoritesPanel"><div class="panel-heading"><div><strong data-i18n="favorites">Избранное</strong><small data-i18n="savedPages">Сохранённые страницы</small></div><button id="addFavoriteButton">☆</button></div><div id="favoritesList"></div></aside>
   <aside class="side-panel downloads-panel" id="downloadsPanel"><div class="panel-heading"><div><strong data-i18n="downloads">Загрузки</strong><small data-i18n="recentDownloads">Текущие и недавние</small></div></div><div id="downloadsList"></div></aside>
   <aside class="vpn-panel" id="vpnPanel"><iframe id="vpnFrame" src="vpn/popup.html" title="VPN"></iframe></aside>
+
 
   <aside class="settings-panel" id="settingsPanel">
     <div class="settings-header"><div><strong data-i18n="settings">Настройки</strong><small>Soulu</small></div><button id="settingsClose">×</button></div>
@@ -104,6 +120,7 @@
         <label class="setting-line"><strong data-i18n="language">Язык</strong><select id="languageSelect"><option value="ru">Русский</option><option value="en">English</option></select></label>
       </section>
 
+
       <section>
         <h2 data-i18n="toolbar">Верхняя панель</h2>
         <label class="setting-line"><span><strong data-i18n="addressPosition">Положение адресной строки</strong><small data-i18n="addressPositionHint">По центру или слева</small></span><select id="addressPosition"><option value="center" data-i18n="center">По центру</option><option value="left" data-i18n="left">Слева</option></select></label>
@@ -111,20 +128,12 @@
         <label class="setting-line"><span><strong data-i18n="downloadsVisibility">Иконка загрузок</strong><small data-i18n="downloadsVisibilityHint">Автоскрытие или постоянное отображение</small></span><select id="downloadsMode"><option value="dynamic" data-i18n="dynamic">Динамически</option><option value="always" data-i18n="always">Всегда</option></select></label>
       </section>
 
+
       <section>
         <h2 data-i18n="search">Поиск</h2>
         <label class="setting-line"><span><strong data-i18n="defaultSearch">Поисковая система</strong><small data-i18n="searchHint">Используется в адресной строке</small></span><select id="searchEngineSelect"><option value="google">Google</option><option value="yandex">Яндекс</option><option value="bing">Bing</option><option value="duckduckgo">DuckDuckGo</option></select></label>
         <label class="setting-line"><span><strong data-i18n="addressBehavior">Переход из адресной строки</strong><small data-i18n="addressBehaviorHint">Куда открывать введённый адрес</small></span><select id="addressOpenMode"><option value="current" data-i18n="openCurrentTab">В текущей вкладке</option><option value="newIfOccupied" data-i18n="openNewIfOccupied">В новой, если текущая занята</option></select></label>
       </section>
 
-      <section><h2 data-i18n="startup">Стартовая страница</h2><div class="choice-row"><label><input type="radio" name="startPageMode" value="blank"><span data-i18n="blankPage">Пустая страница</span></label><label><input type="radio" name="startPageMode" value="custom"><span data-i18n="customPage">Свой адрес</span></label></div><input class="wide-input" id="startPageUrl" placeholder="https://example.com" spellcheck="false"></section>
-      <section><h2 data-i18n="downloads">Загрузки</h2><label class="check-line"><input type="checkbox" id="askDownloadLocation"><span data-i18n="askDownload">Всегда спрашивать место сохранения</span></label><div class="folder-row"><span id="downloadPathLabel">Папка не выбрана</span><button class="soft-button" id="chooseDownloadFolder" data-i18n="choose">Выбрать…</button></div></section>
-      <section><h2>VPN</h2><div class="setting-action"><span><strong data-i18n="vpnSettings">Настройки VPN</strong><small data-i18n="vpnHint">Профили, подключение и защита WebRTC</small></span><button class="soft-button" id="openVpnSettings" data-i18n="open">Открыть</button></div></section>
-      <section><h2 data-i18n="googleAccounts">Учётные записи Google</h2><p data-i18n="googleHint">Можно добавить несколько аккаунтов. Они работают в общей сессии браузера.</p><div class="button-row"><button class="primary-button" id="addGoogleAccount" data-i18n="addAccount">Добавить аккаунт</button><button class="soft-button" id="manageGoogleAccounts" data-i18n="manageAccounts">Управление</button></div></section>
-      <section><h2 data-i18n="passwords">Пароли</h2><p data-i18n="passwordHint">Пароли шифруются средствами Windows. Автозаполнение пока не выполняется.</p><div class="password-form"><input id="passwordSite" data-i18n-placeholder="site" placeholder="Сайт"><input id="passwordUsername" data-i18n-placeholder="login" placeholder="Логин"><input id="passwordValue" type="password" data-i18n-placeholder="password" placeholder="Пароль"><button class="primary-button" id="savePassword" data-i18n="save">Сохранить</button></div><div id="passwordList"></div></section>
-    </div>
-  </aside>
 
-  <script src="renderer.js"></script>
-</body>
-</html>
+      <section><h2 data-i18n="startup">Стартовая страница</h2><div class="choice-row"><label><input type="radio" name="startPageMode" value="blank"><span data-i18n="blankPage">Пустая страница</span></label><label><input type="radio" name="startPageMode" value="custom"><span data-i18n="customPage">Свой адрес</span></label></div><input class="wide-input" id="startPageUrl" placeholder="https://example.com" spellcheck="false"></section>

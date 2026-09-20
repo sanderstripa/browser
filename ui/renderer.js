@@ -34,6 +34,7 @@ function vpnPost(m){vpnFrame.contentWindow?.postMessage(m,"*");}
 function updateVpnState(v={}){vpnState=v.state||"disconnected";vpnBusy=["connecting","reconnecting","disconnecting"].includes(vpnState);const connected=vpnState==="connected",title=vpnBusy?tr("vpnBusy"):connected?tr("vpnOn"):tr("vpnOff");$$('#vpnToolbarIcon,#vpnToolbarIconRight,#compactVpnToolbarIcon,#compactVpnToolbarIconRight').forEach((icon)=>icon.src=connected?"vpn/icons/icon-on-32.svg":"vpn/icons/icon-off-32.svg");vpnButtons.forEach((button)=>{button.disabled=vpnBusy;button.classList.toggle("connected",connected);button.classList.toggle("busy",vpnBusy);button.setAttribute("aria-pressed",String(connected));button.title=title;});vpnPost({type:"vpn-state",value:v});}
 async function toggleVpn(){if(vpnBusy)return;vpnBusy=true;updateVpnState({state:vpnState==="connected"?"disconnecting":"connecting"});try{if(vpnState==="connected"||vpnState==="disconnecting")return updateVpnState(await window.vpn.send("disconnect"));const settings=await window.vpn.settingsGet();if(!settings.lastProfileId){vpnBusy=false;updateVpnState({state:"disconnected"});openPanel("vpn");return;}updateVpnState(await window.vpn.send("connect",{profileId:settings.lastProfileId}));}catch(error){updateVpnState({state:"error",error:error.message});}}
 
+
 bindAddress($("#classicAddressForm"),$("#classicAddress"),$("#classicSuggestions"));
 sidebarButtons.forEach((button)=>button.onclick=()=>window.browserShell.toggleSidebar());
 backButtons.forEach((button)=>button.onclick=()=>window.browserShell.back());
@@ -50,6 +51,11 @@ $("#addFavoriteButton").onclick=async()=>renderBookmarks(await window.browserShe
 [$("#windowMaximize"),$("#compactWindowMaximize")].forEach((button)=>button.onclick=()=>window.browserShell.maximize());
 $(".classic-reload").onclick=()=>window.browserShell.reload();
 $("#classicCloseTab").onclick=()=>window.browserShell.closeTab(state.activeTabId);
+let windowDragging=false,windowDragPointer=null,windowDragTarget=null;
+document.addEventListener("pointerdown",(event)=>{const target=event.target.closest(".compact-drag-space,.classic-tabs-drag");if(event.button!==0||!target)return;event.preventDefault();windowDragging=true;windowDragPointer=event.pointerId;windowDragTarget=target;target.setPointerCapture?.(event.pointerId);window.browserShell.dragStart();});
+document.addEventListener("pointermove",(event)=>{if(windowDragging&&event.pointerId===windowDragPointer)window.browserShell.dragMove();});
+function stopWindowDrag(event){if(!windowDragging||event&&event.pointerId!==windowDragPointer)return;windowDragTarget?.releasePointerCapture?.(windowDragPointer);windowDragging=false;windowDragPointer=null;windowDragTarget=null;window.browserShell.dragEnd();}
+document.addEventListener("pointerup",stopWindowDrag);document.addEventListener("pointercancel",stopWindowDrag);window.addEventListener("blur",()=>stopWindowDrag());
 document.addEventListener("contextmenu",(event)=>{if(!event.target.closest(".browser-toolbar")||event.target.closest("button,input,.classic-tab,.compact-tab,.compact-active-tab,.classic-address-pill"))return;event.preventDefault();window.browserShell.toolbarMenu();},true);
 document.querySelectorAll("[data-layout-choice]").forEach((b)=>b.onclick=()=>setSetting({layout:b.dataset.layoutChoice}));
 $("#themeSelect").onchange=(e)=>setSetting({theme:e.target.value});
@@ -68,6 +74,7 @@ $("#openVpnSettings").onclick=()=>openPanel("vpn");
 $("#addGoogleAccount").onclick=()=>{window.browserShell.addGoogleAccount();closePanel();};
 $("#manageGoogleAccounts").onclick=()=>{window.browserShell.manageGoogleAccounts();closePanel();};
 $("#savePassword").onclick=async()=>{const site=$("#passwordSite").value.trim(),username=$("#passwordUsername").value.trim(),password=$("#passwordValue").value;if(!site||!username||!password)return alert(tr("fillPassword"));try{renderPasswords(await window.browserShell.addPassword({site,username,password}));$("#passwordSite").value=$("#passwordUsername").value=$("#passwordValue").value="";}catch(e){alert(e.message);}};
+
 
 window.addEventListener("message",async(e)=>{if(e.source!==vpnFrame.contentWindow||e.data?.type!=="vpn-request")return;const{id,action,payload}=e.data;let result;try{result=action==="__settingsGet"?await window.vpn.settingsGet():action==="__settingsSet"?await window.vpn.settingsSet(payload):await window.vpn.send(action,payload||{});}catch(error){result={ok:false,state:"error",error:error.message};}vpnPost({type:"vpn-response",id,result});});
 window.vpn.onState(updateVpnState);
