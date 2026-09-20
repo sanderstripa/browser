@@ -1,5 +1,8 @@
 #include "examples/soulu/browser_window.h"
 
+#include <windowsx.h>
+#include <ws2tcpip.h>
+
 #include <algorithm>
 #include <dwmapi.h>
 #include <filesystem>
@@ -63,7 +66,10 @@ CefRefPtr<CefValue> EmptyValue() {
 
 BrowserWindow::BrowserWindow()
     : settings_(CefDictionaryValue::Create()),
+      vpn_settings_(CefDictionaryValue::Create()),
       bookmarks_(CefListValue::Create()), downloads_(CefListValue::Create()) {
+  WSADATA winsock = {};
+  WSAStartup(MAKEWORD(2, 2), &winsock);
   settings_->SetString("layout", "compact");
   settings_->SetString("theme", "system");
   settings_->SetString("language", "ru");
@@ -85,6 +91,34 @@ BrowserWindow::BrowserWindow()
   settings_->SetString("downloadPath", "");
   settings_->SetString("updateChannel", "stable");
   settings_->SetBool("automaticUpdates", true);
+  vpn_settings_->SetString("protocol", "vless");
+  vpn_settings_->SetString("link", "");
+  vpn_settings_->SetString("address", "");
+  vpn_settings_->SetString("region", "");
+  vpn_settings_->SetString("lastProfileId", "");
+  LoadSettings();
+}
+
+void BrowserWindow::LoadSettings() {
+  std::ifstream file(UserDataDirectory() / L"settings.json", std::ios::binary);
+  if (!file) return;
+  std::stringstream buffer; buffer << file.rdbuf();
+  auto parsed = CefParseJSON(buffer.str(), JSON_PARSER_RFC);
+  if (!parsed || parsed->GetType() != VTYPE_DICTIONARY) return;
+  auto root = parsed->GetDictionary();
+  if (auto saved = root->GetDictionary("settings")) {
+    CefDictionaryValue::KeyList keys; saved->GetKeys(keys);
+    for (const auto& key : keys) settings_->SetValue(key, saved->GetValue(key)->Copy());
+  }
+  if (auto saved = root->GetDictionary("vpn")) vpn_settings_ = saved->Copy(false);
+}
+
+void BrowserWindow::SaveSettings() const {
+  auto root = CefDictionaryValue::Create();
+  root->SetDictionary("settings", settings_->Copy(false));
+  root->SetDictionary("vpn", vpn_settings_->Copy(false));
+  std::ofstream file(UserDataDirectory() / L"settings.json", std::ios::binary | std::ios::trunc);
+  file << CefWriteJSON(Wrap(root), JSON_WRITER_PRETTY_PRINT);
 }
 
 void BrowserWindow::Create() {
@@ -120,7 +154,7 @@ bool BrowserWindow::CreateNativeWindow() {
   // Windows 11 system backdrop gives the frameless shell a native matte surface.
   const DWORD backdrop = 2;  // DWMSBT_MAINWINDOW
   DwmSetWindowAttribute(hwnd_, 38, &backdrop, sizeof(backdrop));
-  const MARGINS glass = {-1};
+  const MARGINS glass = {0, 0, 0, 0};
   DwmExtendFrameIntoClientArea(hwnd_, &glass);
 
   ShowWindow(hwnd_, SW_SHOW);
@@ -256,7 +290,12 @@ void BrowserWindow::OpenSettingsTab() {
                tab.url == url;
       });
   if (existing != tabs_.end()) SwitchTab(existing->id);
-  else NewTab(url);
+  else if (auto* tab = ActiveTab(); tab && tab->url == "about:blank" && tab->browser) {
+    tab->url = url;
+    tab->title = settings_->GetString("language") == "en" ? "Settings" : "Настройки";
+    tab->browser->GetMainFrame()->LoadURL(url);
+    EmitState();
+  } else NewTab(url);
 }
 
 void BrowserWindow::NewTab(const std::string& url, bool incognito) {
@@ -522,8 +561,8 @@ CefRefPtr<CefDictionaryValue> BrowserWindow::State() const {
   }
   state->SetList("profiles", profiles);
   auto update = CefDictionaryValue::Create();
-  update->SetString("soulu", "0.9.0-cef-preview.3");
-  update->SetString("recommended", "0.9.0-cef-preview.3");
+  update->SetString("soulu", "0.9.0-cef-preview.4");
+  update->SetString("recommended", "0.9.0-cef-preview.4");
   update->SetString("cef", "144.0.6");
   update->SetString("chromium", "144");
   update->SetBool("available", false);
@@ -579,6 +618,7 @@ void BrowserWindow::EmitState() { Emit("state", Wrap(State())); }
 
 void BrowserWindow::SetSetting(const std::string& key, CefRefPtr<CefValue> value) {
   settings_->SetValue(key, value->Copy());
+  SaveSettings();
   if (key == "layout") Layout();
 }
 
@@ -615,8 +655,8 @@ void BrowserWindow::HandleBridge(const std::string& request,
   }
   else if (action == "browser.update.check") {
     auto update = CefDictionaryValue::Create();
-    update->SetString("soulu", "0.9.0-cef-preview.3");
-    update->SetString("recommended", "0.9.0-cef-preview.3");
+    update->SetString("soulu", "0.9.0-cef-preview.4");
+    update->SetString("recommended", "0.9.0-cef-preview.4");
     update->SetString("cef", "144.0.6");
     update->SetString("chromium", "144");
     update->SetBool("available", false);
@@ -687,11 +727,33 @@ void BrowserWindow::HandleBridge(const std::string& request,
     return Reply(callback, Wrap(result));
   }
   else if (action == "browser.passwords.get") return Reply(callback, Wrap(CefListValue::Create()));
-  else if (action == "vpn.settings.get") {
-    auto result = CefDictionaryValue::Create(); result->SetString("lastProfileId", "");
+  else if (action == "vpn.resolve") {
+    auto result = CefDictionaryValue::Create();
+    const std::wstring host = CefString(payload->GetString()).ToWString();
+    ADDRINFOW hints = {}; hints.ai_family = AF_UNSPEC; hints.ai_socktype = SOCK_STREAM;
+    ADDRINFOW* addresses = nullptr;
+    if (GetAddrInfoW(host.c_str(), nullptr, &hints, &addresses) == 0 && addresses) {
+      wchar_t text[INET6_ADDRSTRLEN] = {};
+      void* source = addresses->ai_family == AF_INET
+          ? static_cast<void*>(&reinterpret_cast<sockaddr_in*>(addresses->ai_addr)->sin_addr)
+          : static_cast<void*>(&reinterpret_cast<sockaddr_in6*>(addresses->ai_addr)->sin6_addr);
+      if (InetNtopW(addresses->ai_family, source, text, INET6_ADDRSTRLEN))
+        result->SetString("ip", CefString(text));
+      FreeAddrInfoW(addresses);
+    }
     return Reply(callback, result);
   }
-  else if (action == "vpn.settings.set") return Reply(callback, payload);
+  else if (action == "vpn.settings.get") {
+    return Reply(callback, vpn_settings_->Copy(false));
+  }
+  else if (action == "vpn.settings.set") {
+    if (payload && payload->GetType() == VTYPE_DICTIONARY) {
+      auto patch = payload->GetDictionary(); CefDictionaryValue::KeyList keys; patch->GetKeys(keys);
+      for (const auto& key : keys) vpn_settings_->SetValue(key, patch->GetValue(key)->Copy());
+      SaveSettings();
+    }
+    return Reply(callback, vpn_settings_->Copy(false));
+  }
   else if (action == "vpn.send") {
     std::string command;
     if (payload && payload->GetType() == VTYPE_DICTIONARY)
@@ -780,6 +842,22 @@ LRESULT CALLBACK BrowserWindow::WindowProc(HWND hwnd, UINT message, WPARAM wpara
   }
   if (!self) return DefWindowProc(hwnd, message, wparam, lparam);
   switch (message) {
+    case WM_NCCALCSIZE:
+      if (wparam) return 0;
+      break;
+    case WM_NCHITTEST: {
+      const LRESULT hit = DefWindowProc(hwnd, message, wparam, lparam);
+      if (hit != HTCLIENT) return hit;
+      RECT r = {}; GetWindowRect(hwnd, &r);
+      const int x = GET_X_LPARAM(lparam), y = GET_Y_LPARAM(lparam), edge = 7;
+      const bool left = x < r.left + edge, right = x >= r.right - edge;
+      const bool top = y < r.top + edge, bottom = y >= r.bottom - edge;
+      if (top && left) return HTTOPLEFT; if (top && right) return HTTOPRIGHT;
+      if (bottom && left) return HTBOTTOMLEFT; if (bottom && right) return HTBOTTOMRIGHT;
+      if (left) return HTLEFT; if (right) return HTRIGHT;
+      if (top) return HTTOP; if (bottom) return HTBOTTOM;
+      return HTCLIENT;
+    }
     case WM_SIZE: self->Layout(); return 0;
     case WM_CLOSE: self->CloseAll(); return 0;
     case WM_DESTROY: CefQuitMessageLoop(); return 0;

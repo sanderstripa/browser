@@ -46,6 +46,7 @@
   }
 
   function fill() {
+    document.body.dataset.theme = settings.theme || "system";
     $$('[name="layout"]').forEach(x => x.checked = x.value === (settings.layout || "compact"));
     const values={theme:"system",language:"ru",addressPosition:"center",extensionsPosition:"left",downloadsMode:"dynamic",searchEngine:"google",addressOpenMode:"current",startPageMode:"blank",startPageUrl:"",downloadPath:""};
     for(const [id,fallback] of Object.entries(values)){const el=$("#"+id);if(el)el.value=settings[id] ?? fallback;}
@@ -56,6 +57,32 @@
     renderProfiles();
     renderUpdate(browserState.update);
     translate();
+    document.body.classList.add("ready");
+  }
+
+  function decodeBase64Url(value) {
+    const normalized=value.replace(/-/g,"+").replace(/_/g,"/").padEnd(Math.ceil(value.length/4)*4,"=");
+    return decodeURIComponent([...atob(normalized)].map(c=>"%"+c.charCodeAt(0).toString(16).padStart(2,"0")).join(""));
+  }
+  async function parseVpnLink() {
+    const raw=$("#vpnLink").value.trim();
+    const protocol=document.querySelector('[name="vpnProtocol"]:checked')?.value||"vless";
+    let address="",region="";
+    try {
+      if(protocol==="vless"){
+        if(!raw.startsWith("vless://")) throw new Error("Ожидается ссылка vless://");
+        const url=new URL(raw); address=url.hostname+(url.port?":"+url.port:""); region=decodeURIComponent(url.hash.slice(1))||url.searchParams.get("sni")||"Не указан";
+      } else {
+        if(!raw.startsWith("sudoku://")) throw new Error("Ожидается ссылка sudoku://");
+        const data=JSON.parse(decodeBase64Url(raw.slice(9))); address=String(data.h||"")+(data.p?":"+data.p:""); region=String(data.r||data.n||"Не указан");
+        if(!data.h||!data.p||!data.k) throw new Error("В Sudoku-ключе отсутствуют сервер, порт или ключ");
+      }
+      const host=address.replace(/^\[/,"").replace(/\](:\d+)?$/,"").replace(/:\d+$/,"");
+      const resolved=await window.vpn.resolve(host).catch(()=>null);
+      const ip=resolved?.ip||host;
+      $("#vpnAddress").textContent=ip+(address.includes(":")?" · "+address:""); $("#vpnRegion").textContent=region; $("#vpnMessage").textContent="Ключ распознан";
+      return {protocol,link:raw,address,ip,region};
+    } catch(error){$("#vpnAddress").textContent="—";$("#vpnRegion").textContent="—";$("#vpnMessage").textContent=error.message;return null;}
   }
 
   function renderProfiles() {
@@ -116,6 +143,10 @@
   };
   $("#openIncognito").onclick=()=>window.browserShell.newIncognito();
   $("#checkUpdates").onclick=async()=>{browserState.update=await window.browserShell.checkUpdates();renderUpdate(browserState.update);};
+  $("#parseVpn").onclick=parseVpnLink;
+  $("#saveVpn").onclick=async()=>{const parsed=await parseVpnLink();if(!parsed)return;await window.vpn.settingsSet(parsed);$("#vpnMessage").textContent="Конфигурация сохранена. Она действует только внутри Soulu.";};
+  $$('[name="vpnProtocol"]').forEach(el=>el.onchange=()=>{$("#vpnMessage").textContent="";parseVpnLink();});
+  window.vpn.settingsGet().then(value=>{if(!value)return;const p=value.protocol||"vless";const radio=document.querySelector(`[name="vpnProtocol"][value="${p}"]`);if(radio)radio.checked=true;$("#vpnLink").value=value.link||"";if(value.link)parseVpnLink();}).catch(()=>{});
 
   window.browserShell.onState(state => {browserState=state;settings=state.settings||settings;fill();});
   Promise.all([window.browserShell.getSettings(),window.browserShell.getState()]).then(([value,state])=>{settings=value||{};browserState=state||browserState;fill();});

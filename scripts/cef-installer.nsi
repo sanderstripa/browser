@@ -22,9 +22,13 @@ ManifestDPIAware true
 
 !define MUI_ICON "${BUILD_DIR}\ui\browser-app-icon.ico"
 !define MUI_UNICON "${BUILD_DIR}\ui\browser-app-icon.ico"
+!define MUI_WELCOMEFINISHPAGE_BITMAP "${__FILEDIR__}\installer-side.bmp"
+!define MUI_HEADERIMAGE
+!define MUI_HEADERIMAGE_BITMAP "${__FILEDIR__}\installer-header.bmp"
+!define MUI_HEADERIMAGE_RIGHT
 !define MUI_ABORTWARNING
-!define MUI_WELCOMEPAGE_TITLE "Спокойный интернет впереди."
-!define MUI_WELCOMEPAGE_TEXT "Установи Soulu и открой больше возможностей.$\r$\n$\r$\nБыстро. Чисто. Без вмешательства в системный прокси Windows."
+!define MUI_WELCOMEPAGE_TITLE "Добро пожаловать в Soulu"
+!define MUI_WELCOMEPAGE_TEXT "Спокойный и умный браузер для больших возможностей.$\r$\n$\r$\nБыстро. Безопасно. Без изменения системного прокси Windows."
 !define MUI_INSTFILESPAGE_FINISHHEADER_TEXT "Установка завершена"
 !define MUI_INSTFILESPAGE_FINISHHEADER_SUBTEXT "Soulu готов к первому запуску."
 !define MUI_FINISHPAGE_TITLE "Всё готово!"
@@ -58,7 +62,7 @@ Section "Soulu" SEC_MAIN
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "DisplayIcon" "$INSTDIR\Soulu.exe"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "UninstallString" '"$INSTDIR\Uninstall Soulu.exe"'
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "Publisher" "Soulu"
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "DisplayVersion" "0.9.0-cef-preview.3"
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "DisplayVersion" "0.9.0-cef-preview.4"
 SectionEnd
 
 Section "Uninstall"

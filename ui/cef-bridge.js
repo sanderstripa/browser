@@ -81,6 +81,7 @@
 
   window.vpn = {
     send: (action, payload = {}) => invoke("vpn.send", { action, payload }),
+    resolve: host => invoke("vpn.resolve", host),
     settingsGet: () => invoke("vpn.settings.get"),
     settingsSet: value => invoke("vpn.settings.set", value),
     onState: callback => subscribe("vpnState", callback)

@@ -5,12 +5,13 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self';style-src 'self';script-src 'self';img-src 'self' data:;">
   <title>Настройки Soulu</title>
+  <link rel="icon" href="settings-icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="settings.css">
 </head>
 <body>
   <main class="settings-shell">
     <aside class="settings-nav">
-      <div class="brand"><span class="brand-mark">S</span><span><strong>Soulu</strong><small data-t="settings">Настройки</small></span></div>
+      <div class="brand"><strong data-t="settings">Настройки</strong></div>
       <nav>
         <button class="nav-item active" data-section="appearance"><span>◐</span><b data-t="appearance">Оформление</b></button>
         <button class="nav-item" data-section="toolbar"><span>▰</span><b data-t="toolbar">Панель</b></button>
@@ -23,7 +24,7 @@
         <button class="nav-item" data-section="passwords"><span>⌁</span><b data-t="passwords">Пароли</b></button>
         <button class="nav-item" data-section="updates"><span>↻</span><b data-t="updates">Обновления</b><i class="update-dot" id="updateDot"></i></button>
       </nav>
-      <div class="version">Soulu CEF Preview 0.9.0 Preview 3</div>
+      <div class="version">Soulu CEF Preview 0.9.0 Preview 4</div>
     </aside>
 
     <section class="settings-content">
@@ -33,7 +34,7 @@
         <article class="card">
           <h2 data-t="panelMode">Режим панели</h2>
           <div class="segmented">
-            <label><input type="radio" name="layout" value="compact"><span data-t="mainMode">Основная</span></label>
+            <label><input type="radio" name="layout" value="compact" checked><span data-t="mainMode">Основная</span></label>
             <label><input type="radio" name="layout" value="classic"><span data-t="classicMode">Классическая</span></label>
           </div>
           <p class="note" data-t="mainDefault">Основная — компактная панель Soulu и режим по умолчанию.</p>
@@ -91,6 +92,18 @@
           <h2>VPN</h2>
           <p class="note" data-t="vpnHint">VPN выключен по умолчанию. Кнопку на панели можно скрыть в разделе «Панель».</p>
           <label class="row"><span><b data-t="vpnButton">Показывать кнопку VPN</b></span><input class="switch" data-setting="vpnToolbarVisible" type="checkbox"></label>
+        </article>
+        <article class="card vpn-config">
+          <h2>Конфигурация VPN</h2>
+          <p class="note">Прокси применяется только к сетевому контексту Soulu. Системный прокси Windows не изменяется.</p>
+          <div class="protocol-switch">
+            <label><input type="radio" name="vpnProtocol" value="vless" checked><span>VLESS</span></label>
+            <label><input type="radio" name="vpnProtocol" value="sudoku"><span>Sudoku</span></label>
+          </div>
+          <label class="field"><span>Ключ подключения</span><textarea id="vpnLink" rows="4" placeholder="vless://… или sudoku://…"></textarea></label>
+          <div class="vpn-detected" id="vpnDetected"><span><small>Регион</small><b id="vpnRegion">—</b></span><span><small>Адрес</small><b id="vpnAddress">—</b></span></div>
+          <div class="vpn-actions"><button class="secondary" id="parseVpn">Распознать</button><button class="primary-update" id="saveVpn">Сохранить</button></div>
+          <p class="note" id="vpnMessage"></p>
         </article>
       </div>
 

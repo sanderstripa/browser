@@ -57,6 +57,8 @@ class BrowserWindow final : public CefBaseRefCounted {
   void InitializeProfiles();
   void CreateProfile(const std::string& name, const std::string& requested_id = "");
   void SaveProfiles() const;
+  void LoadSettings();
+  void SaveSettings() const;
   void SwitchProfile(const std::string& id);
   Profile* ActiveProfile();
   CefRefPtr<CefRequestContext> ContextForNewTab(bool incognito);
@@ -92,6 +94,7 @@ class BrowserWindow final : public CefBaseRefCounted {
   std::vector<Profile> profiles_;
   CefRefPtr<CefRequestContext> incognito_context_;
   CefRefPtr<CefDictionaryValue> settings_;
+  CefRefPtr<CefDictionaryValue> vpn_settings_;
   CefRefPtr<CefListValue> bookmarks_;
   CefRefPtr<CefListValue> downloads_;
   std::string active_profile_id_ = "personal";
