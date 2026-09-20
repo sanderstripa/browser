@@ -1,0 +1,43 @@
+#include <windows.h>
+
+#include <filesystem>
+
+#include "examples/soulu/app_factory.h"
+#include "include/cef_command_line.h"
+
+namespace {
+std::wstring LocalDataPath() {
+  wchar_t buffer[MAX_PATH] = {};
+  DWORD size = GetEnvironmentVariableW(L"LOCALAPPDATA", buffer, MAX_PATH);
+  std::filesystem::path root = size ? buffer : L".";
+  return (root / L"Soulu" / L"CEF").wstring();
+}
+}
+
+int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, wchar_t*, int) {
+  CefEnableHighDPISupport();
+  CefMainArgs main_args(instance);
+  auto command_line = CefCommandLine::CreateCommandLine();
+  command_line->InitFromString(GetCommandLineW());
+  const auto process_type = command_line->GetSwitchValue("type");
+
+  CefRefPtr<CefApp> app;
+  if (process_type == "renderer") app = soulu::CreateRendererApp();
+  else if (process_type.empty()) app = soulu::CreateBrowserApp();
+  else app = soulu::CreateOtherApp();
+
+  const int code = CefExecuteProcess(main_args, app, nullptr);
+  if (code >= 0) return code;
+
+  CefSettings settings;
+  settings.no_sandbox = true;
+  settings.multi_threaded_message_loop = false;
+  CefString(&settings.cache_path) = LocalDataPath();
+  CefString(&settings.root_cache_path) = LocalDataPath();
+  CefString(&settings.locale) = "ru-RU";
+  CefString(&settings.accept_language_list) = "ru-RU,ru,en-US,en";
+  if (!CefInitialize(main_args, settings, app, nullptr)) return 1;
+  CefRunMessageLoop();
+  CefShutdown();
+  return 0;
+}
