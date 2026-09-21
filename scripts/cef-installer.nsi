@@ -9,9 +9,6 @@ RequestExecutionLevel user
 !ifndef OUT_FILE
   !define OUT_FILE "Soulu-CEF-Setup.exe"
 !endif
-!ifndef INSTALLER_ASSET_DIR
-  !define INSTALLER_ASSET_DIR "${__FILEDIR__}"
-!endif
 
 Name "Soulu"
 OutFile "${OUT_FILE}"
