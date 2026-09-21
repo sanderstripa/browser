@@ -91,7 +91,8 @@ jobs:
           choco install nsis -y --no-progress
           $buildDir = "${{ steps.package.outputs.build_dir }}"
           $out = Join-Path $PWD "browser/artifacts/Soulu-CEF-Setup-$env:PREVIEW_VERSION-x64.exe"
-          & "${env:ProgramFiles(x86)}\NSIS\makensis.exe" "/INPUTCHARSET" "UTF8" "/DBUILD_DIR=$buildDir" "/DOUT_FILE=$out" browser/scripts/cef-installer.nsi
+          $assetDir = (Resolve-Path "browser/scripts").Path
+          & "${env:ProgramFiles(x86)}\NSIS\makensis.exe" "/INPUTCHARSET" "UTF8" "/DBUILD_DIR=$buildDir" "/DINSTALLER_ASSET_DIR=$assetDir" "/DOUT_FILE=$out" browser/scripts/cef-installer.nsi
 
       - name: Upload preview artifacts
         uses: actions/upload-artifact@v4
