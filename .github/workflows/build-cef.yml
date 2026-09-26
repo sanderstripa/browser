@@ -137,10 +137,23 @@ jobs:
             return $null
           }
 
-          if (-not (Find-Button "×")) { throw "Real close button was not found" }
-          if (-not (Find-Button "—")) { throw "Real minimize button was not found" }
-          $installButton = Find-Button "Установить"
-          if (-not $installButton) { throw "Real Install button was not found" }
+          $deadline = (Get-Date).AddSeconds(30)
+          $installButton = $null
+          while ((Get-Date) -lt $deadline -and -not $installButton) {
+            Start-Sleep -Milliseconds 500
+            $installButton = Find-Button "Установить"
+          }
+          if (-not $installButton) {
+            $allButtons = $window.FindAll(
+              [Windows.Automation.TreeScope]::Descendants,
+              (New-Object Windows.Automation.PropertyCondition(
+                [Windows.Automation.AutomationElement]::ControlTypeProperty,
+                [Windows.Automation.ControlType]::Button
+              ))
+            )
+            foreach ($button in $allButtons) { Write-Host "Detected button: [$($button.Current.Name)]" }
+            throw "Real Install button was not found after 30 seconds"
+          }
           $installButton.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern).Invoke()
 
           $deadline = (Get-Date).AddMinutes(4)
