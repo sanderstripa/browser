@@ -147,9 +147,14 @@ Function DragWindow
 FunctionEnd
 
 Function AddWindowControls
-  ${NSD_CreateButton} 384px 8px 36px 32px "×"
-  Pop $CloseButton
-  ${NSD_OnClick} $CloseButton CloseInstaller
+  ; Use NSIS's own Cancel control for close so mouse and keyboard share
+  ; the same native event path.
+  GetDlgItem $CloseButton $HWNDPARENT 2
+  SendMessage $CloseButton ${WM_SETTEXT} 0 "STR:×"
+  System::Call 'user32::SetWindowPos(p $CloseButton, p 0, i 384, i 8, i 36, i 32, i 0x0014)'
+  ShowWindow $CloseButton ${SW_SHOW}
+  EnableWindow $CloseButton 1
+
   ${NSD_CreateButton} 342px 8px 36px 32px "—"
   Pop $MinimizeButton
   ${NSD_OnClick} $MinimizeButton MinimizeInstaller
@@ -166,18 +171,16 @@ Function WelcomePage
   Call AddBackground
   Call AddWindowControls
   Call StartDragTimer
-  ${NSD_CreateButton} 105px 322px 222px 49px "Установить  →"
-  Pop $MainButton
+  ; Reuse the native Next button. Enter already targets this exact control,
+  ; so a mouse click now follows the identical, reliable NSIS path.
+  GetDlgItem $MainButton $HWNDPARENT 1
+  SendMessage $MainButton ${WM_SETTEXT} 0 "STR:Установить  →"
+  System::Call 'user32::SetWindowPos(p $MainButton, p 0, i 105, i 322, i 222, i 49, i 0x0014)'
   SetCtlColors $MainButton 0xFFFFFF 0x17324D
-  ${NSD_OnClick} $MainButton StartInstallation
+  ShowWindow $MainButton ${SW_SHOW}
+  EnableWindow $MainButton 1
   nsDialogs::Show
   nsDialogs::KillTimer $DragTimerProc
-FunctionEnd
-
-Function StartInstallation
-  GetDlgItem $0 $HWNDPARENT 1
-  ShowWindow $0 ${SW_SHOW}
-  SendMessage $0 ${BM_CLICK} 0 0
 FunctionEnd
 
 Function InstallPage
@@ -257,16 +260,14 @@ Function FinishPage
   Call AddBackground
   Call AddWindowControls
   Call StartDragTimer
-  ${NSD_CreateButton} 108px 339px 215px 49px "Открыть  →"
-  Pop $MainButton
+  GetDlgItem $MainButton $HWNDPARENT 1
+  SendMessage $MainButton ${WM_SETTEXT} 0 "STR:Открыть  →"
+  System::Call 'user32::SetWindowPos(p $MainButton, p 0, i 108, i 339, i 215, i 49, i 0x0014)'
   SetCtlColors $MainButton 0xFFFFFF 0x17324D
-  ${NSD_OnClick} $MainButton OpenSoulu
+  ShowWindow $MainButton ${SW_SHOW}
+  EnableWindow $MainButton 1
   nsDialogs::Show
   nsDialogs::KillTimer $DragTimerProc
-FunctionEnd
-
-Function OpenSoulu
-  Call FinishLeave
 FunctionEnd
 
 Function FinishLeave
