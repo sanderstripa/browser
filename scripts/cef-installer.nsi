@@ -30,10 +30,16 @@ Var Progress
 Var ProgressText
 Var PercentText
 Var InstallTimerProc
+Var ProgressTrack
+Var DragTimerProc
+Var Dragging
+Var DragOffsetX
+Var DragOffsetY
+Var Installed
 
 Page custom WelcomePage
 Page custom InstallPage
-Page custom FinishPage
+Page custom FinishPage FinishLeave
 UninstPage uninstConfirm
 UninstPage instfiles
 
@@ -42,6 +48,8 @@ Function .onInit
   File /oname=$PLUGINSDIR\welcome.bmp "installer-welcome.bmp"
   File /oname=$PLUGINSDIR\install.bmp "installer-install.bmp"
   File /oname=$PLUGINSDIR\finish.bmp "installer-finish.bmp"
+  StrCpy $Dragging 0
+  StrCpy $Installed 0
   Call StyleWindow
 FunctionEnd
 
