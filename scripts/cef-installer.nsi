@@ -67,6 +67,12 @@ Function HideNavigation
   ShowWindow $0 ${SW_HIDE}
   GetDlgItem $0 $HWNDPARENT 3
   ShowWindow $0 ${SW_HIDE}
+  GetDlgItem $0 $HWNDPARENT 1028
+  ShowWindow $0 ${SW_HIDE}
+  GetDlgItem $0 $HWNDPARENT 1034
+  ShowWindow $0 ${SW_HIDE}
+  GetDlgItem $0 $HWNDPARENT 1035
+  ShowWindow $0 ${SW_HIDE}
 FunctionEnd
 
 Function AddBackground
@@ -92,6 +98,7 @@ Function WelcomePage
   Call HideNavigation
   nsDialogs::Create 1018
   Pop $Dialog
+  System::Call 'user32::SetWindowPos(p $Dialog, p 0, i 0, i 0, i 430, i 425, i 0x0014)'
   Push "$PLUGINSDIR\welcome.bmp"
   Call AddBackground
   Call AddWindowControls
@@ -113,6 +120,7 @@ Function InstallPage
   Call HideNavigation
   nsDialogs::Create 1018
   Pop $Dialog
+  System::Call 'user32::SetWindowPos(p $Dialog, p 0, i 0, i 0, i 430, i 425, i 0x0014)'
   Push "$PLUGINSDIR\install.bmp"
   Call AddBackground
   Call AddWindowControls
@@ -148,7 +156,7 @@ Function PerformInstall
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "DisplayIcon" "$INSTDIR\Soulu.exe"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "UninstallString" '"$INSTDIR\Uninstall Soulu.exe"'
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "Publisher" "Soulu"
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "DisplayVersion" "0.9.0-cef-preview.6"
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "DisplayVersion" "0.9.0-cef-preview.7"
 
   SendMessage $Progress ${PBM_SETPOS} 100 0
   ${NSD_SetText} $PercentText "100%"
@@ -163,6 +171,7 @@ Function FinishPage
   Call HideNavigation
   nsDialogs::Create 1018
   Pop $Dialog
+  System::Call 'user32::SetWindowPos(p $Dialog, p 0, i 0, i 0, i 430, i 425, i 0x0014)'
   Push "$PLUGINSDIR\finish.bmp"
   Call AddBackground
   Call AddWindowControls
