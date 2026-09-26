@@ -663,8 +663,8 @@ CefRefPtr<CefDictionaryValue> BrowserWindow::State() const {
   }
   state->SetList("profiles", profiles);
   auto update = CefDictionaryValue::Create();
-  update->SetString("soulu", "0.9.0-cef-preview.8");
-  update->SetString("recommended", "0.9.0-cef-preview.8");
+  update->SetString("soulu", "0.9.0-cef-preview.9");
+  update->SetString("recommended", "0.9.0-cef-preview.9");
   update->SetString("cef", "144.0.6");
   update->SetString("chromium", "144");
   update->SetBool("available", false);
@@ -758,8 +758,8 @@ void BrowserWindow::HandleBridge(const std::string& request,
   }
   else if (action == "browser.update.check") {
     auto update = CefDictionaryValue::Create();
-    update->SetString("soulu", "0.9.0-cef-preview.8");
-    update->SetString("recommended", "0.9.0-cef-preview.8");
+    update->SetString("soulu", "0.9.0-cef-preview.9");
+    update->SetString("recommended", "0.9.0-cef-preview.9");
     update->SetString("cef", "144.0.6");
     update->SetString("chromium", "144");
     update->SetBool("available", false);
