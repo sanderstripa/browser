@@ -56,7 +56,7 @@ Function StyleWindow
   IntOp $2 $2 - 425
   IntOp $2 $2 / 2
   System::Call 'user32::SetWindowPos(p $HWNDPARENT, p 0, i r1, i r2, i 430, i 425, i 0x0020)'
-  System::Call 'gdi32::CreateRoundRectRgn(i 0, i 0, i 430, i 425, i 20, i 20) p .r0'
+  System::Call 'gdi32::CreateRoundRectRgn(i 0, i 0, i 431, i 426, i 20, i 20) p .r0'
   System::Call 'user32::SetWindowRgn(p $HWNDPARENT, p r0, i 1)'
 FunctionEnd
 
@@ -80,16 +80,62 @@ Function AddBackground
   ${NSD_CreateBitmap} 0 0 430px 425px ""
   Pop $Background
   ${NSD_SetImage} $Background $0 $BackgroundHandle
+  System::Call 'user32::SetWindowPos(p $Background, p 1, i 0, i 0, i 0, i 0, i 0x0013)'
+FunctionEnd
+
+Function EnableClick
+  Exch $0
+  System::Call 'user32::GetWindowLongW(p r0, i -16) i .r1'
+  IntOp $1 $1 | 0x00000100
+  System::Call 'user32::SetWindowLongW(p r0, i -16, i r1)'
+  Pop $0
+FunctionEnd
+
+Function StartDragTimer
+  GetFunctionAddress $DragTimerProc DragWindow
+  nsDialogs::CreateTimer $DragTimerProc 16
+FunctionEnd
+
+Function DragWindow
+  System::Call 'user32::GetAsyncKeyState(i 0x01) i .r6'
+  IntOp $6 $6 & 0x8000
+  System::Call 'user32::GetCursorPos(*i .r0, *i .r1)'
+  ${If} $6 = 0
+    StrCpy $Dragging 0
+    Return
+  ${EndIf}
+  ${If} $Dragging = 1
+    IntOp $2 $0 - $DragOffsetX
+    IntOp $3 $1 - $DragOffsetY
+    System::Call 'user32::SetWindowPos(p $HWNDPARENT, p 0, i r2, i r3, i 0, i 0, i 0x0015)'
+    Return
+  ${EndIf}
+  System::Call 'user32::GetWindowRect(p $HWNDPARENT, *i .r2, *i .r3, *i .r4, *i .r5)'
+  IntOp $4 $4 - 90
+  IntOp $5 $3 + 55
+  ${If} $0 >= $2
+  ${AndIf} $0 < $4
+  ${AndIf} $1 >= $3
+  ${AndIf} $1 < $5
+    StrCpy $Dragging 1
+    IntOp $DragOffsetX $0 - $2
+    IntOp $DragOffsetY $1 - $3
+    System::Call 'user32::SetCapture(p $HWNDPARENT)'
+  ${EndIf}
 FunctionEnd
 
 Function AddWindowControls
   ${NSD_CreateLabel} 383px 8px 38px 36px ""
   Pop $ClickArea
   SetCtlColors $ClickArea "" transparent
+  Push $ClickArea
+  Call EnableClick
   ${NSD_OnClick} $ClickArea CloseInstaller
   ${NSD_CreateLabel} 340px 8px 38px 36px ""
   Pop $ClickArea
   SetCtlColors $ClickArea "" transparent
+  Push $ClickArea
+  Call EnableClick
   ${NSD_OnClick} $ClickArea MinimizeInstaller
 FunctionEnd
 
@@ -102,11 +148,15 @@ Function WelcomePage
   Push "$PLUGINSDIR\welcome.bmp"
   Call AddBackground
   Call AddWindowControls
+  Call StartDragTimer
   ${NSD_CreateLabel} 105px 322px 222px 49px ""
   Pop $ClickArea
   SetCtlColors $ClickArea "" transparent
+  Push $ClickArea
+  Call EnableClick
   ${NSD_OnClick} $ClickArea StartInstallation
   nsDialogs::Show
+  nsDialogs::KillTimer $DragTimerProc
 FunctionEnd
 
 Function StartInstallation
@@ -124,10 +174,13 @@ Function InstallPage
   Push "$PLUGINSDIR\install.bmp"
   Call AddBackground
   Call AddWindowControls
-  ${NSD_CreateProgressBar} 40px 158px 315px 5px ""
+  Call StartDragTimer
+  ${NSD_CreateLabel} 40px 158px 315px 6px ""
+  Pop $ProgressTrack
+  SetCtlColors $ProgressTrack 0xD8E1EA 0xD8E1EA
+  ${NSD_CreateLabel} 40px 158px 25px 6px ""
   Pop $Progress
-  SendMessage $Progress ${PBM_SETRANGE32} 0 100
-  SendMessage $Progress ${PBM_SETPOS} 8 0
+  SetCtlColors $Progress 0x17324D 0x17324D
   ${NSD_CreateLabel} 363px 148px 42px 24px "8%"
   Pop $PercentText
   SetCtlColors $PercentText 0x17324D 0xF7F6F4
@@ -136,16 +189,20 @@ Function InstallPage
   GetFunctionAddress $InstallTimerProc PerformInstall
   nsDialogs::CreateTimer $InstallTimerProc 120
   nsDialogs::Show
+  nsDialogs::KillTimer $DragTimerProc
 FunctionEnd
 
 Function PerformInstall
   nsDialogs::KillTimer $InstallTimerProc
-  SendMessage $Progress ${PBM_SETPOS} 24 0
-  ${NSD_SetText} $PercentText "24%"
+  System::Call 'user32::SetWindowPos(p $Progress, p 0, i 40, i 158, i 95, i 6, i 0x0014)'
+  ${NSD_SetText} $PercentText "30%"
+  System::Call 'user32::UpdateWindow(p $Dialog)'
+  Sleep 120
   SetOutPath "$INSTDIR"
   File /r "${BUILD_DIR}\*"
-  SendMessage $Progress ${PBM_SETPOS} 82 0
-  ${NSD_SetText} $PercentText "82%"
+  System::Call 'user32::SetWindowPos(p $Progress, p 0, i 40, i 158, i 277, i 6, i 0x0014)'
+  ${NSD_SetText} $PercentText "88%"
+  System::Call 'user32::UpdateWindow(p $Dialog)'
 
   WriteUninstaller "$INSTDIR\Uninstall Soulu.exe"
   WriteRegStr HKCU "Software\Soulu" "InstallDir" "$INSTDIR"
@@ -156,10 +213,12 @@ Function PerformInstall
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "DisplayIcon" "$INSTDIR\Soulu.exe"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "UninstallString" '"$INSTDIR\Uninstall Soulu.exe"'
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "Publisher" "Soulu"
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "DisplayVersion" "0.9.0-cef-preview.7"
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "DisplayVersion" "0.9.0-cef-preview.8"
 
-  SendMessage $Progress ${PBM_SETPOS} 100 0
+  System::Call 'user32::SetWindowPos(p $Progress, p 0, i 40, i 158, i 315, i 6, i 0x0014)'
   ${NSD_SetText} $PercentText "100%"
+  StrCpy $Installed 1
+  System::Call 'user32::UpdateWindow(p $Dialog)'
   Sleep 350
   GetDlgItem $0 $HWNDPARENT 1
   ShowWindow $0 ${SW_SHOW}
@@ -175,16 +234,26 @@ Function FinishPage
   Push "$PLUGINSDIR\finish.bmp"
   Call AddBackground
   Call AddWindowControls
+  Call StartDragTimer
   ${NSD_CreateLabel} 108px 339px 215px 49px ""
   Pop $ClickArea
   SetCtlColors $ClickArea "" transparent
+  Push $ClickArea
+  Call EnableClick
   ${NSD_OnClick} $ClickArea OpenSoulu
   nsDialogs::Show
+  nsDialogs::KillTimer $DragTimerProc
 FunctionEnd
 
 Function OpenSoulu
-  Exec '"$INSTDIR\Soulu.exe"'
-  Quit
+  Call FinishLeave
+FunctionEnd
+
+Function FinishLeave
+  ${If} $Installed = 1
+    Exec '"$INSTDIR\Soulu.exe"'
+    Quit
+  ${EndIf}
 FunctionEnd
 
 Function CloseInstaller
