@@ -194,12 +194,13 @@ Function InstallPage
   Call AddBackground
   Call AddWindowControls
   Call StartDragTimer
-  ${NSD_CreateLabel} 40px 158px 315px 6px ""
-  Pop $ProgressTrack
-  SetCtlColors $ProgressTrack 0xD8E1EA 0xD8E1EA
-  ${NSD_CreateLabel} 40px 158px 25px 6px ""
-  Pop $Progress
-  SetCtlColors $Progress 0x17324D 0x17324D
+  ; A genuine Windows progress control: an empty STATIC label does not
+  ; paint a fill, which is why the previous "bar" was invisible.
+  System::Call 'comctl32::InitCommonControls()'
+  System::Call 'user32::CreateWindowExW(i 0, w "msctls_progress32", w "", i 0x50000001, i 40, i 177, i 350, i 14, p $Dialog, p 0, p 0, p 0) p .r0'
+  StrCpy $Progress $0
+  SendMessage $Progress 0x0406 0 100
+  SendMessage $Progress 0x0402 8 0
   ${NSD_CreateLabel} 363px 148px 42px 24px "8%"
   Pop $PercentText
   SetCtlColors $PercentText 0x17324D 0xF7F6F4
@@ -213,7 +214,7 @@ FunctionEnd
 
 Function PerformInstall
   nsDialogs::KillTimer $InstallTimerProc
-  System::Call 'user32::SetWindowPos(p $Progress, p 0, i 40, i 158, i 95, i 6, i 0x0014)'
+  SendMessage $Progress 0x0402 30 0
   ${NSD_SetText} $PercentText "30%"
   System::Call 'user32::UpdateWindow(p $Dialog)'
   Sleep 120
@@ -224,7 +225,7 @@ Function PerformInstall
   SetOverwrite on
   SetOutPath "$INSTDIR"
   File /r "${BUILD_DIR}\*"
-  System::Call 'user32::SetWindowPos(p $Progress, p 0, i 40, i 158, i 277, i 6, i 0x0014)'
+  SendMessage $Progress 0x0402 88 0
   ${NSD_SetText} $PercentText "88%"
   System::Call 'user32::UpdateWindow(p $Dialog)'
 
@@ -237,9 +238,9 @@ Function PerformInstall
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "DisplayIcon" "$INSTDIR\Soulu.exe"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "UninstallString" '"$INSTDIR\Uninstall Soulu.exe"'
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "Publisher" "Soulu"
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "DisplayVersion" "0.9.0-cef-preview.12"
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "DisplayVersion" "0.9.0-cef-preview.13"
 
-  System::Call 'user32::SetWindowPos(p $Progress, p 0, i 40, i 158, i 315, i 6, i 0x0014)'
+  SendMessage $Progress 0x0402 100 0
   ${NSD_SetText} $PercentText "100%"
   StrCpy $Installed 1
   System::Call 'user32::UpdateWindow(p $Dialog)'

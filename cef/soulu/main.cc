@@ -1,6 +1,7 @@
 #include <windows.h>
 
 #include <filesystem>
+#include <cstdlib>
 
 #include "examples/soulu/app_factory.h"
 #include "include/cef_command_line.h"
@@ -30,6 +31,10 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, wchar_t*, int) {
 
   CefSettings settings;
   settings.no_sandbox = true;
+  // Expose DevTools only in the dedicated CI test process.
+  wchar_t test_port[12] = {};
+  if (GetEnvironmentVariableW(L"SOULU_UI_TEST_PORT", test_port, 12) > 0)
+    settings.remote_debugging_port = _wtoi(test_port);
   settings.multi_threaded_message_loop = false;
   CefString(&settings.cache_path) = LocalDataPath();
   CefString(&settings.root_cache_path) = LocalDataPath();

@@ -157,3 +157,26 @@ html.cef-runtime body[data-matte="true"] .browser-toolbar {
   backdrop-filter: blur(28px) saturate(155%) !important;
   -webkit-backdrop-filter: blur(28px) saturate(155%) !important;
 }
+
+/* Preview 13: theme the CEF child window's toolbar explicitly.  The settings
+   page and toolbar are independent browser instances. */
+html.cef-runtime body[data-theme="dark"] .browser-toolbar,
+html.cef-runtime body[data-theme="dark"] .compact-toolbar-surface {
+  color: #f1f2f5 !important;
+  border-color: rgba(255,255,255,.13);
+}
+html.cef-runtime body[data-theme="dark"][data-matte="false"] .browser-toolbar {
+  background: #191b1f !important;
+}
+html.cef-runtime body[data-theme="dark"][data-matte="true"] .browser-toolbar {
+  background: linear-gradient(112deg,rgba(28,33,42,.73),rgba(25,35,48,.63)) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(155%) !important;
+  backdrop-filter: blur(28px) saturate(155%) !important;
+}
+html.cef-runtime body[data-theme="light"][data-matte="true"] .browser-toolbar {
+  background: linear-gradient(112deg,rgba(246,248,251,.63),rgba(219,230,242,.52)) !important;
+}
+html.cef-runtime body[data-show-vpn="false"] .vpn-button,
+html.cef-runtime body[data-show-vpn="false"] .extension-slot {
+  display: none !important;
+}

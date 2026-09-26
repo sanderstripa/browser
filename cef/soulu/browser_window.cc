@@ -145,7 +145,9 @@ bool BrowserWindow::CreateNativeWindow() {
   wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
   wc.hIcon = LoadIcon(wc.hInstance, MAKEINTRESOURCE(IDI_SOULU));
   wc.hIconSm = wc.hIcon;
-  wc.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_WINDOW + 1);
+  // A permanent white class brush shows through translucent CEF pixels even
+  // after switching to dark mode. Paint the exposed native surface per theme.
+  wc.hbrBackground = nullptr;
   wc.lpszClassName = kWindowClass;
   RegisterClassExW(&wc);
 
@@ -663,8 +665,8 @@ CefRefPtr<CefDictionaryValue> BrowserWindow::State() const {
   }
   state->SetList("profiles", profiles);
   auto update = CefDictionaryValue::Create();
-  update->SetString("soulu", "0.9.0-cef-preview.12");
-  update->SetString("recommended", "0.9.0-cef-preview.12");
+  update->SetString("soulu", "0.9.0-cef-preview.13");
+  update->SetString("recommended", "0.9.0-cef-preview.13");
   update->SetString("cef", "144.0.6");
   update->SetString("chromium", "144");
   update->SetBool("available", false);
@@ -758,8 +760,8 @@ void BrowserWindow::HandleBridge(const std::string& request,
   }
   else if (action == "browser.update.check") {
     auto update = CefDictionaryValue::Create();
-    update->SetString("soulu", "0.9.0-cef-preview.12");
-    update->SetString("recommended", "0.9.0-cef-preview.12");
+    update->SetString("soulu", "0.9.0-cef-preview.13");
+    update->SetString("recommended", "0.9.0-cef-preview.13");
     update->SetString("cef", "144.0.6");
     update->SetString("chromium", "144");
     update->SetBool("available", false);
@@ -985,6 +987,17 @@ LRESULT CALLBACK BrowserWindow::WindowProc(HWND hwnd, UINT message, WPARAM wpara
       if (left) return HTLEFT; if (right) return HTRIGHT;
       if (top) return HTTOP; if (bottom) return HTBOTTOM;
       return HTCLIENT;
+    }
+    case WM_ERASEBKGND: {
+      const std::string theme = self->settings_->GetString("theme");
+      const bool dark = theme == "dark" ||
+          (theme == "system" && IsWindowsDarkMode());
+      RECT client = {};
+      GetClientRect(hwnd, &client);
+      HBRUSH background = CreateSolidBrush(dark ? RGB(25, 27, 31) : RGB(245, 246, 248));
+      FillRect(reinterpret_cast<HDC>(wparam), &client, background);
+      DeleteObject(background);
+      return 1;
     }
     case WM_SIZE: self->Layout(); return 0;
     case WM_CLOSE: self->CloseAll(); return 0;

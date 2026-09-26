@@ -52,7 +52,7 @@
     for(const [id,fallback] of Object.entries(values)){const el=$("#"+id);if(el)el.value=settings[id] ?? fallback;}
     $("#mattePanel").checked = settings.mattePanel !== false;
     $("#askDownloadLocation").checked = settings.askDownloadLocation !== false;
-    $("[data-setting]").forEach(el => el.checked = settings[el.dataset.setting] !== false);
+    $$("[data-setting]").forEach(el => el.checked = settings[el.dataset.setting] !== false);
     $("#automaticUpdates").checked = settings.automaticUpdates !== false;
     renderProfiles();
     renderUpdate(browserState.update);
@@ -141,7 +141,7 @@
   $("#mattePanel").onchange=e=>patch({mattePanel:e.target.checked});
   $("#askDownloadLocation").onchange=e=>patch({askDownloadLocation:e.target.checked});
   $("#automaticUpdates").onchange=e=>patch({automaticUpdates:e.target.checked});
-  $("[data-setting]").forEach(el=>el.onchange=e=>patch({[el.dataset.setting]:e.target.checked}));
+  $$("[data-setting]").forEach(el=>el.onchange=e=>patch({[el.dataset.setting]:e.target.checked}));
   $("#createProfile").onclick=async()=>{
     const name=$("#profileName").value.trim();
     if(!name)return;
