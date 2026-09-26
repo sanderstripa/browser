@@ -36,6 +36,8 @@ Var Dragging
 Var DragOffsetX
 Var DragOffsetY
 Var Installed
+Var PageKind
+Var MouseWasDown
 
 Page custom WelcomePage
 Page custom InstallPage
@@ -50,6 +52,8 @@ Function .onInit
   File /oname=$PLUGINSDIR\finish.bmp "installer-finish.bmp"
   StrCpy $Dragging 0
   StrCpy $Installed 0
+  StrCpy $PageKind 0
+  StrCpy $MouseWasDown 0
   Call StyleWindow
 FunctionEnd
 
@@ -109,8 +113,11 @@ Function DragWindow
   System::Call 'user32::GetAsyncKeyState(i 0x01) i .r6'
   IntOp $6 $6 & 0x8000
   System::Call 'user32::GetCursorPos(*i .r0, *i .r1)'
+  System::Call 'user32::GetWindowRect(p $HWNDPARENT, *i .r2, *i .r3, *i .r4, *i .r5)'
   ${If} $6 = 0
+    StrCpy $MouseWasDown 0
     StrCpy $Dragging 0
+    System::Call 'user32::ReleaseCapture()'
     Return
   ${EndIf}
   ${If} $Dragging = 1
@@ -119,7 +126,38 @@ Function DragWindow
     System::Call 'user32::SetWindowPos(p $HWNDPARENT, p 0, i r2, i r3, i 0, i 0, i 0x0015)'
     Return
   ${EndIf}
-  System::Call 'user32::GetWindowRect(p $HWNDPARENT, *i .r2, *i .r3, *i .r4, *i .r5)'
+  ${If} $MouseWasDown = 1
+    Return
+  ${EndIf}
+  StrCpy $MouseWasDown 1
+  IntOp $7 $0 - $2
+  IntOp $8 $1 - $3
+  ${If} $8 >= 8
+  ${AndIf} $8 < 48
+    ${If} $7 >= 383
+      Call CloseInstaller
+      Return
+    ${ElseIf} $7 >= 340
+      Call MinimizeInstaller
+      Return
+    ${EndIf}
+  ${EndIf}
+  ${If} $PageKind = 1
+  ${AndIf} $7 >= 105
+  ${AndIf} $7 < 327
+  ${AndIf} $8 >= 322
+  ${AndIf} $8 < 371
+    Call StartInstallation
+    Return
+  ${EndIf}
+  ${If} $PageKind = 3
+  ${AndIf} $7 >= 108
+  ${AndIf} $7 < 323
+  ${AndIf} $8 >= 339
+  ${AndIf} $8 < 388
+    Call FinishLeave
+    Return
+  ${EndIf}
   IntOp $4 $4 - 90
   IntOp $5 $3 + 55
   ${If} $0 >= $2
@@ -149,6 +187,7 @@ Function AddWindowControls
 FunctionEnd
 
 Function WelcomePage
+  StrCpy $PageKind 1
   Call StyleWindow
   Call HideNavigation
   nsDialogs::Create 1018
@@ -175,6 +214,7 @@ Function StartInstallation
 FunctionEnd
 
 Function InstallPage
+  StrCpy $PageKind 2
   Call StyleWindow
   Call HideNavigation
   nsDialogs::Create 1018
@@ -207,6 +247,11 @@ Function PerformInstall
   ${NSD_SetText} $PercentText "30%"
   System::Call 'user32::UpdateWindow(p $Dialog)'
   Sleep 120
+  nsExec::ExecToStack /TIMEOUT=5000 'taskkill /F /IM Soulu.exe'
+  Pop $0
+  Pop $1
+  Sleep 250
+  SetOverwrite on
   SetOutPath "$INSTDIR"
   File /r "${BUILD_DIR}\*"
   System::Call 'user32::SetWindowPos(p $Progress, p 0, i 40, i 158, i 277, i 6, i 0x0014)'
@@ -222,7 +267,7 @@ Function PerformInstall
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "DisplayIcon" "$INSTDIR\Soulu.exe"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "UninstallString" '"$INSTDIR\Uninstall Soulu.exe"'
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "Publisher" "Soulu"
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "DisplayVersion" "0.9.0-cef-preview.8"
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "DisplayVersion" "0.9.0-cef-preview.9"
 
   System::Call 'user32::SetWindowPos(p $Progress, p 0, i 40, i 158, i 315, i 6, i 0x0014)'
   ${NSD_SetText} $PercentText "100%"
@@ -235,6 +280,7 @@ Function PerformInstall
 FunctionEnd
 
 Function FinishPage
+  StrCpy $PageKind 3
   Call StyleWindow
   Call HideNavigation
   nsDialogs::Create 1018
