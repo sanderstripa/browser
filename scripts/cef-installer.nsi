@@ -38,6 +38,9 @@ Var DragOffsetY
 Var Installed
 Var PageKind
 Var MouseWasDown
+Var MainButton
+Var MinimizeButton
+Var CloseButton
 
 Page custom WelcomePage
 Page custom InstallPage
@@ -130,34 +133,6 @@ Function DragWindow
     Return
   ${EndIf}
   StrCpy $MouseWasDown 1
-  IntOp $7 $0 - $2
-  IntOp $8 $1 - $3
-  ${If} $8 >= 8
-  ${AndIf} $8 < 48
-    ${If} $7 >= 383
-      Call CloseInstaller
-      Return
-    ${ElseIf} $7 >= 340
-      Call MinimizeInstaller
-      Return
-    ${EndIf}
-  ${EndIf}
-  ${If} $PageKind = 1
-  ${AndIf} $7 >= 105
-  ${AndIf} $7 < 327
-  ${AndIf} $8 >= 322
-  ${AndIf} $8 < 371
-    Call StartInstallation
-    Return
-  ${EndIf}
-  ${If} $PageKind = 3
-  ${AndIf} $7 >= 108
-  ${AndIf} $7 < 323
-  ${AndIf} $8 >= 339
-  ${AndIf} $8 < 388
-    Call FinishLeave
-    Return
-  ${EndIf}
   IntOp $4 $4 - 90
   IntOp $5 $3 + 55
   ${If} $0 >= $2
@@ -172,18 +147,12 @@ Function DragWindow
 FunctionEnd
 
 Function AddWindowControls
-  ${NSD_CreateLabel} 383px 8px 38px 36px ""
-  Pop $ClickArea
-  SetCtlColors $ClickArea "" transparent
-  Push $ClickArea
-  Call EnableClick
-  ${NSD_OnClick} $ClickArea CloseInstaller
-  ${NSD_CreateLabel} 340px 8px 38px 36px ""
-  Pop $ClickArea
-  SetCtlColors $ClickArea "" transparent
-  Push $ClickArea
-  Call EnableClick
-  ${NSD_OnClick} $ClickArea MinimizeInstaller
+  ${NSD_CreateButton} 384px 8px 36px 32px "×"
+  Pop $CloseButton
+  ${NSD_OnClick} $CloseButton CloseInstaller
+  ${NSD_CreateButton} 342px 8px 36px 32px "—"
+  Pop $MinimizeButton
+  ${NSD_OnClick} $MinimizeButton MinimizeInstaller
 FunctionEnd
 
 Function WelcomePage
@@ -197,12 +166,11 @@ Function WelcomePage
   Call AddBackground
   Call AddWindowControls
   Call StartDragTimer
-  ${NSD_CreateLabel} 105px 322px 222px 49px ""
-  Pop $ClickArea
-  SetCtlColors $ClickArea "" transparent
-  Push $ClickArea
-  Call EnableClick
-  ${NSD_OnClick} $ClickArea StartInstallation
+  ${NSD_CreateButton} 105px 322px 222px 49px "Установить  →"
+  Pop $MainButton
+  SetCtlColors $MainButton 0xFFFFFF 0x17324D
+  ${NSD_OnClick} $MainButton StartInstallation
+  SetCtlFocus $MainButton
   nsDialogs::Show
   nsDialogs::KillTimer $DragTimerProc
 FunctionEnd
@@ -267,7 +235,7 @@ Function PerformInstall
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "DisplayIcon" "$INSTDIR\Soulu.exe"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "UninstallString" '"$INSTDIR\Uninstall Soulu.exe"'
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "Publisher" "Soulu"
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "DisplayVersion" "0.9.0-cef-preview.10"
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "DisplayVersion" "0.9.0-cef-preview.11"
 
   System::Call 'user32::SetWindowPos(p $Progress, p 0, i 40, i 158, i 315, i 6, i 0x0014)'
   ${NSD_SetText} $PercentText "100%"
@@ -290,12 +258,11 @@ Function FinishPage
   Call AddBackground
   Call AddWindowControls
   Call StartDragTimer
-  ${NSD_CreateLabel} 108px 339px 215px 49px ""
-  Pop $ClickArea
-  SetCtlColors $ClickArea "" transparent
-  Push $ClickArea
-  Call EnableClick
-  ${NSD_OnClick} $ClickArea OpenSoulu
+  ${NSD_CreateButton} 108px 339px 215px 49px "Открыть  →"
+  Pop $MainButton
+  SetCtlColors $MainButton 0xFFFFFF 0x17324D
+  ${NSD_OnClick} $MainButton OpenSoulu
+  SetCtlFocus $MainButton
   nsDialogs::Show
   nsDialogs::KillTimer $DragTimerProc
 FunctionEnd
