@@ -98,6 +98,7 @@ jobs:
           if ($nsisExitCode -ne 0) { exit $nsisExitCode }
 
       - name: Upload preview artifacts
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: Soulu-CEF-${{ env.PREVIEW_VERSION }}-x64

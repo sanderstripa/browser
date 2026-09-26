@@ -29,6 +29,7 @@ Var ClickArea
 Var Progress
 Var ProgressText
 Var PercentText
+Var InstallTimerProc
 
 Page custom WelcomePage
 Page custom InstallPage
@@ -124,12 +125,13 @@ Function InstallPage
   SetCtlColors $PercentText 0x17324D 0xF7F6F4
   CreateFont $0 "Segoe UI" 10 500
   SendMessage $PercentText ${WM_SETFONT} $0 1
-  nsDialogs::CreateTimer PerformInstall 120
+  GetFunctionAddress $InstallTimerProc PerformInstall
+  nsDialogs::CreateTimer $InstallTimerProc 120
   nsDialogs::Show
 FunctionEnd
 
 Function PerformInstall
-  nsDialogs::KillTimer PerformInstall
+  nsDialogs::KillTimer $InstallTimerProc
   SendMessage $Progress ${PBM_SETPOS} 24 0
   ${NSD_SetText} $PercentText "24%"
   SetOutPath "$INSTDIR"
