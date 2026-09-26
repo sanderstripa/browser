@@ -106,10 +106,29 @@ jobs:
           public static class MouseTest {
             [StructLayout(LayoutKind.Sequential)]
             public struct RECT { public int Left, Top, Right, Bottom; }
+            public delegate bool EnumProc(IntPtr hwnd, IntPtr lParam);
             [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hWnd, out RECT rect);
             [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
             [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
             [DllImport("user32.dll")] public static extern void mouse_event(uint flags, uint dx, uint dy, uint data, UIntPtr extra);
+            [DllImport("user32.dll")] static extern bool EnumChildWindows(IntPtr parent, EnumProc callback, IntPtr data);
+            [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern int GetWindowText(IntPtr hwnd, System.Text.StringBuilder text, int max);
+            [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern int GetClassName(IntPtr hwnd, System.Text.StringBuilder text, int max);
+            public static IntPtr FindButton(IntPtr parent, string prefix) {
+              IntPtr found = IntPtr.Zero;
+              EnumChildWindows(parent, delegate(IntPtr hwnd, IntPtr data) {
+                var cls = new System.Text.StringBuilder(128);
+                var txt = new System.Text.StringBuilder(256);
+                GetClassName(hwnd, cls, cls.Capacity);
+                GetWindowText(hwnd, txt, txt.Capacity);
+                if (cls.ToString().Equals("Button", StringComparison.OrdinalIgnoreCase) &&
+                    txt.ToString().StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) {
+                  found = hwnd; return false;
+                }
+                return true;
+              }, IntPtr.Zero);
+              return found;
+            }
           }
           '@
 
@@ -135,11 +154,16 @@ jobs:
 
           [MouseTest]::SetForegroundWindow($process.MainWindowHandle) | Out-Null
           Start-Sleep -Seconds 1
+          $deadline = (Get-Date).AddSeconds(30)
+          $installHwnd = [IntPtr]::Zero
+          while ((Get-Date) -lt $deadline -and $installHwnd -eq [IntPtr]::Zero) {
+            Start-Sleep -Milliseconds 250
+            $installHwnd = [MouseTest]::FindButton($process.MainWindowHandle, "Установить")
+          }
+          if ($installHwnd -eq [IntPtr]::Zero) { throw "Native Install button handle was not found" }
           $rect = New-Object MouseTest+RECT
-          [MouseTest]::GetWindowRect($process.MainWindowHandle, [ref]$rect) | Out-Null
-
-          # Real left-button click at the visual Install button center.
-          Click-At ($rect.Left + 216) ($rect.Top + 347)
+          [MouseTest]::GetWindowRect($installHwnd, [ref]$rect) | Out-Null
+          Click-At ([int](($rect.Left + $rect.Right) / 2)) ([int](($rect.Top + $rect.Bottom) / 2))
 
           $deadline = (Get-Date).AddMinutes(4)
           while ((Get-Date) -lt $deadline -and -not (Test-Path $installedExe)) {
@@ -150,8 +174,15 @@ jobs:
           Start-Sleep -Seconds 2
           $process.Refresh()
           [MouseTest]::SetForegroundWindow($process.MainWindowHandle) | Out-Null
-          [MouseTest]::GetWindowRect($process.MainWindowHandle, [ref]$rect) | Out-Null
-          Click-At ($rect.Left + 216) ($rect.Top + 364)
+          $deadline = (Get-Date).AddSeconds(30)
+          $openHwnd = [IntPtr]::Zero
+          while ((Get-Date) -lt $deadline -and $openHwnd -eq [IntPtr]::Zero) {
+            Start-Sleep -Milliseconds 250
+            $openHwnd = [MouseTest]::FindButton($process.MainWindowHandle, "Открыть")
+          }
+          if ($openHwnd -eq [IntPtr]::Zero) { throw "Native Open button handle was not found" }
+          [MouseTest]::GetWindowRect($openHwnd, [ref]$rect) | Out-Null
+          Click-At ([int](($rect.Left + $rect.Right) / 2)) ([int](($rect.Top + $rect.Bottom) / 2))
 
           $deadline = (Get-Date).AddSeconds(45)
           $soulu = $null
