@@ -244,9 +244,9 @@ Function PerformInstall
   StrCpy $Installed 1
   System::Call 'user32::UpdateWindow(p $Dialog)'
   Sleep 350
-  GetDlgItem $0 $HWNDPARENT 1
-  ShowWindow $0 ${SW_SHOW}
-  SendMessage $0 ${BM_CLICK} 0 0
+  ; Leave the timer callback asynchronously. Sending BM_CLICK here can
+  ; strand NSIS on this page because the dialog is destroyed re-entrantly.
+  System::Call 'user32::PostMessageW(p $HWNDPARENT, i ${WM_COMMAND}, p 1, p 0)'
 FunctionEnd
 
 Function FinishPage
