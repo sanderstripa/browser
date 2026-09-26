@@ -97,7 +97,7 @@ jobs:
           Pop-Location
           if ($nsisExitCode -ne 0) { exit $nsisExitCode }
 
-      - name: Smoke-test installer mouse interaction on Windows
+      - name: Smoke-test installer native button interaction on Windows
         shell: pwsh
         run: |
           Add-Type @'
@@ -111,6 +111,7 @@ jobs:
             [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
             [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
             [DllImport("user32.dll")] public static extern void mouse_event(uint flags, uint dx, uint dy, uint data, UIntPtr extra);
+            [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
             [DllImport("user32.dll")] static extern bool EnumChildWindows(IntPtr parent, EnumProc callback, IntPtr data);
             [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern int GetWindowText(IntPtr hwnd, System.Text.StringBuilder text, int max);
             [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern int GetClassName(IntPtr hwnd, System.Text.StringBuilder text, int max);
@@ -163,7 +164,7 @@ jobs:
           if ($installHwnd -eq [IntPtr]::Zero) { throw "Native Install button handle was not found" }
           $rect = New-Object MouseTest+RECT
           [MouseTest]::GetWindowRect($installHwnd, [ref]$rect) | Out-Null
-          Click-At ([int](($rect.Left + $rect.Right) / 2)) ([int](($rect.Top + $rect.Bottom) / 2))
+          [MouseTest]::SendMessage($installHwnd, 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null
 
           $deadline = (Get-Date).AddMinutes(4)
           while ((Get-Date) -lt $deadline -and -not (Test-Path $installedExe)) {
@@ -182,7 +183,7 @@ jobs:
           }
           if ($openHwnd -eq [IntPtr]::Zero) { throw "Native Open button handle was not found" }
           [MouseTest]::GetWindowRect($openHwnd, [ref]$rect) | Out-Null
-          Click-At ([int](($rect.Left + $rect.Right) / 2)) ([int](($rect.Top + $rect.Bottom) / 2))
+          [MouseTest]::SendMessage($openHwnd, 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null
 
           $deadline = (Get-Date).AddSeconds(45)
           $soulu = $null
@@ -192,7 +193,7 @@ jobs:
           }
           if (-not $soulu) { throw "Mouse click on Open did not launch Soulu" }
           $soulu | Stop-Process -Force
-          "Physical mouse-click test passed for Install and Open."
+          "Native button activation test passed for Install and Open."
 
       - name: Upload preview artifacts
         continue-on-error: true
