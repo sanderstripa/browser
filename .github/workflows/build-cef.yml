@@ -97,79 +97,61 @@ jobs:
           Pop-Location
           if ($nsisExitCode -ne 0) { exit $nsisExitCode }
 
-      - name: Smoke-test installer buttons on Windows
+      - name: Smoke-test installer mouse interaction on Windows
         shell: pwsh
         run: |
-          Add-Type -AssemblyName UIAutomationClient
-          Add-Type -AssemblyName UIAutomationTypes
+          Add-Type @'
+          using System;
+          using System.Runtime.InteropServices;
+          public static class MouseTest {
+            [StructLayout(LayoutKind.Sequential)]
+            public struct RECT { public int Left, Top, Right, Bottom; }
+            [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hWnd, out RECT rect);
+            [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
+            [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
+            [DllImport("user32.dll")] public static extern void mouse_event(uint flags, uint dx, uint dy, uint data, UIntPtr extra);
+          }
+          '@
+
+          function Click-At([int]$x, [int]$y) {
+            [MouseTest]::SetCursorPos($x, $y) | Out-Null
+            Start-Sleep -Milliseconds 150
+            [MouseTest]::mouse_event(0x0002, 0, 0, 0, [UIntPtr]::Zero)
+            Start-Sleep -Milliseconds 100
+            [MouseTest]::mouse_event(0x0004, 0, 0, 0, [UIntPtr]::Zero)
+          }
 
           $installer = Join-Path $PWD "browser/artifacts/Soulu-CEF-Setup-$env:PREVIEW_VERSION-x64.exe"
           $installedExe = Join-Path $env:LOCALAPPDATA "Programs/Soulu/Soulu.exe"
-          if (Test-Path $installedExe) { Remove-Item (Split-Path $installedExe) -Recurse -Force }
+          if (Test-Path (Split-Path $installedExe)) { Remove-Item (Split-Path $installedExe) -Recurse -Force }
 
-          $installerProcess = Start-Process $installer -PassThru
+          $process = Start-Process $installer -PassThru
           $deadline = (Get-Date).AddSeconds(30)
-          $window = $null
-          while ((Get-Date) -lt $deadline -and -not $window) {
+          while ((Get-Date) -lt $deadline -and $process.MainWindowHandle -eq 0) {
             Start-Sleep -Milliseconds 250
-            $condition = New-Object Windows.Automation.PropertyCondition(
-              [Windows.Automation.AutomationElement]::ProcessIdProperty,
-              $installerProcess.Id
-            )
-            $window = [Windows.Automation.AutomationElement]::RootElement.FindFirst(
-              [Windows.Automation.TreeScope]::Children,
-              $condition
-            )
+            $process.Refresh()
           }
-          if (-not $window) { throw "Installer window did not open" }
+          if ($process.MainWindowHandle -eq 0) { throw "Installer window did not open" }
 
-          function Find-Button([string]$prefix) {
-            $buttons = $window.FindAll(
-              [Windows.Automation.TreeScope]::Descendants,
-              (New-Object Windows.Automation.PropertyCondition(
-                [Windows.Automation.AutomationElement]::ControlTypeProperty,
-                [Windows.Automation.ControlType]::Button
-              ))
-            )
-            foreach ($button in $buttons) {
-              if ($button.Current.Name -like "$prefix*") { return $button }
-            }
-            return $null
-          }
+          [MouseTest]::SetForegroundWindow($process.MainWindowHandle) | Out-Null
+          Start-Sleep -Seconds 1
+          $rect = New-Object MouseTest+RECT
+          [MouseTest]::GetWindowRect($process.MainWindowHandle, [ref]$rect) | Out-Null
 
-          $deadline = (Get-Date).AddSeconds(30)
-          $installButton = $null
-          while ((Get-Date) -lt $deadline -and -not $installButton) {
-            Start-Sleep -Milliseconds 500
-            $installButton = Find-Button "Установить"
-          }
-          if (-not $installButton) {
-            $allButtons = $window.FindAll(
-              [Windows.Automation.TreeScope]::Descendants,
-              (New-Object Windows.Automation.PropertyCondition(
-                [Windows.Automation.AutomationElement]::ControlTypeProperty,
-                [Windows.Automation.ControlType]::Button
-              ))
-            )
-            foreach ($button in $allButtons) { Write-Host "Detected button: [$($button.Current.Name)]" }
-            throw "Real Install button was not found after 30 seconds"
-          }
-          $installButton.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern).Invoke()
+          # Real left-button click at the visual Install button center.
+          Click-At ($rect.Left + 216) ($rect.Top + 347)
 
           $deadline = (Get-Date).AddMinutes(4)
           while ((Get-Date) -lt $deadline -and -not (Test-Path $installedExe)) {
             Start-Sleep -Seconds 1
           }
-          if (-not (Test-Path $installedExe)) { throw "Installation did not create Soulu.exe" }
+          if (-not (Test-Path $installedExe)) { throw "Mouse click on Install did not start installation" }
 
-          $deadline = (Get-Date).AddSeconds(30)
-          $openButton = $null
-          while ((Get-Date) -lt $deadline -and -not $openButton) {
-            Start-Sleep -Milliseconds 500
-            $openButton = Find-Button "Открыть"
-          }
-          if (-not $openButton) { throw "Real Open button was not found" }
-          $openButton.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern).Invoke()
+          Start-Sleep -Seconds 2
+          $process.Refresh()
+          [MouseTest]::SetForegroundWindow($process.MainWindowHandle) | Out-Null
+          [MouseTest]::GetWindowRect($process.MainWindowHandle, [ref]$rect) | Out-Null
+          Click-At ($rect.Left + 216) ($rect.Top + 364)
 
           $deadline = (Get-Date).AddSeconds(45)
           $soulu = $null
@@ -177,9 +159,9 @@ jobs:
             Start-Sleep -Milliseconds 500
             $soulu = Get-Process Soulu -ErrorAction SilentlyContinue
           }
-          if (-not $soulu) { throw "Open button did not launch Soulu" }
+          if (-not $soulu) { throw "Mouse click on Open did not launch Soulu" }
           $soulu | Stop-Process -Force
-          "Installer UI smoke test passed: Install and Open are real working buttons."
+          "Physical mouse-click test passed for Install and Open."
 
       - name: Upload preview artifacts
         continue-on-error: true
