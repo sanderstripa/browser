@@ -172,10 +172,11 @@ jobs:
           }
           if (-not (Test-Path $installedExe)) { throw "Mouse click on Install did not start installation" }
 
-          Start-Sleep -Seconds 2
           $process.Refresh()
           [MouseTest]::SetForegroundWindow($process.MainWindowHandle) | Out-Null
-          $deadline = (Get-Date).AddSeconds(30)
+          # File creation happens before the full 387 MB payload has finished
+          # extracting. Wait for the actual finish-page control, not a timer.
+          $deadline = (Get-Date).AddMinutes(5)
           $openHwnd = [IntPtr]::Zero
           while ((Get-Date) -lt $deadline -and $openHwnd -eq [IntPtr]::Zero) {
             Start-Sleep -Milliseconds 250
