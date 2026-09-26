@@ -25,7 +25,7 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 90
     env:
-      PREVIEW_VERSION: 0.9.0-cef-preview.11
+      PREVIEW_VERSION: 0.9.0-cef-preview.12
     steps:
       - name: Checkout Soulu
         uses: actions/checkout@v4
@@ -96,6 +96,77 @@ jobs:
           $nsisExitCode = $LASTEXITCODE
           Pop-Location
           if ($nsisExitCode -ne 0) { exit $nsisExitCode }
+
+      - name: Smoke-test installer buttons on Windows
+        shell: pwsh
+        run: |
+          Add-Type -AssemblyName UIAutomationClient
+          Add-Type -AssemblyName UIAutomationTypes
+
+          $installer = Join-Path $PWD "browser/artifacts/Soulu-CEF-Setup-$env:PREVIEW_VERSION-x64.exe"
+          $installedExe = Join-Path $env:LOCALAPPDATA "Programs/Soulu/Soulu.exe"
+          if (Test-Path $installedExe) { Remove-Item (Split-Path $installedExe) -Recurse -Force }
+
+          $installerProcess = Start-Process $installer -PassThru
+          $deadline = (Get-Date).AddSeconds(30)
+          $window = $null
+          while ((Get-Date) -lt $deadline -and -not $window) {
+            Start-Sleep -Milliseconds 250
+            $condition = New-Object Windows.Automation.PropertyCondition(
+              [Windows.Automation.AutomationElement]::ProcessIdProperty,
+              $installerProcess.Id
+            )
+            $window = [Windows.Automation.AutomationElement]::RootElement.FindFirst(
+              [Windows.Automation.TreeScope]::Children,
+              $condition
+            )
+          }
+          if (-not $window) { throw "Installer window did not open" }
+
+          function Find-Button([string]$prefix) {
+            $buttons = $window.FindAll(
+              [Windows.Automation.TreeScope]::Descendants,
+              (New-Object Windows.Automation.PropertyCondition(
+                [Windows.Automation.AutomationElement]::ControlTypeProperty,
+                [Windows.Automation.ControlType]::Button
+              ))
+            )
+            foreach ($button in $buttons) {
+              if ($button.Current.Name -like "$prefix*") { return $button }
+            }
+            return $null
+          }
+
+          if (-not (Find-Button "×")) { throw "Real close button was not found" }
+          if (-not (Find-Button "—")) { throw "Real minimize button was not found" }
+          $installButton = Find-Button "Установить"
+          if (-not $installButton) { throw "Real Install button was not found" }
+          $installButton.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern).Invoke()
+
+          $deadline = (Get-Date).AddMinutes(4)
+          while ((Get-Date) -lt $deadline -and -not (Test-Path $installedExe)) {
+            Start-Sleep -Seconds 1
+          }
+          if (-not (Test-Path $installedExe)) { throw "Installation did not create Soulu.exe" }
+
+          $deadline = (Get-Date).AddSeconds(30)
+          $openButton = $null
+          while ((Get-Date) -lt $deadline -and -not $openButton) {
+            Start-Sleep -Milliseconds 500
+            $openButton = Find-Button "Открыть"
+          }
+          if (-not $openButton) { throw "Real Open button was not found" }
+          $openButton.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern).Invoke()
+
+          $deadline = (Get-Date).AddSeconds(45)
+          $soulu = $null
+          while ((Get-Date) -lt $deadline -and -not $soulu) {
+            Start-Sleep -Milliseconds 500
+            $soulu = Get-Process Soulu -ErrorAction SilentlyContinue
+          }
+          if (-not $soulu) { throw "Open button did not launch Soulu" }
+          $soulu | Stop-Process -Force
+          "Installer UI smoke test passed: Install and Open are real working buttons."
 
       - name: Upload preview artifacts
         continue-on-error: true
