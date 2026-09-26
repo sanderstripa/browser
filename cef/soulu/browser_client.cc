@@ -41,12 +41,13 @@ bool BrowserClient::OnProcessMessageReceived(CefRefPtr<CefBrowser> browser,
 
 void BrowserClient::OnAfterCreated(CefRefPtr<CefBrowser> browser) {
   CEF_REQUIRE_UI_THREAD();
-  if (role_ != BrowserRole::kContent) {
-    CefMessageRouterConfig config;
-    router_ = CefMessageRouterBrowserSide::Create(config);
-    bridge_ = std::make_unique<BridgeHandler>(owner_);
-    router_->AddHandler(bridge_.get(), false);
-  }
+  // Every browser gets a router. BridgeHandler itself strictly limits access
+  // to Soulu's trusted local UI pages. Settings is intentionally opened as a
+  // content tab, so excluding kContent made every settings control a no-op.
+  CefMessageRouterConfig config;
+  router_ = CefMessageRouterBrowserSide::Create(config);
+  bridge_ = std::make_unique<BridgeHandler>(owner_);
+  router_->AddHandler(bridge_.get(), false);
   if (role_ == BrowserRole::kShell) owner_->AttachShell(browser);
   else owner_->AttachContent(tab_id_, browser);
 }
