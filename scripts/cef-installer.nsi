@@ -170,7 +170,6 @@ Function WelcomePage
   Pop $MainButton
   SetCtlColors $MainButton 0xFFFFFF 0x17324D
   ${NSD_OnClick} $MainButton StartInstallation
-  SetCtlFocus $MainButton
   nsDialogs::Show
   nsDialogs::KillTimer $DragTimerProc
 FunctionEnd
@@ -262,7 +261,6 @@ Function FinishPage
   Pop $MainButton
   SetCtlColors $MainButton 0xFFFFFF 0x17324D
   ${NSD_OnClick} $MainButton OpenSoulu
-  SetCtlFocus $MainButton
   nsDialogs::Show
   nsDialogs::KillTimer $DragTimerProc
 FunctionEnd
