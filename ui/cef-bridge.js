@@ -70,6 +70,7 @@
     toolbarMenu: () => invoke("window.toolbarMenu"),
     getState: () => invoke("browser.state.get"),
     onState: callback => subscribe("state", callback),
+    onSettings: callback => subscribe("settings", callback),
     onDownloads: callback => subscribe("downloads", callback),
     onFocusAddress: callback => subscribe("focusAddress", callback),
     onRequestFind: callback => subscribe("requestFind", callback),

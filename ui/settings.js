@@ -158,5 +158,6 @@
   window.vpn.settingsGet().then(value=>{if(!value)return;const p=value.protocol||"vless";const radio=document.querySelector(`[name="vpnProtocol"][value="${p}"]`);if(radio)radio.checked=true;$("#vpnLink").value=value.link||"";if(value.link)parseVpnLink();}).catch(()=>{});
 
   window.browserShell.onState(state => {browserState=state;settings=state.settings||settings;fill();});
+  window.browserShell.onSettings?.(value => {settings={...settings,...value};fill();});
   Promise.all([window.browserShell.getSettings(),window.browserShell.getState()]).then(([value,state])=>{settings=value||{};browserState=state||browserState;fill();});
 })();

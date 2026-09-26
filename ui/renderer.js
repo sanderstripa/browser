@@ -81,6 +81,7 @@ $("#savePassword").onclick=async()=>{const site=$("#passwordSite").value.trim(),
 window.addEventListener("message",async(e)=>{if(e.source!==vpnFrame.contentWindow||e.data?.type!=="vpn-request")return;const{id,action,payload}=e.data;let result;try{result=action==="__settingsGet"?await window.vpn.settingsGet():action==="__settingsSet"?await window.vpn.settingsSet(payload):await window.vpn.send(action,payload||{});}catch(error){result={ok:false,state:"error",error:error.message};}vpnPost({type:"vpn-response",id,result});});
 window.vpn.onState(updateVpnState);
 window.browserShell.onState(renderState);
+window.browserShell.onSettings?.((settings)=>{state.settings={...state.settings,...settings};appearance();renderTabs();renderSettings();});
 window.browserShell.onDownloads(renderDownloads);
 window.browserShell.onFocusAddress(()=>{const input=state.settings.layout==="classic"?$("#classicAddress"):$("#compactAddress");input?.focus();input?.select();});
 window.browserShell.onRequestFind(()=>{const v=prompt(tr("find"));if(v)window.browserShell.find(v);});
