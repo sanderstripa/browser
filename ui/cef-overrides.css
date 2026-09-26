@@ -145,11 +145,11 @@ html.cef-runtime body[data-theme="dark"][data-matte="false"] .browser-toolbar {
 }
 html.cef-runtime body[data-theme="light"][data-matte="true"] .browser-toolbar,
 html.cef-runtime body[data-theme="system"][data-matte="true"] .browser-toolbar {
-  background: linear-gradient(112deg, rgba(255,255,255,.82), rgba(221,232,244,.68)) !important;
+  background: linear-gradient(112deg, rgba(255,255,255,.58), rgba(221,232,244,.44)) !important;
   box-shadow: inset 0 1px 0 rgba(255,255,255,.72), 0 1px 10px rgba(26,45,70,.12);
 }
 html.cef-runtime body[data-theme="dark"][data-matte="true"] .browser-toolbar {
-  background: linear-gradient(112deg, rgba(39,42,49,.82), rgba(34,48,64,.70)) !important;
+  background: linear-gradient(112deg, rgba(25,28,34,.62), rgba(25,39,55,.48)) !important;
   color: #f1f1f3;
   box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 1px 12px rgba(0,0,0,.34);
 }
