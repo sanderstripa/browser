@@ -92,7 +92,8 @@ Function EnableClick
 FunctionEnd
 
 Function StartDragTimer
-  GetFunctionAddress $DragTimerProc DragWindow
+  GetFunctionAddress $0 DragWindow
+  StrCpy $DragTimerProc $0
   nsDialogs::CreateTimer $DragTimerProc 16
 FunctionEnd
 
