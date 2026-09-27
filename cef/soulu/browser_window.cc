@@ -14,6 +14,7 @@
 #include <sstream>
 
 #include "examples/soulu/browser_client.h"
+#include "examples/soulu/frosted_backdrop.h"
 #include "examples/soulu/resource.h"
 #include "include/cef_app.h"
 #include "include/cef_parser.h"
@@ -380,9 +381,12 @@ void BrowserWindow::ApplyWindowAppearance() {
   DwmSetWindowAttribute(hwnd_,38,&noBackdrop,sizeof(noBackdrop));
   const bool matte=settings_->GetBool("mattePanel");
   const auto compose=reinterpret_cast<SetComposition>(GetProcAddress(GetModuleHandleW(L"user32.dll"),"SetWindowCompositionAttribute"));
-  AccentPolicy policy={matte?4:0,0,dark?0x20080808u:0x20FAFAFAu,0};
+  AccentPolicy policy={0,0,0,0};
   CompositionData data={19,&policy,sizeof(policy)};
-  native_blur_=compose&&compose(hwnd_,&data)&&matte;
+  if(compose)compose(hwnd_,&data);
+  native_blur_=ConfigureFrostedBackdrop(hwnd_,matte);
+  RECT area={};GetClientRect(hwnd_,&area);
+  ResizeFrostedBackdrop(hwnd_,area.right,static_cast<int>((settings_->GetString("layout")=="classic"?82:48)*GetDpiForWindow(hwnd_)/96));
   const MARGINS glass=matte?MARGINS{-1,-1,-1,-1}:MARGINS{0,0,0,0};
   DwmExtendFrameIntoClientArea(hwnd_,&glass);
   RedrawWindow(hwnd_,nullptr,nullptr,RDW_INVALIDATE|RDW_ERASE|RDW_FRAME|RDW_ALLCHILDREN);
@@ -708,6 +712,7 @@ void BrowserWindow::Layout() {
   const int width = std::max(1L, client.right - border * 2);
   const int height = std::max(1L, client.bottom - border * 2);
   const int toolbar = px(settings_->GetString("layout") == "classic" ? 82 : 48);
+  ResizeFrostedBackdrop(hwnd_,width,toolbar);
   const int x = sidebar_visible_ ? px(276) : 0;
   const std::string profile = VisibleProfileId();
   for (auto& tab : tabs_) {
@@ -1157,7 +1162,7 @@ LRESULT CALLBACK BrowserWindow::WindowProc(HWND hwnd, UINT message, WPARAM wpara
     case WM_DWMCOMPOSITIONCHANGED: self->ApplyWindowAppearance(); return 0;
     case WM_SETTINGCHANGE: self->ApplyWindowAppearance(); self->ApplyContentTheme(); break;
     case WM_CLOSE: self->CloseAll(); return 0;
-    case WM_DESTROY: CefQuitMessageLoop(); return 0;
+    case WM_DESTROY: ReleaseFrostedBackdrop(hwnd); CefQuitMessageLoop(); return 0;
     case WM_NCDESTROY:
       SetWindowLongPtr(hwnd, GWLP_USERDATA, 0); self->hwnd_ = nullptr; self->Release(); break;
   }
