@@ -201,7 +201,7 @@ try:
     user.mouse_event(4,0,0,0,0);time.sleep(.4)
     after=wintypes.RECT();user.GetWindowRect(hwnd,ctypes.byref(after))
     from PIL import ImageGrab
-    ImageGrab.grab(bbox=(after.left,after.top,after.right,after.bottom)).save('browser/artifacts/browser-dark.png')
+    ImageGrab.grab(include_layered_windows=True,bbox=(after.left,after.top,after.right,after.bottom)).save('browser/artifacts/browser-dark.png')
     import base64
     print('SOULU_SCREENSHOT:browser-dark='+base64.b64encode(open('browser/artifacts/browser-dark.png','rb').read()).decode())
     print('Mouse resize:',before.right-before.left,'->',after.right-after.left)
@@ -249,11 +249,11 @@ try:
             if old_brush is None: old_brush=previous
             user.RedrawWindow(background,None,None,0x0105)
             time.sleep(.7)
-            reference=ImageGrab.grab(bbox=(after.left-15,after.top+20,after.left-10,after.top+30))
+            reference=ImageGrab.grab(include_layered_windows=True,bbox=(after.left-15,after.top+20,after.left-10,after.top+30))
             print('Actual background reference',name,ImageStat.Stat(reference).mean)
             if name=='matte-red': assert ImageStat.Stat(reference).mean[0]>180, 'Test background did not paint red'
             if name=='matte-blue': assert ImageStat.Stat(reference).mean[2]>180, 'Test background did not paint blue'
-            shot=ImageGrab.grab(bbox=(after.left,after.top,after.right,after.bottom))
+            shot=ImageGrab.grab(include_layered_windows=True,bbox=(after.left,after.top,after.right,after.bottom))
             shot.save('browser/artifacts/'+name+'.png')
             print('SOULU_SCREENSHOT:'+name+'='+base64.b64encode(open('browser/artifacts/'+name+'.png','rb').read()).decode())
             return shot.crop((100,12,145,38))
@@ -279,7 +279,7 @@ try:
         user.DestroyWindow(background)
         for brush in brushes:gdi.DeleteObject(brush)
         if bitmap:gdi.DeleteObject(bitmap)
-    frame=ImageGrab.grab(bbox=(after.left,after.top,after.right,after.bottom))
+    frame=ImageGrab.grab(include_layered_windows=True,bbox=(after.left,after.top,after.right,after.bottom))
     edge=frame.getpixel((3,200));inside=frame.getpixel((12,200))
     print('Content reaches window edge:',edge,inside)
     assert max(abs(a-b) for a,b in zip(edge,inside))<6, 'Visible border remains around browser content'
