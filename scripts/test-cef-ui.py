@@ -220,18 +220,39 @@ try:
     gdi.CreateBitmap.argtypes=[ctypes.c_int,ctypes.c_int,wintypes.UINT,wintypes.UINT,ctypes.c_void_p];gdi.CreateBitmap.restype=wintypes.HBITMAP
     gdi.CreatePatternBrush.argtypes=[wintypes.HBITMAP];gdi.CreatePatternBrush.restype=wintypes.HBRUSH
     gdi.DeleteObject.argtypes=[wintypes.HGDIOBJ]
-    background=user.CreateWindowExW(0x08000080,'STATIC','Soulu blur test background',0x90000000,after.left,after.top,after.right-after.left,after.bottom-after.top,None,None,None,None)
+    WNDPROC=ctypes.WINFUNCTYPE(ctypes.c_ssize_t,wintypes.HWND,wintypes.UINT,wintypes.WPARAM,wintypes.LPARAM)
+    class WNDCLASS(ctypes.Structure):
+        _fields_=[('style',wintypes.UINT),('lpfnWndProc',WNDPROC),('cbClsExtra',ctypes.c_int),('cbWndExtra',ctypes.c_int),('hInstance',wintypes.HINSTANCE),('hIcon',wintypes.HICON),('hCursor',wintypes.HANDLE),('hbrBackground',wintypes.HBRUSH),('lpszMenuName',wintypes.LPCWSTR),('lpszClassName',wintypes.LPCWSTR)]
+    user.DefWindowProcW.argtypes=[wintypes.HWND,wintypes.UINT,wintypes.WPARAM,wintypes.LPARAM];user.DefWindowProcW.restype=ctypes.c_ssize_t
+    user.GetClientRect.argtypes=[wintypes.HWND,ctypes.POINTER(wintypes.RECT)]
+    user.FillRect.argtypes=[wintypes.HDC,ctypes.POINTER(wintypes.RECT),wintypes.HBRUSH]
+    test_brush=None
+    @WNDPROC
+    def background_proc(window,message,wp,lp):
+        if message==0x14 and test_brush:
+            area=wintypes.RECT();user.GetClientRect(window,ctypes.byref(area))
+            user.FillRect(wp,ctypes.byref(area),test_brush);return 1
+        return user.DefWindowProcW(window,message,wp,lp)
+    klass=WNDCLASS();klass.lpfnWndProc=background_proc;klass.lpszClassName='SouluTestBackdrop'
+    user.RegisterClassW.argtypes=[ctypes.POINTER(WNDCLASS)]
+    assert user.RegisterClassW(ctypes.byref(klass))
+    background=user.CreateWindowExW(0x08000080,'SouluTestBackdrop','Soulu blur test background',0x90000000,after.left-20,after.top-20,after.right-after.left+40,after.bottom-after.top+40,None,None,None,None)
     assert background
-    user.SetWindowPos(background,hwnd,after.left,after.top,after.right-after.left,after.bottom-after.top,0x0010|0x0040)
+    user.SetWindowPos(background,hwnd,after.left-20,after.top-20,after.right-after.left+40,after.bottom-after.top+40,0x0010|0x0040)
     user.SetForegroundWindow(hwnd)
     brushes=[];bitmap=None;old_brush=None
     try:
         def behind(brush,name):
-            global old_brush
+            global old_brush,test_brush
+            test_brush=brush
             previous=user.SetClassLongPtrW(background,-10,brush)
             if old_brush is None: old_brush=previous
             user.RedrawWindow(background,None,None,0x0105)
             time.sleep(.7)
+            reference=ImageGrab.grab(bbox=(after.left-15,after.top+20,after.left-10,after.top+30))
+            print('Actual background reference',name,ImageStat.Stat(reference).mean)
+            if name=='matte-red': assert ImageStat.Stat(reference).mean[0]>180, 'Test background did not paint red'
+            if name=='matte-blue': assert ImageStat.Stat(reference).mean[2]>180, 'Test background did not paint blue'
             shot=ImageGrab.grab(bbox=(after.left,after.top,after.right,after.bottom))
             shot.save('browser/artifacts/'+name+'.png')
             print('SOULU_SCREENSHOT:'+name+'='+base64.b64encode(open('browser/artifacts/'+name+'.png','rb').read()).decode())

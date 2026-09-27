@@ -24,7 +24,7 @@ permissions:
 
 jobs:
   windows-cef:
-    runs-on: windows-2022
+    runs-on: windows-2025
     timeout-minutes: 90
     env:
       PREVIEW_VERSION: 0.9.0-cef-preview.18
@@ -86,6 +86,21 @@ jobs:
           $zip = Join-Path $PWD "browser/artifacts/Soulu-CEF-$env:PREVIEW_VERSION-x64.zip"
           Compress-Archive -Path "$buildDir/*" -DestinationPath $zip -Force
           "build_dir=$buildDir" >> $env:GITHUB_OUTPUT
+
+      - name: Test live CEF settings and toolbar on Windows
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check websocket-client pillow
+          $env:SOULU_UI_TEST_PORT = "9223"
+          $installedExe = Join-Path "${{ steps.package.outputs.build_dir }}" "Soulu.exe"
+          $app = Start-Process $installedExe -PassThru
+          try {
+            python browser/scripts/test-cef-ui.py
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          finally {
+            Get-Process Soulu -ErrorAction SilentlyContinue | Stop-Process -Force
+          }
 
       - name: Build installer
         shell: pwsh
@@ -294,21 +309,6 @@ jobs:
           Click-At ([int](($rect.Left+$rect.Right)/2)) ([int](($rect.Top+$rect.Bottom)/2))
           if(-not $again.WaitForExit(5000)){throw 'Close click did not close installer directly'}
 
-
-      - name: Test live CEF settings and toolbar on Windows
-        shell: pwsh
-        run: |
-          python -m pip install --disable-pip-version-check websocket-client pillow
-          $env:SOULU_UI_TEST_PORT = "9223"
-          $installedExe = Join-Path $env:LOCALAPPDATA "Programs/Soulu/Soulu.exe"
-          $app = Start-Process $installedExe -PassThru
-          try {
-            python browser/scripts/test-cef-ui.py
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          }
-          finally {
-            Get-Process Soulu -ErrorAction SilentlyContinue | Stop-Process -Force
-          }
 
       - name: Upload visual checks
         continue-on-error: true
