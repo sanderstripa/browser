@@ -52,7 +52,7 @@ UninstPage instfiles
 Function .onInit
   InitPluginsDir
   File /oname=$PLUGINSDIR\welcome.bmp "installer-welcome.bmp"
-  File /oname=$PLUGINSDIR\install.bmp "installer-install.bmp"
+  File /oname=$PLUGINSDIR\install.bmp "installer-install-clean.bmp"
   File /oname=$PLUGINSDIR\finish.bmp "installer-finish.bmp"
   StrCpy $Dragging 0
   StrCpy $Installed 0
@@ -229,13 +229,17 @@ Function InstallPage
   Call AddBackground
   Call AddWindowControls
   Call StartDragTimer
-  ; A genuine Windows progress control: an empty STATIC label does not
-  ; paint a fill, which is why the previous "bar" was invisible.
-  System::Call 'comctl32::InitCommonControls()'
-  System::Call 'user32::CreateWindowExW(i 0, w "msctls_progress32", w "", i 0x50000001, i 40, i 177, i 350, i 14, p $Dialog, p 0, p 0, p 0) p .r0'
-  StrCpy $Progress $0
-  SendMessage $Progress 0x0406 0 100
-  SendMessage $Progress 0x0402 8 0
+  ; Flat progress track and fill matching the installer artwork.
+  ${NSD_CreateLabel} 39px 163px 314px 6px " "
+  Pop $ProgressTrack
+  SetCtlColors $ProgressTrack 0xD5DAE1 0xD5DAE1
+  System::Call 'gdi32::CreateRoundRectRgn(i 0, i 0, i 314, i 6, i 6, i 6) p .r0'
+  System::Call 'user32::SetWindowRgn(p $ProgressTrack, p r0, i 1)'
+  ${NSD_CreateLabel} 39px 163px 25px 6px " "
+  Pop $Progress
+  SetCtlColors $Progress 0x2A547E 0x2A547E
+  System::Call 'gdi32::CreateRoundRectRgn(i 0, i 0, i 314, i 6, i 6, i 6) p .r0'
+  System::Call 'user32::SetWindowRgn(p $Progress, p r0, i 1)'
   ${NSD_CreateLabel} 363px 148px 42px 24px "8%"
   Pop $PercentText
   SetCtlColors $PercentText 0x17324D 0xF7F6F4
@@ -253,7 +257,6 @@ Function PerformInstall
   ${EndIf}
   StrCpy $InstallFinished 1
   nsDialogs::KillTimer $InstallTimerProc
-  SendMessage $Progress 0x0402 8 0
   ${NSD_SetText} $PercentText "8%"
   System::Call 'user32::UpdateWindow(p $Dialog)'
   Sleep 120
@@ -264,12 +267,12 @@ Function PerformInstall
   SetOverwrite on
   SetOutPath "$INSTDIR"
   File "${BUILD_DIR}\libcef.dll"
-  SendMessage $Progress 0x0402 55 0
+  System::Call 'user32::SetWindowPos(p $Progress, p 0, i 39, i 163, i 173, i 6, i 0x0004)'
   ${NSD_SetText} $PercentText "55%"
   System::Call 'user32::UpdateWindow(p $Dialog)'
   SetOutPath "$INSTDIR"
   File /r /x libcef.dll "${BUILD_DIR}\*"
-  SendMessage $Progress 0x0402 94 0
+  System::Call 'user32::SetWindowPos(p $Progress, p 0, i 39, i 163, i 295, i 6, i 0x0004)'
   ${NSD_SetText} $PercentText "94%"
   System::Call 'user32::UpdateWindow(p $Dialog)'
 
@@ -282,9 +285,9 @@ Function PerformInstall
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "DisplayIcon" "$INSTDIR\Soulu.exe"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "UninstallString" '"$INSTDIR\Uninstall Soulu.exe"'
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "Publisher" "Soulu"
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "DisplayVersion" "0.9.0-cef-preview.15"
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "DisplayVersion" "0.9.0-cef-preview.16"
 
-  SendMessage $Progress 0x0402 100 0
+  System::Call 'user32::SetWindowPos(p $Progress, p 0, i 39, i 163, i 314, i 6, i 0x0004)'
   ${NSD_SetText} $PercentText "100%"
   StrCpy $Installed 1
   System::Call 'user32::UpdateWindow(p $Dialog)'
