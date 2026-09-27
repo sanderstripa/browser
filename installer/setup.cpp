@@ -9,6 +9,8 @@
 #include <string>
 #include <vector>
 #include <algorithm>
+#include <atomic>
+#include <thread>
 #pragma comment(lib,"gdiplus.lib")
 #pragma comment(lib,"dwmapi.lib")
 #pragma comment(lib,"shell32.lib")
@@ -17,7 +19,8 @@ namespace {
 constexpr int kWidth=600,kHeight=400,kMain=1001,kMin=1002,kClose=1003,kLaunch=1004;
 enum class Stage { Welcome, Installing, Finished, Error };
 HWND window=nullptr,mainButton=nullptr,launchButton=nullptr;
-HANDLE worker=nullptr;
+std::atomic<HANDLE> worker{nullptr};
+HANDLE workerJob=nullptr;
 Stage stage=Stage::Welcome;
 bool launch=true;
 float scale=1;
@@ -101,30 +104,48 @@ void ShowStage(Stage next){
  if(stage!=Stage::Installing)SetFocus(mainButton);
 }
 void CleanupWorker(bool cancel){
- if(worker){if(cancel&&WaitForSingleObject(worker,0)==WAIT_TIMEOUT){TerminateProcess(worker,2);WaitForSingleObject(worker,1500);}CloseHandle(worker);worker=nullptr;}
+ HANDLE process=worker.exchange(nullptr);
+ if(process){if(cancel&&WaitForSingleObject(process,0)==WAIT_TIMEOUT)TerminateProcess(process,2);CloseHandle(process);}
+ if(workerJob){CloseHandle(workerJob);workerJob=nullptr;}
  if(!payloadPath.empty())DeleteFileW(payloadPath.c_str());
 }
 void StartInstall(){
  ShowStage(Stage::Installing);
- // The NSIS payload runs in its own process. This window keeps processing
- // mouse, movement, minimize and close messages throughout extraction.
- HRSRC resource=FindResourceW(nullptr,MAKEINTRESOURCEW(100),RT_RCDATA);
- HGLOBAL bytes=resource?LoadResource(nullptr,resource):nullptr;
- const DWORD length=resource?SizeofResource(nullptr,resource):0;
- const void* data=bytes?LockResource(bytes):nullptr;
  wchar_t temp[MAX_PATH]={},file[MAX_PATH]={};GetTempPathW(MAX_PATH,temp);GetTempFileNameW(temp,L"slu",0,file);DeleteFileW(file);
  payloadPath=std::wstring(file)+L".exe";
- HANDLE output=CreateFileW(payloadPath.c_str(),GENERIC_WRITE,0,nullptr,CREATE_ALWAYS,FILE_ATTRIBUTE_TEMPORARY,nullptr);
- DWORD written=0;
- bool ok=data&&output!=INVALID_HANDLE_VALUE&&WriteFile(output,data,length,&written,nullptr)&&written==length;
- if(output!=INVALID_HANDLE_VALUE)CloseHandle(output);
- if(ok){
-   std::wstring command=L"\""+payloadPath+L"\" /S /D="+installDir;
-   STARTUPINFOW startup={sizeof(startup)};PROCESS_INFORMATION process={};
-   ok=CreateProcessW(payloadPath.c_str(),command.data(),nullptr,nullptr,FALSE,CREATE_NO_WINDOW,nullptr,nullptr,&startup,&process)!=FALSE;
-   if(ok){worker=process.hProcess;CloseHandle(process.hThread);SetTimer(window,1,100,nullptr);return;}
+ workerJob=CreateJobObjectW(nullptr,nullptr);
+ JOBOBJECT_EXTENDED_LIMIT_INFORMATION limits={};
+ limits.BasicLimitInformation.LimitFlags=JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+ if(!workerJob||!SetInformationJobObject(workerJob,JobObjectExtendedLimitInformation,&limits,sizeof(limits))){
+   CleanupWorker(false);errorText=L"Не удалось запустить установку. Попробуй ещё раз.";ShowStage(Stage::Error);return;
  }
- CleanupWorker(false);errorText=L"Не удалось запустить установку. Попробуй ещё раз.";ShowStage(Stage::Error);
+ const HWND target=window;const HANDLE job=workerJob;
+ const std::wstring path=payloadPath,folder=installDir;
+ // Copying and Windows executable scanning can block too. Keep all payload
+ // preparation off the UI thread, not just the extraction itself.
+ std::thread([target,job,path,folder]{
+   HRSRC resource=FindResourceW(nullptr,MAKEINTRESOURCEW(100),RT_RCDATA);
+   HGLOBAL bytes=resource?LoadResource(nullptr,resource):nullptr;
+   const DWORD length=resource?SizeofResource(nullptr,resource):0;
+   const void* data=bytes?LockResource(bytes):nullptr;
+   HANDLE output=CreateFileW(path.c_str(),GENERIC_WRITE,0,nullptr,CREATE_ALWAYS,FILE_ATTRIBUTE_TEMPORARY,nullptr);
+   DWORD written=0;
+   bool ok=data&&output!=INVALID_HANDLE_VALUE&&WriteFile(output,data,length,&written,nullptr)&&written==length;
+   if(output!=INVALID_HANDLE_VALUE)CloseHandle(output);
+   if(ok){
+     std::wstring command=L"\""+path+L"\" /S /D="+folder;
+     STARTUPINFOW startup={sizeof(startup)};PROCESS_INFORMATION process={};
+     ok=CreateProcessW(path.c_str(),command.data(),nullptr,nullptr,FALSE,CREATE_NO_WINDOW|CREATE_SUSPENDED,nullptr,nullptr,&startup,&process)!=FALSE;
+     if(ok){
+       ok=AssignProcessToJobObject(job,process.hProcess)!=FALSE;
+       if(ok){worker.store(process.hProcess);ResumeThread(process.hThread);}
+       else{TerminateProcess(process.hProcess,2);CloseHandle(process.hProcess);}
+       CloseHandle(process.hThread);
+     }
+   }
+   if(!ok)PostMessageW(target,WM_APP+2,0,0);
+ }).detach();
+ SetTimer(window,1,100,nullptr);
 }
 void Finish(){
  if(stage==Stage::Welcome||stage==Stage::Error){PostMessageW(window,WM_APP+1,0,0);return;}
@@ -148,8 +169,9 @@ LRESULT CALLBACK Proc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp){
       case kLaunch:launch=!launch;InvalidateRect(launchButton,nullptr,FALSE);break;
     }}return 0;
   case WM_APP+1:if(stage!=Stage::Installing)StartInstall();return 0;
-  case WM_TIMER:if(worker&&WaitForSingleObject(worker,0)==WAIT_OBJECT_0){
-    DWORD code=1;GetExitCodeProcess(worker,&code);KillTimer(hwnd,1);CleanupWorker(false);
+  case WM_APP+2:KillTimer(hwnd,1);CleanupWorker(false);errorText=L"Не удалось запустить установку. Попробуй ещё раз.";ShowStage(Stage::Error);return 0;
+  case WM_TIMER:if(worker.load()&&WaitForSingleObject(worker.load(),0)==WAIT_OBJECT_0){
+    DWORD code=1;GetExitCodeProcess(worker.load(),&code);KillTimer(hwnd,1);CleanupWorker(false);
     if(code==0&&GetFileAttributesW((installDir+L"\\Soulu.exe").c_str())!=INVALID_FILE_ATTRIBUTES)ShowStage(Stage::Finished);
     else{errorText=L"Установка не завершена. Закрой Soulu и повтори попытку.";ShowStage(Stage::Error);}
   }return 0;

@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <cmath>
 #include "include/cef_urlrequest.h"
+#include "include/cef_task.h"
 #include <dwmapi.h>
 #include <filesystem>
 #include <fstream>
@@ -24,7 +25,14 @@ class SuggestClient final : public CefURLRequestClient {
  public:
   SuggestClient(CefRefPtr<CefListValue> local, CefRefPtr<CefMessageRouterBrowserSide::Callback> reply)
       : rows_(local), reply_(reply) {}
+  void ReplyNow() {
+    if (!reply_) return;
+    auto value = CefValue::Create(); value->SetList(rows_);
+    reply_->Success(CefWriteJSON(value, JSON_WRITER_DEFAULT));
+    reply_ = nullptr;
+  }
   void OnRequestComplete(CefRefPtr<CefURLRequest>) override {
+    if (!reply_) return;
     auto data = CefParseJSON(body_, JSON_PARSER_RFC);
     if (data && data->GetType() == VTYPE_LIST) {
       auto list = data->GetList();
@@ -39,8 +47,7 @@ class SuggestClient final : public CefURLRequestClient {
         }
       }
     }
-    auto value = CefValue::Create(); value->SetList(rows_);
-    reply_->Success(CefWriteJSON(value, JSON_WRITER_DEFAULT));
+    ReplyNow();
   }
   void OnUploadProgress(CefRefPtr<CefURLRequest>, int64_t, int64_t) override {}
   void OnDownloadProgress(CefRefPtr<CefURLRequest>, int64_t, int64_t) override {}
@@ -53,6 +60,14 @@ class SuggestClient final : public CefURLRequestClient {
   CefRefPtr<CefListValue> rows_;
   CefRefPtr<CefMessageRouterBrowserSide::Callback> reply_;
   IMPLEMENT_REFCOUNTING(SuggestClient);
+};
+class SuggestTimeout final : public CefTask {
+ public:
+  explicit SuggestTimeout(CefRefPtr<SuggestClient> client) : client_(client) {}
+  void Execute() override { client_->ReplyNow(); }
+ private:
+  CefRefPtr<SuggestClient> client_;
+  IMPLEMENT_REFCOUNTING(SuggestTimeout);
 };
 constexpr wchar_t kWindowClass[] = L"SouluBrowserWindow";
 
@@ -914,8 +929,13 @@ void BrowserWindow::HandleBridge(const std::string& request,
       suggestion_request->SetMethod("GET"); suggestion_request->SetFlags(UR_FLAG_SKIP_CACHE);
       CefRefPtr<CefRequestContext> context;
       if (auto* tab = ActiveTab(); tab && tab->browser) context = tab->browser->GetHost()->GetRequestContext();
-      auto pending = CefURLRequest::Create(suggestion_request, new SuggestClient(result, callback), context);
-      if (pending) return;
+      CefRefPtr<SuggestClient> client = new SuggestClient(result, callback);
+      auto pending = CefURLRequest::Create(suggestion_request, client, context);
+      if (pending) {
+        // Offline/slow search must never suppress local site and tab suggestions.
+        CefPostDelayedTask(TID_UI, new SuggestTimeout(client), 1200);
+        return;
+      }
     }
     return Reply(callback, Wrap(result));
   }

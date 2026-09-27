@@ -208,7 +208,9 @@ jobs:
           Save-Window $process.MainWindowHandle "installer-installing"
           $during=New-Object MouseTest+RECT
           [MouseTest]::GetWindowRect($process.MainWindowHandle,[ref]$during) | Out-Null
+          [MouseTest]::SetForegroundWindow($process.MainWindowHandle) | Out-Null
           [MouseTest]::SetCursorPos(($during.Left+120),($during.Top+25)) | Out-Null
+          Start-Sleep -Milliseconds 200
           [MouseTest]::mouse_event(0x0002,0,0,0,[UIntPtr]::Zero)
           Start-Sleep -Milliseconds 150
           [MouseTest]::SetCursorPos(($during.Left+170),($during.Top+50)) | Out-Null

@@ -153,6 +153,34 @@ try:
     # A domain completion must remain usable without relying on a public server.
     local = evaluate(shell, "Promise.race([window.browserShell.suggestions('example.org'),new Promise((_,reject)=>setTimeout(()=>reject(Error('suggestion timeout')),12000))])")
     assert any(row.get('url') == 'https://example.org' for row in local), local
+    # Exercise OSR mouse hit testing and native key forwarding, not only DOM focus.
+    import ctypes
+    from ctypes import wintypes
+    user=ctypes.windll.user32
+    user.FindWindowW.argtypes=[wintypes.LPCWSTR,wintypes.LPCWSTR];user.FindWindowW.restype=wintypes.HWND
+    user.GetWindowRect.argtypes=[wintypes.HWND,ctypes.POINTER(wintypes.RECT)]
+    user.SetForegroundWindow.argtypes=[wintypes.HWND]
+    user.GetDpiForWindow.argtypes=[wintypes.HWND]
+    hwnd=user.FindWindowW('SouluBrowserWindow',None)
+    assert hwnd, 'Browser HWND missing'
+    rect=wintypes.RECT();user.GetWindowRect(hwnd,ctypes.byref(rect))
+    user.SetForegroundWindow(hwnd)
+    pos=evaluate(shell,"(() => {const r=document.querySelector('#compactAddress').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()")
+    scale=user.GetDpiForWindow(hwnd)/96
+    user.SetCursorPos(rect.left+round((6+pos['x'])*scale),rect.top+round((6+pos['y'])*scale))
+    user.mouse_event(2,0,0,0,0);user.mouse_event(4,0,0,0,0);time.sleep(.2)
+    user.keybd_event(0x11,0,0,0);user.keybd_event(0x41,0,0,0);user.keybd_event(0x41,0,2,0);user.keybd_event(0x11,0,2,0)
+    for character in 'SOULU TEST':
+        user.keybd_event(ord(character),0,0,0);user.keybd_event(ord(character),0,2,0)
+    time.sleep(2)
+    typed=evaluate(shell,"document.querySelector('#compactAddress').value")
+    assert typed.lower()=='soulu test', ('Physical address input failed',typed)
+    prior=evaluate(shell,"window.browserShell.getState()")
+    user.keybd_event(0x0D,0,0,0);user.keybd_event(0x0D,0,2,0)
+    wait_for(lambda: evaluate(shell,"window.browserShell.getState().then(s=>s.page.url.includes('soulu') && !s.page.url.includes('settings.html'))"),'typed search navigation')
+    after_navigation=evaluate(shell,"window.browserShell.getState()")
+    assert len(prior['tabs'])==len(after_navigation['tabs']), 'Address navigation created another tab'
+    print('Physical address click, keyboard input and same-tab navigation passed.')
     evaluate(shell, "window.browserShell.newTab()")
     blank = find_target('/ui/start.html')
     wait_for(lambda: evaluate(blank, "getComputedStyle(document.body).backgroundColor === 'rgb(8, 9, 11)'"), 'black blank tab')
@@ -173,6 +201,8 @@ try:
     after=wintypes.RECT();user.GetWindowRect(hwnd,ctypes.byref(after))
     from PIL import ImageGrab
     ImageGrab.grab(bbox=(after.left,after.top,after.right,after.bottom)).save('browser/artifacts/browser-dark.png')
+    import base64
+    print('SOULU_SCREENSHOT:browser-dark='+base64.b64encode(open('browser/artifacts/browser-dark.png','rb').read()).decode())
     print('Mouse resize:',before.right-before.left,'->',after.right-after.left)
     assert (before.right-before.left)-(after.right-after.left)>80, 'Browser frame cannot resize by mouse'
     print("CEF settings, alpha rendering, address editing, completions, black blank tab and mouse resize passed.")
