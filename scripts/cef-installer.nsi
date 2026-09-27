@@ -154,19 +154,17 @@ Function DragWindow
 FunctionEnd
 
 Function AddWindowControls
-  ; Draw clickable controls inside the actual custom page. NSIS's built-in
-  ; buttons are siblings BEHIND the full-size dialog, so mouse input misses.
-  ${NSD_CreateLabel} 384px 8px 36px 32px "×"
+  ; Use real child BUTTON controls so WindowFromPoint and physical mouse
+  ; input hit the visible controls instead of the full-size bitmap.
+  ${NSD_CreateButton} 384px 8px 36px 32px "×"
   Pop $CloseButton
-  ${NSD_AddStyle} $CloseButton 0x00000301
   SetCtlColors $CloseButton 0x17324D transparent
   CreateFont $0 "Segoe UI" 18 400
   SendMessage $CloseButton ${WM_SETFONT} $0 1
   ${NSD_OnClick} $CloseButton CloseInstaller
 
-  ${NSD_CreateLabel} 342px 8px 36px 32px "—"
+  ${NSD_CreateButton} 342px 8px 36px 32px "—"
   Pop $MinimizeButton
-  ${NSD_AddStyle} $MinimizeButton 0x00000301
   SetCtlColors $MinimizeButton 0x17324D transparent
   ${NSD_OnClick} $MinimizeButton MinimizeInstaller
 FunctionEnd
@@ -187,9 +185,8 @@ Function WelcomePage
   Call AddBackground
   Call AddWindowControls
   Call StartDragTimer
-  ${NSD_CreateLabel} 105px 322px 222px 49px "Установить  →"
+  ${NSD_CreateButton} 105px 322px 222px 49px "Установить  →"
   Pop $MainButton
-  ${NSD_AddStyle} $MainButton 0x00000301
   SetCtlColors $MainButton 0x17324D 0xFFFFFF
   CreateFont $0 "Segoe UI" 12 600
   SendMessage $MainButton ${WM_SETFONT} $0 1
@@ -278,9 +275,8 @@ Function FinishPage
   Call AddBackground
   Call AddWindowControls
   Call StartDragTimer
-  ${NSD_CreateLabel} 108px 339px 215px 49px "Открыть  →"
+  ${NSD_CreateButton} 108px 339px 215px 49px "Открыть  →"
   Pop $MainButton
-  ${NSD_AddStyle} $MainButton 0x00000301
   SetCtlColors $MainButton 0x17324D 0xFFFFFF
   CreateFont $0 "Segoe UI" 12 600
   SendMessage $MainButton ${WM_SETFONT} $0 1

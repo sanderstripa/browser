@@ -131,7 +131,7 @@ jobs:
                 var txt = new System.Text.StringBuilder(256);
                 GetClassName(hwnd, cls, cls.Capacity);
                 GetWindowText(hwnd, txt, txt.Capacity);
-                if (cls.ToString().Equals("Static", StringComparison.OrdinalIgnoreCase) &&
+                if (cls.ToString().Equals("Button", StringComparison.OrdinalIgnoreCase) &&
                     txt.ToString().StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) {
                   found = hwnd; return false;
                 }
@@ -191,14 +191,8 @@ jobs:
           $y = [int](($rect.Top + $rect.Bottom) / 2)
           $hit = [MouseTest]::WindowFromPoint([MouseTest+POINT]@{ X=$x; Y=$y })
           "Install control: $([MouseTest]::Describe($installHwnd)); mouse hit: $([MouseTest]::Describe($hit)) at $x,$y"
+          if ($hit -ne $installHwnd) { throw "Visible Install button is occluded by another control" }
           Click-At $x $y
-          Start-Sleep -Seconds 12
-          if (-not (Test-Path $installedExe)) {
-            [MouseTest]::SendMessage($installHwnd, 0x0201, [IntPtr]1, [IntPtr]0x00080008) | Out-Null
-            [MouseTest]::SendMessage($installHwnd, 0x0202, [IntPtr]0, [IntPtr]0x00080008) | Out-Null
-            Start-Sleep -Seconds 12
-            if (Test-Path $installedExe) { throw "Physical mouse click missed, direct label messages work" }
-          }
 
           $deadline = (Get-Date).AddMinutes(4)
           while ((Get-Date) -lt $deadline -and -not (Test-Path $installedExe)) {
@@ -218,7 +212,12 @@ jobs:
           }
           if ($openHwnd -eq [IntPtr]::Zero) { throw "Native Open button handle was not found" }
           [MouseTest]::GetWindowRect($openHwnd, [ref]$rect) | Out-Null
-          Click-At ([int](($rect.Left + $rect.Right) / 2)) ([int](($rect.Top + $rect.Bottom) / 2))
+          $openX = [int](($rect.Left + $rect.Right) / 2)
+          $openY = [int](($rect.Top + $rect.Bottom) / 2)
+          $openHit = [MouseTest]::WindowFromPoint([MouseTest+POINT]@{ X=$openX; Y=$openY })
+          "Open control: $([MouseTest]::Describe($openHwnd)); mouse hit: $([MouseTest]::Describe($openHit))"
+          if ($openHit -ne $openHwnd) { throw "Visible Open button is occluded by another control" }
+          Click-At $openX $openY
 
           $deadline = (Get-Date).AddSeconds(45)
           $soulu = $null
