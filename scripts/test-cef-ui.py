@@ -175,6 +175,7 @@ try:
     time.sleep(2)
     typed=evaluate(shell,"document.querySelector('#compactAddress').value")
     assert typed.lower()=='soulu test', ('Physical address input failed',typed)
+    assert evaluate(shell,"(() => {const row=document.querySelector('#compactSuggestions.visible .suggestion-row');if(!row)return false;const r=row.getBoundingClientRect();return !!document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)?.closest('.suggestion-row')})()"), 'Suggestions are clipped or cannot receive mouse clicks'
     prior=evaluate(shell,"window.browserShell.getState()")
     user.keybd_event(0x0D,0,0,0);user.keybd_event(0x0D,0,2,0)
     wait_for(lambda: evaluate(shell,"window.browserShell.getState().then(s=>s.page.url.includes('soulu') && !s.page.url.includes('settings.html'))"),'typed search navigation')
