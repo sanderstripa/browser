@@ -184,7 +184,7 @@ try:
     print('Physical address click, keyboard input and same-tab navigation passed.')
     evaluate(shell, "window.browserShell.newTab()")
     blank = find_target('/ui/start.html')
-    wait_for(lambda: evaluate(blank, "getComputedStyle(document.body).backgroundColor === 'rgb(8, 9, 11)'"), 'black blank tab')
+    wait_for(lambda: evaluate(blank, "Boolean(document.body) && getComputedStyle(document.body).backgroundColor === 'rgb(8, 9, 11)'"), 'black blank tab')
     blank.close()
 
     # Resize using the real desktop pointer at the right frame edge.

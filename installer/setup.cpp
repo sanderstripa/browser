@@ -27,7 +27,7 @@ Stage stage=Stage::Welcome;
 bool launch=true;
 float scale=1;
 HICON icon=nullptr;
-IStream* logoStream=nullptr;
+std::vector<BYTE> logoPixels;
 Bitmap* logo=nullptr;
 std::wstring payloadPath,installDir,errorText;
 ULONG_PTR graphicsToken=0;
@@ -195,14 +195,20 @@ int WINAPI wWinMain(HINSTANCE instance,HINSTANCE,wchar_t*,int){
  GdiplusStartupInput input;GdiplusStartup(&graphicsToken,&input,nullptr);
  wchar_t local[MAX_PATH]={};GetEnvironmentVariableW(L"LOCALAPPDATA",local,MAX_PATH);installDir=std::wstring(local)+L"\\Programs\\Soulu";
  icon=static_cast<HICON>(LoadImageW(instance,MAKEINTRESOURCEW(101),IMAGE_ICON,256,256,LR_DEFAULTCOLOR));
- HRSRC resource=FindResourceW(instance,MAKEINTRESOURCEW(102),RT_RCDATA);
- if(resource){
-   DWORD length=SizeofResource(instance,resource);HGLOBAL source=LoadResource(instance,resource);
-   HGLOBAL copy=GlobalAlloc(GMEM_MOVEABLE,length);
-   if(copy){void* data=GlobalLock(copy);memcpy(data,LockResource(source),length);GlobalUnlock(copy);
-     if(SUCCEEDED(CreateStreamOnHGlobal(copy,TRUE,&logoStream)))logo=Bitmap::FromStream(logoStream);
-     else GlobalFree(copy);
-   }
+ // Read the original 32-bit icon pixels without drawing its monochrome AND
+ // mask. GDI+ then scales premultiplied alpha with a smooth edge.
+ ICONINFO info={};
+ if(GetIconInfo(icon,&info)){
+   BITMAP source={};GetObjectW(info.hbmColor,sizeof(source),&source);
+   const int width=source.bmWidth,height=source.bmHeight;
+   logoPixels.resize(static_cast<size_t>(width)*height*4);
+   BITMAPINFO format={};format.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);
+   format.bmiHeader.biWidth=width;format.bmiHeader.biHeight=-height;
+   format.bmiHeader.biPlanes=1;format.bmiHeader.biBitCount=32;format.bmiHeader.biCompression=BI_RGB;
+   HDC dc=GetDC(nullptr);
+   if(GetDIBits(dc,info.hbmColor,0,height,logoPixels.data(),&format,DIB_RGB_COLORS))
+     logo=new Bitmap(width,height,width*4,PixelFormat32bppPARGB,logoPixels.data());
+   ReleaseDC(nullptr,dc);DeleteObject(info.hbmColor);DeleteObject(info.hbmMask);
  }
  WNDCLASSEXW cls={sizeof(cls)};cls.lpfnWndProc=Proc;cls.hInstance=instance;cls.lpszClassName=L"SouluInstaller";
  cls.hCursor=LoadCursor(nullptr,IDC_ARROW);cls.hIcon=icon;cls.hIconSm=icon;RegisterClassExW(&cls);
@@ -221,5 +227,5 @@ int WINAPI wWinMain(HINSTANCE instance,HINSTANCE,wchar_t*,int){
    if(message.message==WM_KEYDOWN&&message.wParam==VK_ESCAPE){SendMessageW(window,WM_CLOSE,0,0);continue;}
    if(!IsDialogMessageW(window,&message)){TranslateMessage(&message);DispatchMessageW(&message);}
  }
- CleanupWorker(false);if(icon)DestroyIcon(icon);delete logo;if(logoStream)logoStream->Release();GdiplusShutdown(graphicsToken);return 0;
+ CleanupWorker(false);if(icon)DestroyIcon(icon);delete logo;GdiplusShutdown(graphicsToken);return 0;
 }
