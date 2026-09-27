@@ -150,6 +150,7 @@ jobs:
             $graphics.CopyFromScreen($bounds.Left,$bounds.Top,0,0,$bmp.Size)
             $bmp.Save((Join-Path $PWD "browser/artifacts/$name.png"))
             $graphics.Dispose();$bmp.Dispose()
+            "SOULU_SCREENSHOT:$name="+[Convert]::ToBase64String([IO.File]::ReadAllBytes((Join-Path $PWD "browser/artifacts/$name.png")))
           }
           function Click-At([int]$x, [int]$y) {
             [MouseTest]::SetCursorPos($x, $y) | Out-Null
@@ -308,6 +309,7 @@ jobs:
           }
 
       - name: Upload visual checks
+        continue-on-error: true
         if: always()
         uses: actions/upload-artifact@v4
         with:
