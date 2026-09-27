@@ -121,6 +121,13 @@ void BrowserWindow::LoadSettings() {
     for (const auto& key : keys) settings_->SetValue(key, saved->GetValue(key)->Copy());
   }
   if (auto saved = root->GetDictionary("vpn")) vpn_settings_ = saved->Copy(false);
+  // Earlier previews persisted the disabled default. Apply the new default
+  // once to existing profiles; subsequent user choices remain untouched.
+  if (!settings_->HasKey("matteDefaultV15")) {
+    settings_->SetBool("mattePanel", true);
+    settings_->SetBool("matteDefaultV15", true);
+    SaveSettings();
+  }
 }
 
 void BrowserWindow::SaveSettings() const {

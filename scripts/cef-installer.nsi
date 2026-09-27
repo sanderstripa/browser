@@ -41,10 +41,11 @@ Var MouseWasDown
 Var MainButton
 Var MinimizeButton
 Var CloseButton
+Var InstallFinished
 
 Page custom WelcomePage
 Page custom InstallPage
-Page custom FinishPage FinishLeave
+Page custom FinishPage
 UninstPage uninstConfirm
 UninstPage instfiles
 
@@ -55,6 +56,7 @@ Function .onInit
   File /oname=$PLUGINSDIR\finish.bmp "installer-finish.bmp"
   StrCpy $Dragging 0
   StrCpy $Installed 0
+  StrCpy $InstallFinished 0
   StrCpy $PageKind 0
   StrCpy $MouseWasDown 0
   Call StyleWindow
@@ -154,6 +156,15 @@ Function DragWindow
   ${EndIf}
 FunctionEnd
 
+Function MakeHitArea
+  Exch $0
+  System::Call 'user32::GetWindowLongW(p r0, i -20) i .r1'
+  IntOp $1 $1 | 0x00080000
+  System::Call 'user32::SetWindowLongW(p r0, i -20, i r1)'
+  System::Call 'user32::SetLayeredWindowAttributes(p r0, i 0, i 1, i 2)'
+  Pop $0
+FunctionEnd
+
 Function AddWindowControls
   ; Use real child BUTTON controls so WindowFromPoint and physical mouse
   ; input hit the visible controls instead of the full-size bitmap.
@@ -163,12 +174,16 @@ Function AddWindowControls
   CreateFont $0 "Segoe UI" 18 400
   SendMessage $CloseButton ${WM_SETFONT} $0 1
   System::Call 'user32::SetWindowPos(p $CloseButton, p 0, i 0, i 0, i 0, i 0, i 0x0013)'
+  Push $CloseButton
+  Call MakeHitArea
   ${NSD_OnClick} $CloseButton CloseInstaller
 
   ${NSD_CreateButton} 342px 8px 36px 32px "—"
   Pop $MinimizeButton
   SetCtlColors $MinimizeButton 0x17324D transparent
   System::Call 'user32::SetWindowPos(p $MinimizeButton, p 0, i 0, i 0, i 0, i 0, i 0x0013)'
+  Push $MinimizeButton
+  Call MakeHitArea
   ${NSD_OnClick} $MinimizeButton MinimizeInstaller
 FunctionEnd
 
@@ -196,6 +211,8 @@ Function WelcomePage
   System::Call 'gdi32::CreateRoundRectRgn(i 0, i 0, i 222, i 49, i 15, i 15) p .r0'
   System::Call 'user32::SetWindowRgn(p $MainButton, p r0, i 1)'
   System::Call 'user32::SetWindowPos(p $MainButton, p 0, i 0, i 0, i 0, i 0, i 0x0013)'
+  Push $MainButton
+  Call MakeHitArea
   ${NSD_OnClick} $MainButton ActivateNext
   nsDialogs::Show
   nsDialogs::KillTimer $DragTimerProc
@@ -231,9 +248,13 @@ Function InstallPage
 FunctionEnd
 
 Function PerformInstall
+  ${If} $InstallFinished = 1
+    Return
+  ${EndIf}
+  StrCpy $InstallFinished 1
   nsDialogs::KillTimer $InstallTimerProc
-  SendMessage $Progress 0x0402 30 0
-  ${NSD_SetText} $PercentText "30%"
+  SendMessage $Progress 0x0402 8 0
+  ${NSD_SetText} $PercentText "8%"
   System::Call 'user32::UpdateWindow(p $Dialog)'
   Sleep 120
   nsExec::ExecToStack /TIMEOUT=5000 'taskkill /F /IM Soulu.exe'
@@ -242,9 +263,14 @@ Function PerformInstall
   Sleep 250
   SetOverwrite on
   SetOutPath "$INSTDIR"
-  File /r "${BUILD_DIR}\*"
-  SendMessage $Progress 0x0402 88 0
-  ${NSD_SetText} $PercentText "88%"
+  File "${BUILD_DIR}\libcef.dll"
+  SendMessage $Progress 0x0402 55 0
+  ${NSD_SetText} $PercentText "55%"
+  System::Call 'user32::UpdateWindow(p $Dialog)'
+  SetOutPath "$INSTDIR"
+  File /r /x libcef.dll "${BUILD_DIR}\*"
+  SendMessage $Progress 0x0402 94 0
+  ${NSD_SetText} $PercentText "94%"
   System::Call 'user32::UpdateWindow(p $Dialog)'
 
   WriteUninstaller "$INSTDIR\Uninstall Soulu.exe"
@@ -256,7 +282,7 @@ Function PerformInstall
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "DisplayIcon" "$INSTDIR\Soulu.exe"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "UninstallString" '"$INSTDIR\Uninstall Soulu.exe"'
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "Publisher" "Soulu"
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "DisplayVersion" "0.9.0-cef-preview.14"
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "DisplayVersion" "0.9.0-cef-preview.15"
 
   SendMessage $Progress 0x0402 100 0
   ${NSD_SetText} $PercentText "100%"
@@ -272,6 +298,8 @@ Function FinishPage
   StrCpy $PageKind 3
   Call StyleWindow
   Call HideNavigation
+  GetDlgItem $0 $HWNDPARENT 1
+  EnableWindow $0 0
   nsDialogs::Create 1018
   Pop $Dialog
   System::Call 'user32::SetWindowPos(p $Dialog, p 0, i 0, i 0, i 430, i 425, i 0x0014)'
@@ -287,12 +315,15 @@ Function FinishPage
   System::Call 'gdi32::CreateRoundRectRgn(i 0, i 0, i 215, i 49, i 15, i 15) p .r0'
   System::Call 'user32::SetWindowRgn(p $MainButton, p r0, i 1)'
   System::Call 'user32::SetWindowPos(p $MainButton, p 0, i 0, i 0, i 0, i 0, i 0x0013)'
-  ${NSD_OnClick} $MainButton ActivateNext
+  Push $MainButton
+  Call MakeHitArea
+  ${NSD_OnClick} $MainButton OpenInstalled
   nsDialogs::Show
   nsDialogs::KillTimer $DragTimerProc
 FunctionEnd
 
-Function FinishLeave
+Function OpenInstalled
+  Pop $0
   ${If} $Installed = 1
     Exec '"$INSTDIR\Soulu.exe"'
     Quit

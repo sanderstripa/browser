@@ -25,7 +25,7 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 90
     env:
-      PREVIEW_VERSION: 0.9.0-cef-preview.14
+      PREVIEW_VERSION: 0.9.0-cef-preview.15
     steps:
       - name: Checkout Soulu
         uses: actions/checkout@v4
@@ -211,6 +211,11 @@ jobs:
             $openHwnd = [MouseTest]::FindButton($process.MainWindowHandle, "Открыть")
           }
           if ($openHwnd -eq [IntPtr]::Zero) { throw "Native Open button handle was not found" }
+          Start-Sleep -Seconds 4
+          $process.Refresh()
+          if ($process.HasExited) { throw "Installer closed without clicking Open" }
+          $stillOpen = [MouseTest]::FindButton($process.MainWindowHandle, "Открыть")
+          if ($stillOpen -eq [IntPtr]::Zero) { throw "Finish screen disappeared without user input" }
           [MouseTest]::GetWindowRect($openHwnd, [ref]$rect) | Out-Null
           $openX = [int](($rect.Left + $rect.Right) / 2)
           $openY = [int](($rect.Top + $rect.Bottom) / 2)
