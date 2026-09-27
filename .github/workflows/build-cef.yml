@@ -110,6 +110,15 @@ jobs:
             [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hWnd, out RECT rect);
             [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
             [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
+            [StructLayout(LayoutKind.Sequential)] public struct POINT { public int X, Y; }
+            [DllImport("user32.dll")] public static extern IntPtr WindowFromPoint(POINT point);
+            public static string Describe(IntPtr hwnd) {
+              var cls = new System.Text.StringBuilder(128);
+              var txt = new System.Text.StringBuilder(256);
+              GetClassName(hwnd, cls, cls.Capacity);
+              GetWindowText(hwnd, txt, txt.Capacity);
+              return $"{cls}: {txt} hwnd={hwnd}";
+            }
             [DllImport("user32.dll")] public static extern void mouse_event(uint flags, uint dx, uint dy, uint data, UIntPtr extra);
             [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
             [DllImport("user32.dll")] static extern bool EnumChildWindows(IntPtr parent, EnumProc callback, IntPtr data);
@@ -178,7 +187,18 @@ jobs:
           if ($installHwnd -eq [IntPtr]::Zero) { throw "Native Install button handle was not found" }
           $rect = New-Object MouseTest+RECT
           [MouseTest]::GetWindowRect($installHwnd, [ref]$rect) | Out-Null
-          Click-At ([int](($rect.Left + $rect.Right) / 2)) ([int](($rect.Top + $rect.Bottom) / 2))
+          $x = [int](($rect.Left + $rect.Right) / 2)
+          $y = [int](($rect.Top + $rect.Bottom) / 2)
+          $hit = [MouseTest]::WindowFromPoint([MouseTest+POINT]@{ X=$x; Y=$y })
+          "Install control: $([MouseTest]::Describe($installHwnd)); mouse hit: $([MouseTest]::Describe($hit)) at $x,$y"
+          Click-At $x $y
+          Start-Sleep -Seconds 12
+          if (-not (Test-Path $installedExe)) {
+            [MouseTest]::SendMessage($installHwnd, 0x0201, [IntPtr]1, [IntPtr]0x00080008) | Out-Null
+            [MouseTest]::SendMessage($installHwnd, 0x0202, [IntPtr]0, [IntPtr]0x00080008) | Out-Null
+            Start-Sleep -Seconds 12
+            if (Test-Path $installedExe) { throw "Physical mouse click missed, direct label messages work" }
+          }
 
           $deadline = (Get-Date).AddMinutes(4)
           while ((Get-Date) -lt $deadline -and -not (Test-Path $installedExe)) {
