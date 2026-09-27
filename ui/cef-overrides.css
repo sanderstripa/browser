@@ -180,3 +180,11 @@ html.cef-runtime body[data-show-vpn="false"] .vpn-button,
 html.cef-runtime body[data-show-vpn="false"] .extension-slot {
   display: none !important;
 }
+
+/* Acrylic is supplied by the native window. Keep the CEF surface translucent
+   so the OS backdrop can be seen through the toolbar on Windows 11. */
+html.cef-runtime body[data-matte="true"] .browser-toolbar {
+  background-color: transparent !important;
+  -webkit-backdrop-filter: saturate(145%) blur(24px) !important;
+  backdrop-filter: saturate(145%) blur(24px) !important;
+}

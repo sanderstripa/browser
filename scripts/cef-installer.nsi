@@ -115,8 +115,15 @@ FunctionEnd
 Function DragWindow
   System::Call 'user32::GetAsyncKeyState(i 0x01) i .r6'
   IntOp $6 $6 & 0x8000
-  System::Call 'user32::GetCursorPos(*i .r0, *i .r1)'
-  System::Call 'user32::GetWindowRect(p $HWNDPARENT, *i .r2, *i .r3, *i .r4, *i .r5)'
+  ; POINT and RECT must each be passed as a single allocated structure.
+  System::Call '*(i,i)p.r7'
+  System::Call 'user32::GetCursorPos(p r7)'
+  System::Call '*$7(i .r0, i .r1)'
+  System::Free $7
+  System::Call '*(i,i,i,i)p.r7'
+  System::Call 'user32::GetWindowRect(p $HWNDPARENT, p r7)'
+  System::Call '*$7(i .r2, i .r3, i .r4, i .r5)'
+  System::Free $7
   ${If} $6 = 0
     StrCpy $MouseWasDown 0
     StrCpy $Dragging 0
@@ -147,17 +154,26 @@ Function DragWindow
 FunctionEnd
 
 Function AddWindowControls
-  ; Use NSIS's own Cancel control for close so mouse and keyboard share
-  ; the same native event path.
-  GetDlgItem $CloseButton $HWNDPARENT 2
-  SendMessage $CloseButton ${WM_SETTEXT} 0 "STR:×"
-  System::Call 'user32::SetWindowPos(p $CloseButton, p 0, i 384, i 8, i 36, i 32, i 0x0014)'
-  ShowWindow $CloseButton ${SW_SHOW}
-  EnableWindow $CloseButton 1
+  ; Draw clickable controls inside the actual custom page. NSIS's built-in
+  ; buttons are siblings BEHIND the full-size dialog, so mouse input misses.
+  ${NSD_CreateLabel} 384px 8px 36px 32px "×"
+  Pop $CloseButton
+  ${NSD_AddStyle} $CloseButton 0x00000301
+  SetCtlColors $CloseButton 0x17324D transparent
+  CreateFont $0 "Segoe UI" 18 400
+  SendMessage $CloseButton ${WM_SETFONT} $0 1
+  ${NSD_OnClick} $CloseButton CloseInstaller
 
-  ${NSD_CreateButton} 342px 8px 36px 32px "—"
+  ${NSD_CreateLabel} 342px 8px 36px 32px "—"
   Pop $MinimizeButton
+  ${NSD_AddStyle} $MinimizeButton 0x00000301
+  SetCtlColors $MinimizeButton 0x17324D transparent
   ${NSD_OnClick} $MinimizeButton MinimizeInstaller
+FunctionEnd
+
+Function ActivateNext
+  Pop $0
+  System::Call 'user32::PostMessageW(p $HWNDPARENT, i ${WM_COMMAND}, p 1, p 0)'
 FunctionEnd
 
 Function WelcomePage
@@ -171,14 +187,15 @@ Function WelcomePage
   Call AddBackground
   Call AddWindowControls
   Call StartDragTimer
-  ; Reuse the native Next button. Enter already targets this exact control,
-  ; so a mouse click now follows the identical, reliable NSIS path.
-  GetDlgItem $MainButton $HWNDPARENT 1
-  SendMessage $MainButton ${WM_SETTEXT} 0 "STR:Установить  →"
-  System::Call 'user32::SetWindowPos(p $MainButton, p 0, i 105, i 322, i 222, i 49, i 0x0014)'
-  SetCtlColors $MainButton 0xFFFFFF 0x17324D
-  ShowWindow $MainButton ${SW_SHOW}
-  EnableWindow $MainButton 1
+  ${NSD_CreateLabel} 105px 322px 222px 49px "Установить  →"
+  Pop $MainButton
+  ${NSD_AddStyle} $MainButton 0x00000301
+  SetCtlColors $MainButton 0x17324D 0xFFFFFF
+  CreateFont $0 "Segoe UI" 12 600
+  SendMessage $MainButton ${WM_SETFONT} $0 1
+  System::Call 'gdi32::CreateRoundRectRgn(i 0, i 0, i 222, i 49, i 15, i 15) p .r0'
+  System::Call 'user32::SetWindowRgn(p $MainButton, p r0, i 1)'
+  ${NSD_OnClick} $MainButton ActivateNext
   nsDialogs::Show
   nsDialogs::KillTimer $DragTimerProc
 FunctionEnd
@@ -238,7 +255,7 @@ Function PerformInstall
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "DisplayIcon" "$INSTDIR\Soulu.exe"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "UninstallString" '"$INSTDIR\Uninstall Soulu.exe"'
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "Publisher" "Soulu"
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "DisplayVersion" "0.9.0-cef-preview.13"
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "DisplayVersion" "0.9.0-cef-preview.14"
 
   SendMessage $Progress 0x0402 100 0
   ${NSD_SetText} $PercentText "100%"
@@ -261,12 +278,15 @@ Function FinishPage
   Call AddBackground
   Call AddWindowControls
   Call StartDragTimer
-  GetDlgItem $MainButton $HWNDPARENT 1
-  SendMessage $MainButton ${WM_SETTEXT} 0 "STR:Открыть  →"
-  System::Call 'user32::SetWindowPos(p $MainButton, p 0, i 108, i 339, i 215, i 49, i 0x0014)'
-  SetCtlColors $MainButton 0xFFFFFF 0x17324D
-  ShowWindow $MainButton ${SW_SHOW}
-  EnableWindow $MainButton 1
+  ${NSD_CreateLabel} 108px 339px 215px 49px "Открыть  →"
+  Pop $MainButton
+  ${NSD_AddStyle} $MainButton 0x00000301
+  SetCtlColors $MainButton 0x17324D 0xFFFFFF
+  CreateFont $0 "Segoe UI" 12 600
+  SendMessage $MainButton ${WM_SETFONT} $0 1
+  System::Call 'gdi32::CreateRoundRectRgn(i 0, i 0, i 215, i 49, i 15, i 15) p .r0'
+  System::Call 'user32::SetWindowRgn(p $MainButton, p r0, i 1)'
+  ${NSD_OnClick} $MainButton ActivateNext
   nsDialogs::Show
   nsDialogs::KillTimer $DragTimerProc
 FunctionEnd
@@ -279,11 +299,13 @@ Function FinishLeave
 FunctionEnd
 
 Function CloseInstaller
+  Pop $0
   MessageBox MB_YESNO|MB_ICONQUESTION "Прервать установку Soulu?" IDNO +2
   Quit
 FunctionEnd
 
 Function MinimizeInstaller
+  Pop $0
   ShowWindow $HWNDPARENT ${SW_MINIMIZE}
 FunctionEnd
 

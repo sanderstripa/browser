@@ -25,7 +25,7 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 90
     env:
-      PREVIEW_VERSION: 0.9.0-cef-preview.13
+      PREVIEW_VERSION: 0.9.0-cef-preview.14
     steps:
       - name: Checkout Soulu
         uses: actions/checkout@v4
@@ -97,7 +97,7 @@ jobs:
           Pop-Location
           if ($nsisExitCode -ne 0) { exit $nsisExitCode }
 
-      - name: Smoke-test installer native button interaction on Windows
+      - name: Smoke-test visible installer controls with mouse on Windows
         shell: pwsh
         run: |
           Add-Type @'
@@ -122,7 +122,7 @@ jobs:
                 var txt = new System.Text.StringBuilder(256);
                 GetClassName(hwnd, cls, cls.Capacity);
                 GetWindowText(hwnd, txt, txt.Capacity);
-                if (cls.ToString().Equals("Button", StringComparison.OrdinalIgnoreCase) &&
+                if (cls.ToString().Equals("Static", StringComparison.OrdinalIgnoreCase) &&
                     txt.ToString().StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) {
                   found = hwnd; return false;
                 }
@@ -155,6 +155,20 @@ jobs:
 
           [MouseTest]::SetForegroundWindow($process.MainWindowHandle) | Out-Null
           Start-Sleep -Seconds 1
+          $beforeDrag = New-Object MouseTest+RECT
+          [MouseTest]::GetWindowRect($process.MainWindowHandle, [ref]$beforeDrag) | Out-Null
+          [MouseTest]::SetCursorPos(($beforeDrag.Left + 130), ($beforeDrag.Top + 25)) | Out-Null
+          Start-Sleep -Milliseconds 200
+          [MouseTest]::mouse_event(0x0002, 0, 0, 0, [UIntPtr]::Zero)
+          Start-Sleep -Milliseconds 250
+          [MouseTest]::SetCursorPos(($beforeDrag.Left + 220), ($beforeDrag.Top + 80)) | Out-Null
+          Start-Sleep -Milliseconds 350
+          [MouseTest]::mouse_event(0x0004, 0, 0, 0, [UIntPtr]::Zero)
+          Start-Sleep -Milliseconds 250
+          $afterDrag = New-Object MouseTest+RECT
+          [MouseTest]::GetWindowRect($process.MainWindowHandle, [ref]$afterDrag) | Out-Null
+          "Drag check: before=$($beforeDrag.Left),$($beforeDrag.Top) after=$($afterDrag.Left),$($afterDrag.Top)"
+          if (($afterDrag.Left - $beforeDrag.Left) -lt 40) { throw "Installer window did not move by mouse drag" }
           $deadline = (Get-Date).AddSeconds(30)
           $installHwnd = [IntPtr]::Zero
           while ((Get-Date) -lt $deadline -and $installHwnd -eq [IntPtr]::Zero) {
@@ -164,7 +178,7 @@ jobs:
           if ($installHwnd -eq [IntPtr]::Zero) { throw "Native Install button handle was not found" }
           $rect = New-Object MouseTest+RECT
           [MouseTest]::GetWindowRect($installHwnd, [ref]$rect) | Out-Null
-          [MouseTest]::SendMessage($installHwnd, 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null
+          Click-At ([int](($rect.Left + $rect.Right) / 2)) ([int](($rect.Top + $rect.Bottom) / 2))
 
           $deadline = (Get-Date).AddMinutes(4)
           while ((Get-Date) -lt $deadline -and -not (Test-Path $installedExe)) {
@@ -184,7 +198,7 @@ jobs:
           }
           if ($openHwnd -eq [IntPtr]::Zero) { throw "Native Open button handle was not found" }
           [MouseTest]::GetWindowRect($openHwnd, [ref]$rect) | Out-Null
-          [MouseTest]::SendMessage($openHwnd, 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null
+          Click-At ([int](($rect.Left + $rect.Right) / 2)) ([int](($rect.Top + $rect.Bottom) / 2))
 
           $deadline = (Get-Date).AddSeconds(45)
           $soulu = $null
@@ -194,7 +208,7 @@ jobs:
           }
           if (-not $soulu) { throw "Mouse click on Open did not launch Soulu" }
           $soulu | Stop-Process -Force
-          "Native button activation test passed for Install and Open."
+          "Physical mouse-click test passed for visible Install and Open controls."
 
       - name: Test live CEF settings and toolbar on Windows
         shell: pwsh

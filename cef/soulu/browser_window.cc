@@ -280,10 +280,11 @@ void BrowserWindow::ApplyWindowAppearance() {
   const BOOL dark = theme == "dark" || (theme == "system" && IsWindowsDarkMode());
   DwmSetWindowAttribute(hwnd_, 20, &dark, sizeof(dark));
 
-  // Windows 11: rounded top-level window and real Mica only while matte mode is on.
+  // Windows 11: desktop acrylic exposes a real frosted surface behind the
+  // transparent CEF toolbar. Mica (2) did not show through the child window.
   const DWORD corner = 2;  // DWMWCP_ROUND
   DwmSetWindowAttribute(hwnd_, 33, &corner, sizeof(corner));
-  const DWORD backdrop = settings_->GetBool("mattePanel") ? 2 : 1;
+  const DWORD backdrop = settings_->GetBool("mattePanel") ? 3 : 1;
   DwmSetWindowAttribute(hwnd_, 38, &backdrop, sizeof(backdrop));
   const MARGINS glass = settings_->GetBool("mattePanel")
       ? MARGINS{-1, -1, -1, -1} : MARGINS{0, 0, 0, 0};
@@ -665,8 +666,8 @@ CefRefPtr<CefDictionaryValue> BrowserWindow::State() const {
   }
   state->SetList("profiles", profiles);
   auto update = CefDictionaryValue::Create();
-  update->SetString("soulu", "0.9.0-cef-preview.13");
-  update->SetString("recommended", "0.9.0-cef-preview.13");
+  update->SetString("soulu", "0.9.0-cef-preview.14");
+  update->SetString("recommended", "0.9.0-cef-preview.14");
   update->SetString("cef", "144.0.6");
   update->SetString("chromium", "144");
   update->SetBool("available", false);
@@ -760,8 +761,8 @@ void BrowserWindow::HandleBridge(const std::string& request,
   }
   else if (action == "browser.update.check") {
     auto update = CefDictionaryValue::Create();
-    update->SetString("soulu", "0.9.0-cef-preview.13");
-    update->SetString("recommended", "0.9.0-cef-preview.13");
+    update->SetString("soulu", "0.9.0-cef-preview.14");
+    update->SetString("recommended", "0.9.0-cef-preview.14");
     update->SetString("cef", "144.0.6");
     update->SetString("chromium", "144");
     update->SetBool("available", false);
@@ -995,7 +996,8 @@ LRESULT CALLBACK BrowserWindow::WindowProc(HWND hwnd, UINT message, WPARAM wpara
       RECT client = {};
       GetClientRect(hwnd, &client);
       HBRUSH background = CreateSolidBrush(dark ? RGB(25, 27, 31) : RGB(245, 246, 248));
-      FillRect(reinterpret_cast<HDC>(wparam), &client, background);
+      if (!self->settings_->GetBool("mattePanel"))
+        FillRect(reinterpret_cast<HDC>(wparam), &client, background);
       DeleteObject(background);
       return 1;
     }
