@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "include/cef_browser.h"
+#include "examples/soulu/shell_surface.h"
 #include "include/cef_download_item.h"
 #include "include/cef_request_context.h"
 #include "include/cef_values.h"
@@ -28,6 +29,8 @@ class BrowserWindow final : public CefBaseRefCounted {
                     CefRefPtr<CefMessageRouterBrowserSide::Callback> callback);
 
   HWND hwnd() const { return hwnd_; }
+  CefRefPtr<ShellSurface> surface() const { return surface_; }
+  void ApplyContentTheme();
 
  private:
   struct Tab {
@@ -93,6 +96,7 @@ class BrowserWindow final : public CefBaseRefCounted {
 
   HWND hwnd_ = nullptr;
   CefRefPtr<CefBrowser> shell_;
+  CefRefPtr<ShellSurface> surface_;
   std::vector<Tab> tabs_;
   std::vector<Profile> profiles_;
   CefRefPtr<CefRequestContext> incognito_context_;
@@ -111,3 +115,4 @@ class BrowserWindow final : public CefBaseRefCounted {
   IMPLEMENT_REFCOUNTING(BrowserWindow);
 };
 }
+

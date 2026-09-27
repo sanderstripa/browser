@@ -12,6 +12,8 @@ on:
     branches: [main]
     paths:
       - "cef/**"
+      - "installer/**"
+      - "scripts/test-cef-ui.py"
       - "ui/**"
       - "vpn/**"
       - "scripts/cef-installer.nsi"
@@ -25,7 +27,7 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 90
     env:
-      PREVIEW_VERSION: 0.9.0-cef-preview.16
+      PREVIEW_VERSION: 0.9.0-cef-preview.17
     steps:
       - name: Checkout Soulu
         uses: actions/checkout@v4
@@ -91,11 +93,8 @@ jobs:
           choco install nsis -y --no-progress
           $buildDir = "${{ steps.package.outputs.build_dir }}"
           $out = Join-Path $PWD "browser/artifacts/Soulu-CEF-Setup-$env:PREVIEW_VERSION-x64.exe"
-          Push-Location browser/scripts
-          & "${env:ProgramFiles(x86)}\NSIS\makensis.exe" "/INPUTCHARSET" "UTF8" "/DBUILD_DIR=$buildDir" "/DOUT_FILE=$out" cef-installer.nsi
-          $nsisExitCode = $LASTEXITCODE
-          Pop-Location
-          if ($nsisExitCode -ne 0) { exit $nsisExitCode }
+          & ./browser/installer/build.ps1 -BuildDir $buildDir -OutFile $out
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Smoke-test visible installer controls with mouse on Windows
         shell: pwsh
@@ -142,6 +141,16 @@ jobs:
           }
           '@
 
+          Add-Type -AssemblyName System.Drawing
+          function Save-Window($handle, [string]$name) {
+            $bounds=New-Object MouseTest+RECT
+            [MouseTest]::GetWindowRect($handle,[ref]$bounds) | Out-Null
+            $bmp=New-Object System.Drawing.Bitmap ($bounds.Right-$bounds.Left),($bounds.Bottom-$bounds.Top)
+            $graphics=[System.Drawing.Graphics]::FromImage($bmp)
+            $graphics.CopyFromScreen($bounds.Left,$bounds.Top,0,0,$bmp.Size)
+            $bmp.Save((Join-Path $PWD "browser/artifacts/$name.png"))
+            $graphics.Dispose();$bmp.Dispose()
+          }
           function Click-At([int]$x, [int]$y) {
             [MouseTest]::SetCursorPos($x, $y) | Out-Null
             Start-Sleep -Milliseconds 150
@@ -178,6 +187,7 @@ jobs:
           [MouseTest]::GetWindowRect($process.MainWindowHandle, [ref]$afterDrag) | Out-Null
           "Drag check: before=$($beforeDrag.Left),$($beforeDrag.Top) after=$($afterDrag.Left),$($afterDrag.Top)"
           if (($afterDrag.Left - $beforeDrag.Left) -lt 40) { throw "Installer window did not move by mouse drag" }
+          Save-Window $process.MainWindowHandle "installer-welcome"
           $deadline = (Get-Date).AddSeconds(30)
           $installHwnd = [IntPtr]::Zero
           while ((Get-Date) -lt $deadline -and $installHwnd -eq [IntPtr]::Zero) {
@@ -193,6 +203,19 @@ jobs:
           "Install control: $([MouseTest]::Describe($installHwnd)); mouse hit: $([MouseTest]::Describe($hit)) at $x,$y"
           if ($hit -ne $installHwnd) { throw "Visible Install button is occluded by another control" }
           Click-At $x $y
+          Start-Sleep -Milliseconds 300
+          Save-Window $process.MainWindowHandle "installer-installing"
+          $during=New-Object MouseTest+RECT
+          [MouseTest]::GetWindowRect($process.MainWindowHandle,[ref]$during) | Out-Null
+          [MouseTest]::SetCursorPos(($during.Left+120),($during.Top+25)) | Out-Null
+          [MouseTest]::mouse_event(0x0002,0,0,0,[UIntPtr]::Zero)
+          Start-Sleep -Milliseconds 150
+          [MouseTest]::SetCursorPos(($during.Left+170),($during.Top+50)) | Out-Null
+          Start-Sleep -Milliseconds 250
+          [MouseTest]::mouse_event(0x0004,0,0,0,[UIntPtr]::Zero)
+          $moved=New-Object MouseTest+RECT
+          [MouseTest]::GetWindowRect($process.MainWindowHandle,[ref]$moved) | Out-Null
+          if(($moved.Left-$during.Left) -lt 30){throw 'Installer did not move during extraction'}
 
           $deadline = (Get-Date).AddMinutes(4)
           while ((Get-Date) -lt $deadline -and -not (Test-Path $installedExe)) {
@@ -208,13 +231,14 @@ jobs:
           $openHwnd = [IntPtr]::Zero
           while ((Get-Date) -lt $deadline -and $openHwnd -eq [IntPtr]::Zero) {
             Start-Sleep -Milliseconds 250
-            $openHwnd = [MouseTest]::FindButton($process.MainWindowHandle, "Открыть")
+            $openHwnd = [MouseTest]::FindButton($process.MainWindowHandle, "Готово")
           }
           if ($openHwnd -eq [IntPtr]::Zero) { throw "Native Open button handle was not found" }
           Start-Sleep -Seconds 4
           $process.Refresh()
           if ($process.HasExited) { throw "Installer closed without clicking Open" }
-          $stillOpen = [MouseTest]::FindButton($process.MainWindowHandle, "Открыть")
+          Save-Window $process.MainWindowHandle "installer-finished"
+          $stillOpen = [MouseTest]::FindButton($process.MainWindowHandle, "Готово")
           if ($stillOpen -eq [IntPtr]::Zero) { throw "Finish screen disappeared without user input" }
           [MouseTest]::GetWindowRect($openHwnd, [ref]$rect) | Out-Null
           $openX = [int](($rect.Left + $rect.Right) / 2)
@@ -232,12 +256,22 @@ jobs:
           }
           if (-not $soulu) { throw "Mouse click on Open did not launch Soulu" }
           $soulu | Stop-Process -Force
-          "Physical mouse-click test passed for visible Install and Open controls."
+          "Physical mouse-click, extraction drag and persistent finish checks passed."
+          # A close click must exit directly, without a confirmation window.
+          $again = Start-Process $installer -PassThru
+          Start-Sleep -Seconds 2
+          $again.Refresh()
+          $closeHwnd=[MouseTest]::FindButton($again.MainWindowHandle,"Закрыть")
+          if($closeHwnd -eq [IntPtr]::Zero){throw 'Close control missing'}
+          [MouseTest]::GetWindowRect($closeHwnd,[ref]$rect) | Out-Null
+          Click-At ([int](($rect.Left+$rect.Right)/2)) ([int](($rect.Top+$rect.Bottom)/2))
+          if(-not $again.WaitForExit(5000)){throw 'Close click did not close installer directly'}
+
 
       - name: Test live CEF settings and toolbar on Windows
         shell: pwsh
         run: |
-          python -m pip install --disable-pip-version-check websocket-client
+          python -m pip install --disable-pip-version-check websocket-client pillow
           $env:SOULU_UI_TEST_PORT = "9223"
           $installedExe = Join-Path $env:LOCALAPPDATA "Programs/Soulu/Soulu.exe"
           $app = Start-Process $installedExe -PassThru
@@ -249,7 +283,16 @@ jobs:
             Get-Process Soulu -ErrorAction SilentlyContinue | Stop-Process -Force
           }
 
+      - name: Upload visual checks
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Soulu-visual-checks
+          path: browser/artifacts/*.png
+          if-no-files-found: ignore
+
       - name: Upload preview artifacts
+        if: always()
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
@@ -266,3 +309,4 @@ jobs:
           prerelease: true
           generate_release_notes: true
           files: browser/artifacts/*
+

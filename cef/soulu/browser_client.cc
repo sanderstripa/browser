@@ -31,6 +31,14 @@ class BridgeHandler final : public CefMessageRouterBrowserSide::Handler {
 BrowserClient::BrowserClient(CefRefPtr<BrowserWindow> owner, BrowserRole role, int tab_id)
     : owner_(owner), role_(role), tab_id_(tab_id) {}
 
+CefRefPtr<CefRenderHandler> BrowserClient::GetRenderHandler() {
+  return role_ == BrowserRole::kShell ? owner_->surface() : nullptr;
+}
+bool BrowserClient::OnCursorChange(CefRefPtr<CefBrowser>, CefCursorHandle cursor, cef_cursor_type_t, const CefCursorInfo&) {
+  if (role_ != BrowserRole::kShell || !owner_->surface()) return false;
+  owner_->surface()->Cursor(cursor); return true;
+}
+
 bool BrowserClient::OnProcessMessageReceived(CefRefPtr<CefBrowser> browser,
                                              CefRefPtr<CefFrame> frame,
                                              CefProcessId source_process,
@@ -83,6 +91,7 @@ void BrowserClient::OnLoadingStateChange(CefRefPtr<CefBrowser>, bool loading,
                                          bool can_go_back, bool) {
   if (role_ != BrowserRole::kShell)
     owner_->UpdateLoading(tab_id_, loading, can_go_back);
+  if (!loading && role_ != BrowserRole::kShell) owner_->ApplyContentTheme();
 }
 
 bool BrowserClient::OnBeforeDownload(CefRefPtr<CefBrowser>,
@@ -99,3 +108,4 @@ void BrowserClient::OnDownloadUpdated(CefRefPtr<CefBrowser>,
   owner_->UpdateDownload(item);
 }
 }
+

@@ -5,6 +5,8 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <cmath>
+#include "include/cef_urlrequest.h"
 #include <dwmapi.h>
 #include <filesystem>
 #include <fstream>
@@ -18,6 +20,40 @@
 
 namespace soulu {
 namespace {
+class SuggestClient final : public CefURLRequestClient {
+ public:
+  SuggestClient(CefRefPtr<CefListValue> local, CefRefPtr<CefMessageRouterBrowserSide::Callback> reply)
+      : rows_(local), reply_(reply) {}
+  void OnRequestComplete(CefRefPtr<CefURLRequest>) override {
+    auto data = CefParseJSON(body_, JSON_PARSER_RFC);
+    if (data && data->GetType() == VTYPE_LIST) {
+      auto list = data->GetList();
+      if (list->GetSize() > 1 && list->GetType(1) == VTYPE_LIST) {
+        auto suggestions = list->GetList(1);
+        for (size_t i = 0; i < suggestions->GetSize() && rows_->GetSize() < 9; ++i) {
+          if (suggestions->GetType(i) != VTYPE_STRING) continue;
+          const std::string text = suggestions->GetString(i);
+          auto row = CefDictionaryValue::Create(); row->SetString("source", "search");
+          row->SetString("title", text); row->SetString("query", text);
+          rows_->SetDictionary(rows_->GetSize(), row);
+        }
+      }
+    }
+    auto value = CefValue::Create(); value->SetList(rows_);
+    reply_->Success(CefWriteJSON(value, JSON_WRITER_DEFAULT));
+  }
+  void OnUploadProgress(CefRefPtr<CefURLRequest>, int64_t, int64_t) override {}
+  void OnDownloadProgress(CefRefPtr<CefURLRequest>, int64_t, int64_t) override {}
+  void OnDownloadData(CefRefPtr<CefURLRequest>, const void* data, size_t size) override {
+    if (body_.size() + size <= 131072) body_.append(static_cast<const char*>(data), size);
+  }
+  bool GetAuthCredentials(bool, const CefString&, int, const CefString&, const CefString&, CefRefPtr<CefAuthCallback>) override { return false; }
+ private:
+  std::string body_;
+  CefRefPtr<CefListValue> rows_;
+  CefRefPtr<CefMessageRouterBrowserSide::Callback> reply_;
+  IMPLEMENT_REFCOUNTING(SuggestClient);
+};
 constexpr wchar_t kWindowClass[] = L"SouluBrowserWindow";
 
 std::string ExecutableDirectory() {
@@ -181,9 +217,13 @@ void BrowserWindow::CreateShellBrowser() {
   RECT rect = {};
   GetClientRect(hwnd_, &rect);
   CefWindowInfo info;
-  info.SetAsChild(hwnd_, CefRect(0, 0, rect.right, rect.bottom));
+  surface_ = new ShellSurface(hwnd_);
+  surface_->Resize(6, 6, std::max(1L, rect.right - 12), 48);
+  info.SetAsWindowless(surface_->hwnd());
+  info.runtime_style = CEF_RUNTIME_STYLE_ALLOY;
   CefBrowserSettings settings;
   settings.background_color = CefColorSetARGB(0, 0, 0, 0);
+  settings.windowless_frame_rate = 30;
   const auto url = FileUrl(std::filesystem::u8path(ExecutableDirectory()) / "ui" / "index.html");
   CefBrowserHost::CreateBrowser(info, new BrowserClient(this, BrowserRole::kShell),
                                 url, settings, nullptr, nullptr);
@@ -429,11 +469,14 @@ void BrowserWindow::NewTab(const std::string& url, bool incognito) {
   info.SetAsChild(hwnd_, CefRect(0, 48, rect.right,
                                 std::max(1L, rect.bottom - 48L)));
   CefBrowserSettings browser_settings;
+  const bool dark = settings_->GetString("theme") == "dark" || (settings_->GetString("theme") == "system" && IsWindowsDarkMode());
+  browser_settings.background_color = dark ? CefColorSetARGB(255,8,9,11) : CefColorSetARGB(255,250,250,250);
   const BrowserRole role =
       url.find("/ui/settings.html") != std::string::npos
           ? BrowserRole::kSettings : BrowserRole::kContent;
   CefBrowserHost::CreateBrowser(
-      info, new BrowserClient(this, role, id), url, browser_settings,
+      info, new BrowserClient(this, role, id),
+      url == "about:blank" ? FileUrl(std::filesystem::u8path(ExecutableDirectory()) / "ui" / "start.html") : url, browser_settings,
       nullptr, ContextForNewTab(incognito));
   EmitState();
   if (url == "about:blank") FocusAddress();
@@ -441,6 +484,7 @@ void BrowserWindow::NewTab(const std::string& url, bool incognito) {
 
 void BrowserWindow::AttachShell(CefRefPtr<CefBrowser> browser) {
   shell_ = browser;
+  surface_->Attach(browser);
   InitializeProfiles();
   NewTab();
   Layout();
@@ -491,7 +535,7 @@ void BrowserWindow::CloseTab(int id) {
 
 void BrowserWindow::BrowserClosed(CefRefPtr<CefBrowser> browser, int tab_id,
                                   bool shell) {
-  if (shell) shell_ = nullptr;
+  if (shell) { if (surface_) surface_->Detach(); shell_ = nullptr; }
   else {
     tabs_.erase(std::remove_if(tabs_.begin(), tabs_.end(),
                                [tab_id](const Tab& tab) { return tab.id == tab_id; }),
@@ -512,6 +556,7 @@ void BrowserWindow::BrowserClosed(CefRefPtr<CefBrowser> browser, int tab_id,
 
 void BrowserWindow::FocusAddress() {
   if (!shell_ || !shell_->GetMainFrame()) return;
+  if (surface_) surface_->Focus();
   const std::string script =
       "setTimeout(()=>window.__souluEmit&&window.__souluEmit('focusAddress',null),0)";
   shell_->GetMainFrame()->ExecuteJavaScript(
@@ -537,7 +582,11 @@ std::string BrowserWindow::NormalizeAddress(const std::string& input) const {
   if (value.find("://") != std::string::npos || value.rfind("about:", 0) == 0) return value;
   if (value.find(' ') == std::string::npos && value.find('.') != std::string::npos)
     return "https://" + value;
-  return "https://www.google.com/search?q=" + CefURIEncode(value, true).ToString();
+  const std::string engine = settings_->GetString("searchEngine");
+  const std::string base = engine == "yandex" ? "https://yandex.ru/search/?text=" :
+      engine == "bing" ? "https://www.bing.com/search?q=" :
+      engine == "duckduckgo" ? "https://duckduckgo.com/?q=" : "https://www.google.com/search?q=";
+  return base + CefURIEncode(value, true).ToString();
 }
 
 void BrowserWindow::UpdateTitle(int id, const std::string& title) {
@@ -545,7 +594,7 @@ void BrowserWindow::UpdateTitle(int id, const std::string& title) {
   EmitState();
 }
 void BrowserWindow::UpdateAddress(int id, const std::string& url) {
-  if (auto* tab = FindTab(id)) tab->url = url;
+  if (auto* tab = FindTab(id)) tab->url = url.find("/ui/start.html") != std::string::npos ? "about:blank" : url;
   EmitState();
 }
 void BrowserWindow::UpdateFavicon(int id, const std::string& url) {
@@ -602,33 +651,40 @@ CefRefPtr<CefListValue> BrowserWindow::ProfileDownloads() const {
 
 void BrowserWindow::Layout() {
   if (!hwnd_) return;
-  RECT client = {};
-  GetClientRect(hwnd_, &client);
-  const int width = client.right;
-  const int height = client.bottom;
-  const int toolbar = settings_->GetString("layout") == "classic" ? 82 : 48;
-  if (shell_) {
-    HWND shell_hwnd = shell_->GetHost()->GetWindowHandle();
-    const bool expanded_shell =
-        sidebar_visible_ || right_panel_width_ > 0 ||
-        suggestions_height_ > toolbar;
-    const int shell_height = expanded_shell ? height : toolbar;
-    SetWindowPos(shell_hwnd, HWND_TOP, 0, 0, width, shell_height,
-                 SWP_NOACTIVATE | SWP_SHOWWINDOW);
-  }
-  const int x = sidebar_visible_ ? 276 : 0;
-  const int y = std::max(toolbar, suggestions_height_);
-  const std::string visible_profile = VisibleProfileId();
+  RECT client = {}; GetClientRect(hwnd_, &client);
+  const float scale = GetDpiForWindow(hwnd_) / 96.0f;
+  const auto px = [scale](int value) { return static_cast<int>(std::round(value * scale)); };
+  // Leave the outer resize band exposed to the top-level WM_NCHITTEST.
+  const int border = IsZoomed(hwnd_) ? 0 : px(6);
+  const int width = std::max(1L, client.right - border * 2);
+  const int height = std::max(1L, client.bottom - border * 2);
+  const int toolbar = px(settings_->GetString("layout") == "classic" ? 82 : 48);
+  const int x = sidebar_visible_ ? px(276) : 0;
+  const std::string profile = VisibleProfileId();
   for (auto& tab : tabs_) {
     if (!tab.browser) continue;
     HWND child = tab.browser->GetHost()->GetWindowHandle();
-    const bool belongs =
-        tab.incognito ? visible_profile == "__incognito__"
-                      : tab.profile_id == visible_profile;
-    if (belongs && tab.id == active_tab_id_) {
-      SetWindowPos(child, HWND_TOP, x, y, std::max(1, width - x - right_panel_width_),
-                   std::max(1, height - y), SWP_SHOWWINDOW | SWP_NOACTIVATE);
-    } else ShowWindow(child, SW_HIDE);
+    const bool belongs = tab.incognito ? profile == "__incognito__" : tab.profile_id == profile;
+    if (belongs && tab.id == active_tab_id_)
+      SetWindowPos(child, HWND_TOP, border + x, border + toolbar,
+        std::max(1, width - x - px(right_panel_width_)), std::max(1, height - toolbar), SWP_SHOWWINDOW | SWP_NOACTIVATE);
+    else ShowWindow(child, SW_HIDE);
+  }
+  if (surface_) {
+    const int shell_height = sidebar_visible_ || right_panel_width_ > 0 ? height :
+        std::min(height, std::max(toolbar, px(suggestions_height_)));
+    surface_->Resize(border, border, width, shell_height);
+  }
+}
+
+void BrowserWindow::ApplyContentTheme() {
+  const bool dark = settings_->GetString("theme") == "dark" ||
+      (settings_->GetString("theme") == "system" && IsWindowsDarkMode());
+  for (auto& tab : tabs_) {
+    if (!tab.browser || tab.url != "about:blank") continue;
+    auto frame = tab.browser->GetMainFrame();
+    if (frame && frame->GetURL().ToString().find("/ui/start.html") != std::string::npos)
+      frame->ExecuteJavaScript(std::string("document.body.dataset.theme='") + (dark ? "dark" : "light") + "';document.documentElement.style.background='" + (dark ? "#08090b" : "#fafafa") + "';", frame->GetURL(), 0);
   }
 }
 
@@ -673,8 +729,8 @@ CefRefPtr<CefDictionaryValue> BrowserWindow::State() const {
   }
   state->SetList("profiles", profiles);
   auto update = CefDictionaryValue::Create();
-  update->SetString("soulu", "0.9.0-cef-preview.14");
-  update->SetString("recommended", "0.9.0-cef-preview.14");
+  update->SetString("soulu", "0.9.0-cef-preview.17");
+  update->SetString("recommended", "0.9.0-cef-preview.17");
   update->SetString("cef", "144.0.6");
   update->SetString("chromium", "144");
   update->SetBool("available", false);
@@ -732,7 +788,7 @@ void BrowserWindow::SetSetting(const std::string& key, CefRefPtr<CefValue> value
   settings_->SetValue(key, value->Copy());
   SaveSettings();
   if (key == "layout") Layout();
-  if (key == "theme" || key == "mattePanel") ApplyWindowAppearance();
+  if (key == "theme" || key == "mattePanel") { ApplyWindowAppearance(); ApplyContentTheme(); }
 }
 
 void BrowserWindow::HandleBridge(const std::string& request,
@@ -747,6 +803,15 @@ void BrowserWindow::HandleBridge(const std::string& request,
   auto payload = root->GetValue("payload");
 
   if (action == "browser.state.get") return Reply(callback, State());
+  if (action == "browser.surfaceDiagnostics") {
+    wchar_t port[12] = {};
+    if (!GetEnvironmentVariableW(L"SOULU_UI_TEST_PORT", port, 12)) { callback->Failure(403, "Test mode required"); return; }
+    auto result = CefDictionaryValue::Create();
+    result->SetBool("windowless", shell_ && shell_->GetHost()->IsWindowRenderingDisabled());
+    result->SetInt("paintCount", surface_ ? surface_->paint_count() : 0);
+    result->SetInt("toolbarAlpha", surface_ ? surface_->toolbar_alpha() : 255);
+    return Reply(callback, result);
+  }
   if (action == "browser.navigate") Navigate(payload->GetString());
   else if (action == "browser.back") { if (auto* t = ActiveTab(); t && t->browser) t->browser->GoBack(); }
   else if (action == "browser.reload") {
@@ -768,8 +833,8 @@ void BrowserWindow::HandleBridge(const std::string& request,
   }
   else if (action == "browser.update.check") {
     auto update = CefDictionaryValue::Create();
-    update->SetString("soulu", "0.9.0-cef-preview.14");
-    update->SetString("recommended", "0.9.0-cef-preview.14");
+    update->SetString("soulu", "0.9.0-cef-preview.17");
+    update->SetString("recommended", "0.9.0-cef-preview.17");
     update->SetString("cef", "144.0.6");
     update->SetString("chromium", "144");
     update->SetBool("available", false);
@@ -837,6 +902,20 @@ void BrowserWindow::HandleBridge(const std::string& request,
       std::string hay = mark->GetString("title").ToString() + " " + mark->GetString("url").ToString();
       std::transform(hay.begin(), hay.end(), hay.begin(), ::tolower);
       if (hay.find(lower) != std::string::npos) { auto row = mark->Copy(false); row->SetString("source", "bookmark"); result->SetDictionary(out++, row); }
+    }
+    if (!query.empty() && query.find(' ') == std::string::npos && query.find('.') != std::string::npos) {
+      auto row = CefDictionaryValue::Create(); row->SetString("source", "website");
+      row->SetString("title", query); row->SetString("url", NormalizeAddress(query));
+      result->SetDictionary(result->GetSize(), row);
+    }
+    if (query.size() >= 2 && query.size() <= 200) {
+      auto request = CefRequest::Create();
+      request->SetURL("https://suggestqueries.google.com/complete/search?client=firefox&hl=ru&q=" + CefURIEncode(query, true).ToString());
+      request->SetMethod("GET"); request->SetFlags(UR_FLAG_SKIP_CACHE);
+      CefRefPtr<CefRequestContext> context;
+      if (auto* tab = ActiveTab(); tab && tab->browser) context = tab->browser->GetHost()->GetRequestContext();
+      auto pending = CefURLRequest::Create(request, new SuggestClient(result, callback), context);
+      if (pending) return;
     }
     return Reply(callback, Wrap(result));
   }
@@ -931,10 +1010,7 @@ void BrowserWindow::HandleBridge(const std::string& request,
     POINT point = {}; GetCursorPos(&point);
     HMENU menu = CreatePopupMenu();
     AppendMenuW(menu, MF_STRING, 1, L"Копировать адрес");
-    AppendMenuW(menu, MF_STRING, 2, L"Добавить в избранное");
     AppendMenuW(menu, MF_STRING, 3, L"Найти на странице");
-    AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
-    AppendMenuW(menu, MF_STRING, 4, L"Настройки Soulu");
     const int command = TrackPopupMenu(menu, TPM_RETURNCMD | TPM_RIGHTBUTTON,
                                        point.x, point.y, 0, hwnd_, nullptr);
     DestroyMenu(menu);
@@ -945,9 +1021,7 @@ void BrowserWindow::HandleBridge(const std::string& request,
         if (memory) { memcpy(GlobalLock(memory), wide.c_str(), (wide.size() + 1) * sizeof(wchar_t)); GlobalUnlock(memory); SetClipboardData(CF_UNICODETEXT, memory); }
         CloseClipboard();
       }
-    } else if (command == 2) Emit("openFavorites", EmptyValue());
-    else if (command == 3) Emit("requestFind", EmptyValue());
-    else if (command == 4) OpenSettingsTab();
+    } else if (command == 3) Emit("requestFind", EmptyValue());
   }
   else if (action == "browser.shareMenu") {
     if (auto* t = ActiveTab()) {
@@ -983,7 +1057,12 @@ LRESULT CALLBACK BrowserWindow::WindowProc(HWND hwnd, UINT message, WPARAM wpara
     case WM_NCCALCSIZE:
       if (wparam) return 0;
       break;
+    case WM_GETMINMAXINFO: {
+      auto* sizes = reinterpret_cast<MINMAXINFO*>(lparam);
+      sizes->ptMinTrackSize = {620, 420}; return 0;
+    }
     case WM_NCHITTEST: {
+      if (IsZoomed(hwnd)) return HTCLIENT;
       const LRESULT hit = DefWindowProc(hwnd, message, wparam, lparam);
       if (hit != HTCLIENT) return hit;
       RECT r = {}; GetWindowRect(hwnd, &r);
@@ -1003,12 +1082,14 @@ LRESULT CALLBACK BrowserWindow::WindowProc(HWND hwnd, UINT message, WPARAM wpara
       RECT client = {};
       GetClientRect(hwnd, &client);
       HBRUSH background = CreateSolidBrush(dark ? RGB(25, 27, 31) : RGB(245, 246, 248));
-      if (!self->settings_->GetBool("mattePanel"))
-        FillRect(reinterpret_cast<HDC>(wparam), &client, background);
+      FillRect(reinterpret_cast<HDC>(wparam), &client,
+          self->settings_->GetBool("mattePanel") ? static_cast<HBRUSH>(GetStockObject(BLACK_BRUSH)) : background);
       DeleteObject(background);
       return 1;
     }
     case WM_SIZE: self->Layout(); return 0;
+    case WM_MOVE: if (self->shell_) self->shell_->GetHost()->NotifyMoveOrResizeStarted(); break;
+    case WM_SETTINGCHANGE: self->ApplyWindowAppearance(); self->ApplyContentTheme(); break;
     case WM_CLOSE: self->CloseAll(); return 0;
     case WM_DESTROY: CefQuitMessageLoop(); return 0;
     case WM_NCDESTROY:
@@ -1017,3 +1098,4 @@ LRESULT CALLBACK BrowserWindow::WindowProc(HWND hwnd, UINT message, WPARAM wpara
   return DefWindowProc(hwnd, message, wparam, lparam);
 }
 }
+

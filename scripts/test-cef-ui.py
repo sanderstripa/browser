@@ -96,7 +96,7 @@ try:
       return {
         theme: document.body.dataset.theme,
         matte: document.body.dataset.matte,
-        background: getComputedStyle(document.querySelector('.compact-toolbar')).backgroundImage,
+        background: getComputedStyle(document.querySelector('.compact-toolbar')).backgroundColor,
         vpn: pick('#compactVpnButton'), sidebar: pick('#compactSidebarButton'),
         back: pick('#compactBackButton'), favorite: pick('.compact-active-tab [data-favorites]'),
         newTab: pick('#compactNewTabButton'), downloads: pick('#compactDownloadsButton')
@@ -104,7 +104,7 @@ try:
     })()""")
     print("CEF shell after settings-page interaction:", json.dumps(styles, ensure_ascii=False))
     assert styles["theme"] == "dark" and styles["matte"] == "true"
-    assert "gradient" in styles["background"].lower()
+    assert styles["background"].startswith("rgba"), styles["background"]
     for key in ("vpn", "sidebar", "back", "favorite", "newTab", "downloads"):
         assert styles[key] == "none", f"{key} did not hide: {styles[key]}"
     # Check the reverse direction too: controls must reappear, not merely hide.
@@ -126,7 +126,7 @@ try:
       return true;
     })()""")
     wait_for(lambda: evaluate(shell, "document.body.dataset.theme === 'light'"), "light shell theme")
-    light = evaluate(shell, "getComputedStyle(document.querySelector('.compact-toolbar')).backgroundImage")
+    light = evaluate(shell, "getComputedStyle(document.querySelector('.compact-toolbar')).backgroundColor")
     assert light != styles["background"], "Toolbar gradient did not change with theme"
     evaluate(settings, """(() => {
       const theme = document.querySelector('#theme');
@@ -138,7 +138,45 @@ try:
     persisted = evaluate(shell, """(async () => await window.browserShell.getSettings())()""")
     assert persisted["theme"] == "dark" and persisted["mattePanel"] is True
     assert persisted["vpnToolbarVisible"] is True
-    print("CEF settings and shell UI test passed.")
+    # The native OSR buffer must contain actual non-opaque toolbar pixels.
+    surface = evaluate(shell, "new Promise((resolve,reject)=>cefQuery({request:JSON.stringify({action:'browser.surfaceDiagnostics'}),onSuccess:s=>resolve(JSON.parse(s)),onFailure:reject}))")
+    print("Native toolbar alpha:", surface)
+    assert surface["windowless"] and surface["paintCount"] > 0
+    assert 0 < surface["toolbarAlpha"] < 200, surface
+
+    # Preserve the exact input node and text through native state updates.
+    evaluate(shell, "(() => {const x=document.querySelector('#compactAddress');x.focus();x.value='example.org/new-address';window.testAddressNode=x;return true})()")
+    evaluate(shell, "window.browserShell.setSettings({showBack:false})")
+    evaluate(shell, "window.browserShell.setSettings({showBack:true})")
+    time.sleep(2)
+    assert evaluate(shell, "document.activeElement===window.testAddressNode && window.testAddressNode.isConnected && window.testAddressNode.value==='example.org/new-address'"), "Address focus or draft lost during state updates"
+    # A domain completion must remain usable without relying on a public server.
+    local = evaluate(shell, "Promise.race([window.browserShell.suggestions('example.org'),new Promise((_,reject)=>setTimeout(()=>reject(Error('suggestion timeout')),12000))])")
+    assert any(row.get('url') == 'https://example.org' for row in local), local
+    evaluate(shell, "window.browserShell.newTab()")
+    blank = find_target('/ui/start.html')
+    wait_for(lambda: evaluate(blank, "getComputedStyle(document.body).backgroundColor === 'rgb(8, 9, 11)'"), 'black blank tab')
+    blank.close()
+
+    # Resize using the real desktop pointer at the right frame edge.
+    import ctypes
+    from ctypes import wintypes
+    user=ctypes.windll.user32
+    user.FindWindowW.argtypes=[wintypes.LPCWSTR,wintypes.LPCWSTR];user.FindWindowW.restype=wintypes.HWND
+    hwnd=user.FindWindowW('SouluBrowserWindow',None)
+    assert hwnd, 'Browser HWND missing'
+    before=wintypes.RECT();user.GetWindowRect(hwnd,ctypes.byref(before));user.SetForegroundWindow(hwnd)
+    user.SetCursorPos(before.right-2,(before.top+before.bottom)//2)
+    user.mouse_event(2,0,0,0,0);time.sleep(.2)
+    user.SetCursorPos(before.right-142,(before.top+before.bottom)//2);time.sleep(.5)
+    user.mouse_event(4,0,0,0,0);time.sleep(.4)
+    after=wintypes.RECT();user.GetWindowRect(hwnd,ctypes.byref(after))
+    from PIL import ImageGrab
+    ImageGrab.grab(bbox=(after.left,after.top,after.right,after.bottom)).save('browser/artifacts/browser-dark.png')
+    print('Mouse resize:',before.right-before.left,'->',after.right-after.left)
+    assert (before.right-before.left)-(after.right-after.left)>80, 'Browser frame cannot resize by mouse'
+    print("CEF settings, alpha rendering, address editing, completions, black blank tab and mouse resize passed.")
 finally:
     if settings: settings.close()
     shell.close()
+

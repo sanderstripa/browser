@@ -9,6 +9,8 @@ set(SOULU_SRCS
   browser_client.cc
   browser_window.h
   browser_window.cc
+  shell_surface.h
+  shell_surface.cc
   main.cc
   resource.h
   win/resource.rc
@@ -31,6 +33,7 @@ target_link_libraries(${EXAMPLE_TARGET} shared dwmapi ws2_32 advapi32)
 target_compile_definitions(${EXAMPLE_TARGET} PRIVATE UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN)
 if(MSVC)
   target_compile_options(${EXAMPLE_TARGET} PRIVATE /utf-8)
+  target_link_options(${EXAMPLE_TARGET} PRIVATE "/MANIFEST:EMBED" "/MANIFESTINPUT:${CMAKE_CURRENT_SOURCE_DIR}/win/soulu.manifest")
 endif()
 set_target_properties(${EXAMPLE_TARGET} PROPERTIES OUTPUT_NAME "Soulu")
 
@@ -42,3 +45,4 @@ add_custom_command(TARGET ${EXAMPLE_TARGET} POST_BUILD
           "${CMAKE_CURRENT_SOURCE_DIR}/assets/vpn"
           "$<TARGET_FILE_DIR:${EXAMPLE_TARGET}>/vpn"
   VERBATIM)
+

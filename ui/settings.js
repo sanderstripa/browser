@@ -7,7 +7,7 @@
     ru: {
       settings:"Настройки",appearance:"Оформление",toolbar:"Панель",search:"Поиск",startup:"Запуск",downloads:"Загрузки",accounts:"Аккаунты",passwords:"Пароли",
       panelMode:"Режим панели",mainMode:"Основная",classicMode:"Классическая",mainDefault:"Основная — компактная панель Soulu и режим по умолчанию.",
-      theme:"Тема",themeHint:"Оформление интерфейса",system:"Системная",light:"Светлая",dark:"Тёмная",matte:"Матовая прозрачность",matteHint:"Размытие и мягкий градиент панели",language:"Язык",languageHint:"Язык меню и настроек",
+      theme:"Тема",themeHint:"Оформление интерфейса",system:"Системная",light:"Светлая",dark:"Тёмная",matte:"Матовая прозрачность",matteHint:"Размытие фона за панелью браузера",language:"Язык",languageHint:"Язык меню и настроек",
       visibleWidgets:"Элементы панели",widgetsHint:"Отключённые элементы исчезают сразу. Вернуть их можно здесь.",sidebar:"Боковая панель",back:"Назад",favorites:"Избранное",newTab:"Новая вкладка",
       addressPosition:"Положение адресной строки",center:"По центру",left:"Слева",extensionsPosition:"Положение расширений",leftOfAddress:"Слева от адреса",rightOfAddress:"Справа от адреса",downloadIcon:"Иконка загрузок",dynamic:"Динамически",always:"Всегда",
       searchEngine:"Поисковая система",addressBehavior:"Открывать адрес",currentTab:"В текущей вкладке",newIfOccupied:"В новой, если текущая занята",startPage:"Стартовая страница",blank:"Пустая",custom:"Свой адрес",startUrl:"Адрес стартовой страницы",
@@ -161,3 +161,4 @@
   window.browserShell.onSettings?.(value => {settings={...settings,...value};fill();});
   Promise.all([window.browserShell.getSettings(),window.browserShell.getState()]).then(([value,state])=>{settings=value||{};browserState=state||browserState;fill();});
 })();
+
