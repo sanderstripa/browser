@@ -147,7 +147,7 @@ BrowserWindow::BrowserWindow()
 
 void BrowserWindow::LoadSettings() {
   std::ifstream file(UserDataDirectory() / L"settings.json", std::ios::binary);
-  if (!file) return;
+  if (!file) { settings_->SetBool("matteDefaultV15", true); return; }
   std::stringstream buffer; buffer << file.rdbuf();
   auto parsed = CefParseJSON(buffer.str(), JSON_PARSER_RFC);
   if (!parsed || parsed->GetType() != VTYPE_DICTIONARY) return;
@@ -909,12 +909,12 @@ void BrowserWindow::HandleBridge(const std::string& request,
       result->SetDictionary(result->GetSize(), row);
     }
     if (query.size() >= 2 && query.size() <= 200) {
-      auto request = CefRequest::Create();
-      request->SetURL("https://suggestqueries.google.com/complete/search?client=firefox&hl=ru&q=" + CefURIEncode(query, true).ToString());
-      request->SetMethod("GET"); request->SetFlags(UR_FLAG_SKIP_CACHE);
+      auto suggestion_request = CefRequest::Create();
+      suggestion_request->SetURL("https://suggestqueries.google.com/complete/search?client=firefox&hl=ru&q=" + CefURIEncode(query, true).ToString());
+      suggestion_request->SetMethod("GET"); suggestion_request->SetFlags(UR_FLAG_SKIP_CACHE);
       CefRefPtr<CefRequestContext> context;
       if (auto* tab = ActiveTab(); tab && tab->browser) context = tab->browser->GetHost()->GetRequestContext();
-      auto pending = CefURLRequest::Create(request, new SuggestClient(result, callback), context);
+      auto pending = CefURLRequest::Create(suggestion_request, new SuggestClient(result, callback), context);
       if (pending) return;
     }
     return Reply(callback, Wrap(result));
@@ -1081,7 +1081,7 @@ LRESULT CALLBACK BrowserWindow::WindowProc(HWND hwnd, UINT message, WPARAM wpara
           (theme == "system" && IsWindowsDarkMode());
       RECT client = {};
       GetClientRect(hwnd, &client);
-      HBRUSH background = CreateSolidBrush(dark ? RGB(25, 27, 31) : RGB(245, 246, 248));
+      HBRUSH background = CreateSolidBrush(dark ? RGB(8, 9, 11) : RGB(245, 246, 248));
       FillRect(reinterpret_cast<HDC>(wparam), &client,
           self->settings_->GetBool("mattePanel") ? static_cast<HBRUSH>(GetStockObject(BLACK_BRUSH)) : background);
       DeleteObject(background);

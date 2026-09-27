@@ -257,6 +257,30 @@ jobs:
           if (-not $soulu) { throw "Mouse click on Open did not launch Soulu" }
           $soulu | Stop-Process -Force
           "Physical mouse-click, extraction drag and persistent finish checks passed."
+          # Repeat with launch unchecked: Done must close without starting Soulu.
+          $noLaunch = Start-Process $installer -PassThru
+          Start-Sleep -Seconds 2
+          $noLaunch.Refresh()
+          $button=[MouseTest]::FindButton($noLaunch.MainWindowHandle,"Установить")
+          [MouseTest]::GetWindowRect($button,[ref]$rect) | Out-Null
+          Click-At ([int](($rect.Left+$rect.Right)/2)) ([int](($rect.Top+$rect.Bottom)/2))
+          $deadline=(Get-Date).AddMinutes(5)
+          $done=[IntPtr]::Zero
+          while((Get-Date) -lt $deadline -and $done -eq [IntPtr]::Zero){
+            Start-Sleep -Milliseconds 300
+            $done=[MouseTest]::FindButton($noLaunch.MainWindowHandle,"Готово")
+          }
+          if($done -eq [IntPtr]::Zero){throw 'Second install did not finish'}
+          $toggle=[MouseTest]::FindButton($noLaunch.MainWindowHandle,"Запустить Soulu")
+          if($toggle -eq [IntPtr]::Zero){throw 'Launch checkbox missing'}
+          [MouseTest]::GetWindowRect($toggle,[ref]$rect) | Out-Null
+          Click-At ([int](($rect.Left+$rect.Right)/2)) ([int](($rect.Top+$rect.Bottom)/2))
+          [MouseTest]::GetWindowRect($done,[ref]$rect) | Out-Null
+          Click-At ([int](($rect.Left+$rect.Right)/2)) ([int](($rect.Top+$rect.Bottom)/2))
+          if(-not $noLaunch.WaitForExit(5000)){throw 'Done did not close installer'}
+          Start-Sleep -Seconds 2
+          if(Get-Process Soulu -ErrorAction SilentlyContinue){throw 'Soulu started with launch unchecked'}
+          "Unchecked-launch scenario passed."
           # A close click must exit directly, without a confirmation window.
           $again = Start-Process $installer -PassThru
           Start-Sleep -Seconds 2
