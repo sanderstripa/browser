@@ -95,6 +95,7 @@ Function AddBackground
   ${NSD_CreateBitmap} 0 0 430px 425px ""
   Pop $Background
   ${NSD_SetImage} $Background $0 $BackgroundHandle
+  System::Call 'user32::EnableWindow(p $Background, i 0)'  
   System::Call 'user32::SetWindowPos(p $Background, p 1, i 0, i 0, i 0, i 0, i 0x0013)'
 FunctionEnd
 
@@ -161,11 +162,13 @@ Function AddWindowControls
   SetCtlColors $CloseButton 0x17324D transparent
   CreateFont $0 "Segoe UI" 18 400
   SendMessage $CloseButton ${WM_SETFONT} $0 1
+  System::Call 'user32::SetWindowPos(p $CloseButton, p 0, i 0, i 0, i 0, i 0, i 0x0013)'
   ${NSD_OnClick} $CloseButton CloseInstaller
 
   ${NSD_CreateButton} 342px 8px 36px 32px "—"
   Pop $MinimizeButton
   SetCtlColors $MinimizeButton 0x17324D transparent
+  System::Call 'user32::SetWindowPos(p $MinimizeButton, p 0, i 0, i 0, i 0, i 0, i 0x0013)'
   ${NSD_OnClick} $MinimizeButton MinimizeInstaller
 FunctionEnd
 
@@ -192,6 +195,7 @@ Function WelcomePage
   SendMessage $MainButton ${WM_SETFONT} $0 1
   System::Call 'gdi32::CreateRoundRectRgn(i 0, i 0, i 222, i 49, i 15, i 15) p .r0'
   System::Call 'user32::SetWindowRgn(p $MainButton, p r0, i 1)'
+  System::Call 'user32::SetWindowPos(p $MainButton, p 0, i 0, i 0, i 0, i 0, i 0x0013)'
   ${NSD_OnClick} $MainButton ActivateNext
   nsDialogs::Show
   nsDialogs::KillTimer $DragTimerProc
@@ -282,6 +286,7 @@ Function FinishPage
   SendMessage $MainButton ${WM_SETFONT} $0 1
   System::Call 'gdi32::CreateRoundRectRgn(i 0, i 0, i 215, i 49, i 15, i 15) p .r0'
   System::Call 'user32::SetWindowRgn(p $MainButton, p r0, i 1)'
+  System::Call 'user32::SetWindowPos(p $MainButton, p 0, i 0, i 0, i 0, i 0, i 0x0013)'
   ${NSD_OnClick} $MainButton ActivateNext
   nsDialogs::Show
   nsDialogs::KillTimer $DragTimerProc
