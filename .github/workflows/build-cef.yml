@@ -69,7 +69,10 @@ jobs:
 
       - name: Configure CEF
         shell: pwsh
-        run: cmake -S cef-project -B cef-build -G "Visual Studio 17 2022" -A x64 -DUSE_SANDBOX=OFF
+        run: |
+          Remove-Item cef-build/CMakeCache.txt -Force -ErrorAction SilentlyContinue
+          Remove-Item cef-build/CMakeFiles -Recurse -Force -ErrorAction SilentlyContinue
+          cmake -S cef-project -B cef-build -A x64 -DUSE_SANDBOX=OFF
 
       - name: Build Soulu
         shell: pwsh
