@@ -37,7 +37,7 @@ if(MSVC)
   target_compile_options(${EXAMPLE_TARGET} PRIVATE /utf-8 /EHsc)
   target_link_options(${EXAMPLE_TARGET} PRIVATE "/MANIFEST:EMBED" "/MANIFESTINPUT:${CMAKE_CURRENT_SOURCE_DIR}/win/soulu.manifest")
 endif()
-set_target_properties(${EXAMPLE_TARGET} PROPERTIES OUTPUT_NAME "Soulu")
+set_target_properties(${EXAMPLE_TARGET} PROPERTIES OUTPUT_NAME "Soulu" CXX_STANDARD 20 CXX_STANDARD_REQUIRED YES)
 
 add_custom_command(TARGET ${EXAMPLE_TARGET} POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy_directory
