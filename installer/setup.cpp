@@ -11,9 +11,11 @@
 #include <algorithm>
 #include <atomic>
 #include <thread>
+#include <objidl.h>
 #pragma comment(lib,"gdiplus.lib")
 #pragma comment(lib,"dwmapi.lib")
 #pragma comment(lib,"shell32.lib")
+#pragma comment(lib,"ole32.lib")
 using namespace Gdiplus;
 namespace {
 constexpr int kWidth=600,kHeight=400,kMain=1001,kMin=1002,kClose=1003,kLaunch=1004;
@@ -25,6 +27,8 @@ Stage stage=Stage::Welcome;
 bool launch=true;
 float scale=1;
 HICON icon=nullptr;
+IStream* logoStream=nullptr;
+Bitmap* logo=nullptr;
 std::wstring payloadPath,installDir,errorText;
 ULONG_PTR graphicsToken=0;
 int Px(float v){return static_cast<int>(v*scale+.5f);}
@@ -59,7 +63,12 @@ void Paint(HDC dc){
  }else{
    const bool done=stage==Stage::Finished;
    const int size=done?72:86,y=done?48:46;
-   HDC hdc=g.GetHDC();DrawIconEx(hdc,Px((kWidth-size)/2),Px(y),icon,Px(size),Px(size),0,nullptr,DI_NORMAL);g.ReleaseHDC(hdc);
+   if(logo){
+     g.SetInterpolationMode(InterpolationModeHighQualityBicubic);
+     g.SetPixelOffsetMode(PixelOffsetModeHighQuality);
+     ImageAttributes attributes;attributes.SetWrapMode(WrapModeTileFlipXY);
+     g.DrawImage(logo,RectF((kWidth-size)/2.0f,static_cast<float>(y),static_cast<float>(size),static_cast<float>(size)),0,0,static_cast<float>(logo->GetWidth()),static_cast<float>(logo->GetHeight()),UnitPixel,&attributes);
+   }
    Text(g,done?L"Всё готово":L"Soulu",done?29:35,RectF(35,done?136:143,530,48),Color(255,23,49,74));
    Text(g,done?L"Браузер установлен. Можно начинать.":L"Спокойный и умный браузер\nдля больших возможностей.",15,RectF(45,done?190:195,510,48),Color(255,87,99,114));
    if(!done)Text(g,L"Быстро. Безопасно. Для того, что важно.",12,RectF(30,361,540,22),Color(255,109,117,128));
@@ -186,6 +195,15 @@ int WINAPI wWinMain(HINSTANCE instance,HINSTANCE,wchar_t*,int){
  GdiplusStartupInput input;GdiplusStartup(&graphicsToken,&input,nullptr);
  wchar_t local[MAX_PATH]={};GetEnvironmentVariableW(L"LOCALAPPDATA",local,MAX_PATH);installDir=std::wstring(local)+L"\\Programs\\Soulu";
  icon=static_cast<HICON>(LoadImageW(instance,MAKEINTRESOURCEW(101),IMAGE_ICON,256,256,LR_DEFAULTCOLOR));
+ HRSRC resource=FindResourceW(instance,MAKEINTRESOURCEW(102),RT_RCDATA);
+ if(resource){
+   DWORD length=SizeofResource(instance,resource);HGLOBAL source=LoadResource(instance,resource);
+   HGLOBAL copy=GlobalAlloc(GMEM_MOVEABLE,length);
+   if(copy){void* data=GlobalLock(copy);memcpy(data,LockResource(source),length);GlobalUnlock(copy);
+     if(SUCCEEDED(CreateStreamOnHGlobal(copy,TRUE,&logoStream)))logo=Bitmap::FromStream(logoStream);
+     else GlobalFree(copy);
+   }
+ }
  WNDCLASSEXW cls={sizeof(cls)};cls.lpfnWndProc=Proc;cls.hInstance=instance;cls.lpszClassName=L"SouluInstaller";
  cls.hCursor=LoadCursor(nullptr,IDC_ARROW);cls.hIcon=icon;cls.hIconSm=icon;RegisterClassExW(&cls);
  scale=GetDpiForSystem()/96.0f;
@@ -203,5 +221,5 @@ int WINAPI wWinMain(HINSTANCE instance,HINSTANCE,wchar_t*,int){
    if(message.message==WM_KEYDOWN&&message.wParam==VK_ESCAPE){SendMessageW(window,WM_CLOSE,0,0);continue;}
    if(!IsDialogMessageW(window,&message)){TranslateMessage(&message);DispatchMessageW(&message);}
  }
- CleanupWorker(false);if(icon)DestroyIcon(icon);GdiplusShutdown(graphicsToken);return 0;
+ CleanupWorker(false);if(icon)DestroyIcon(icon);delete logo;if(logoStream)logoStream->Release();GdiplusShutdown(graphicsToken);return 0;
 }

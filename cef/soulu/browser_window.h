@@ -95,6 +95,8 @@ class BrowserWindow final : public CefBaseRefCounted {
   void SetSetting(const std::string& key, CefRefPtr<CefValue> value);
 
   HWND hwnd_ = nullptr;
+  HWND resize_border_ = nullptr;
+  bool native_blur_ = false;
   CefRefPtr<CefBrowser> shell_;
   CefRefPtr<ShellSurface> surface_;
   std::vector<Tab> tabs_;

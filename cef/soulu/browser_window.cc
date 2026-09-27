@@ -69,6 +69,30 @@ class SuggestTimeout final : public CefTask {
   CefRefPtr<SuggestClient> client_;
   IMPLEMENT_REFCOUNTING(SuggestTimeout);
 };
+// Native blur is explicit instead of the system acrylic's opaque fallback.
+struct AccentPolicy { int state; int flags; DWORD tint; int animation; };
+struct CompositionData { int attribute; void* data; SIZE_T size; };
+using SetComposition = BOOL(WINAPI*)(HWND, CompositionData*);
+int ResizeHit(HWND parent, POINT p) {
+  RECT r={};GetWindowRect(parent,&r);
+  const int edge=std::max(4,static_cast<int>(GetDpiForWindow(parent)*6/96));
+  const bool l=p.x<r.left+edge, rr=p.x>=r.right-edge;
+  const bool t=p.y<r.top+edge,b=p.y>=r.bottom-edge;
+  if(t&&l)return HTTOPLEFT;if(t&&rr)return HTTOPRIGHT;
+  if(b&&l)return HTBOTTOMLEFT;if(b&&rr)return HTBOTTOMRIGHT;
+  return l?HTLEFT:rr?HTRIGHT:t?HTTOP:HTBOTTOM;
+}
+LRESULT CALLBACK ResizeProc(HWND window,UINT message,WPARAM wp,LPARAM lp){
+  HWND parent=GetParent(window);POINT p={};GetCursorPos(&p);
+  const int hit=ResizeHit(parent,p);
+  if(message==WM_SETCURSOR){
+    const auto cursor=(hit==HTLEFT||hit==HTRIGHT)?IDC_SIZEWE:(hit==HTTOP||hit==HTBOTTOM)?IDC_SIZENS:
+      (hit==HTTOPLEFT||hit==HTBOTTOMRIGHT)?IDC_SIZENWSE:IDC_SIZENESW;
+    SetCursor(LoadCursor(nullptr,cursor));return TRUE;
+  }
+  if(message==WM_LBUTTONDOWN){ReleaseCapture();SendMessageW(parent,WM_NCLBUTTONDOWN,hit,MAKELPARAM(p.x,p.y));return 0;}
+  return DefWindowProcW(window,message,wp,lp);
+}
 constexpr wchar_t kWindowClass[] = L"SouluBrowserWindow";
 
 std::string ExecutableDirectory() {
@@ -221,6 +245,14 @@ bool BrowserWindow::CreateNativeWindow() {
                           x, y, width, height, nullptr, nullptr, wc.hInstance, this);
   if (!hwnd_) return false;
 
+  WNDCLASSEXW edgeClass={sizeof(edgeClass)};
+  edgeClass.lpfnWndProc=ResizeProc;edgeClass.hInstance=wc.hInstance;
+  edgeClass.hbrBackground=static_cast<HBRUSH>(GetStockObject(BLACK_BRUSH));
+  edgeClass.lpszClassName=L"SouluResizeHitArea";RegisterClassExW(&edgeClass);
+  resize_border_=CreateWindowExW(WS_EX_LAYERED,edgeClass.lpszClassName,L"",WS_CHILD,
+    0,0,width,height,hwnd_,nullptr,wc.hInstance,nullptr);
+  // Alpha 1 keeps mouse hit testing enabled with no visible reserved frame.
+  SetLayeredWindowAttributes(resize_border_,0,1,LWA_ALPHA);
   ApplyWindowAppearance();
 
   ShowWindow(hwnd_, SW_SHOW);
@@ -233,7 +265,7 @@ void BrowserWindow::CreateShellBrowser() {
   GetClientRect(hwnd_, &rect);
   CefWindowInfo info;
   surface_ = new ShellSurface(hwnd_);
-  surface_->Resize(6, 6, std::max(1L, rect.right - 12), 48);
+  surface_->Resize(0, 0, rect.right, 48);
   info.SetAsWindowless(surface_->hwnd());
   info.runtime_style = CEF_RUNTIME_STYLE_ALLOY;
   CefBrowserSettings settings;
@@ -342,17 +374,19 @@ void BrowserWindow::ApplyWindowAppearance() {
   const BOOL dark = theme == "dark" || (theme == "system" && IsWindowsDarkMode());
   DwmSetWindowAttribute(hwnd_, 20, &dark, sizeof(dark));
 
-  // Windows 11: desktop acrylic exposes a real frosted surface behind the
-  // transparent CEF toolbar. Mica (2) did not show through the child window.
-  const DWORD corner = 2;  // DWMWCP_ROUND
-  DwmSetWindowAttribute(hwnd_, 33, &corner, sizeof(corner));
-  const DWORD backdrop = settings_->GetBool("mattePanel") ? 3 : 1;
-  DwmSetWindowAttribute(hwnd_, 38, &backdrop, sizeof(backdrop));
-  const MARGINS glass = settings_->GetBool("mattePanel")
-      ? MARGINS{-1, -1, -1, -1} : MARGINS{0, 0, 0, 0};
-  DwmExtendFrameIntoClientArea(hwnd_, &glass);
-  RedrawWindow(hwnd_, nullptr, nullptr,
-               RDW_INVALIDATE | RDW_FRAME | RDW_ALLCHILDREN);
+  const DWORD corner=2, noBorder=0xFFFFFFFE, noBackdrop=1;
+  DwmSetWindowAttribute(hwnd_,33,&corner,sizeof(corner));
+  DwmSetWindowAttribute(hwnd_,34,&noBorder,sizeof(noBorder));
+  DwmSetWindowAttribute(hwnd_,38,&noBackdrop,sizeof(noBackdrop));
+  const bool matte=settings_->GetBool("mattePanel");
+  const auto compose=reinterpret_cast<SetComposition>(GetProcAddress(GetModuleHandleW(L"user32.dll"),"SetWindowCompositionAttribute"));
+  AccentPolicy policy={matte?4:0,0,dark?0x20080808u:0x20FAFAFAu,0};
+  CompositionData data={19,&policy,sizeof(policy)};
+  native_blur_=compose&&compose(hwnd_,&data)&&matte;
+  const MARGINS glass=matte?MARGINS{-1,-1,-1,-1}:MARGINS{0,0,0,0};
+  DwmExtendFrameIntoClientArea(hwnd_,&glass);
+  RedrawWindow(hwnd_,nullptr,nullptr,RDW_INVALIDATE|RDW_ERASE|RDW_FRAME|RDW_ALLCHILDREN);
+
 }
 
 CefRefPtr<CefDictionaryValue> BrowserWindow::SendVpnHelper(
@@ -669,8 +703,8 @@ void BrowserWindow::Layout() {
   RECT client = {}; GetClientRect(hwnd_, &client);
   const float scale = GetDpiForWindow(hwnd_) / 96.0f;
   const auto px = [scale](int value) { return static_cast<int>(std::round(value * scale)); };
-  // Leave the outer resize band exposed to the top-level WM_NCHITTEST.
-  const int border = IsZoomed(hwnd_) ? 0 : px(6);
+  // Content reaches every edge; a transparent hit area handles resizing.
+  const int border = 0;
   const int width = std::max(1L, client.right - border * 2);
   const int height = std::max(1L, client.bottom - border * 2);
   const int toolbar = px(settings_->GetString("layout") == "classic" ? 82 : 48);
@@ -689,6 +723,16 @@ void BrowserWindow::Layout() {
     const int shell_height = sidebar_visible_ || right_panel_width_ > 0 ? height :
         std::min(height, std::max(toolbar, px(suggestions_height_)));
     surface_->Resize(border, border, width, shell_height);
+  }
+  if(resize_border_){
+    if(IsZoomed(hwnd_))ShowWindow(resize_border_,SW_HIDE);
+    else{
+      const int edge=px(6);
+      HRGN ring=CreateRectRgn(0,0,width,height),inside=CreateRectRgn(edge,edge,width-edge,height-edge);
+      CombineRgn(ring,ring,inside,RGN_DIFF);DeleteObject(inside);
+      SetWindowRgn(resize_border_,ring,FALSE);
+      SetWindowPos(resize_border_,HWND_TOP,0,0,width,height,SWP_NOACTIVATE|SWP_SHOWWINDOW);
+    }
   }
 }
 
@@ -744,8 +788,8 @@ CefRefPtr<CefDictionaryValue> BrowserWindow::State() const {
   }
   state->SetList("profiles", profiles);
   auto update = CefDictionaryValue::Create();
-  update->SetString("soulu", "0.9.0-cef-preview.17");
-  update->SetString("recommended", "0.9.0-cef-preview.17");
+  update->SetString("soulu", "0.9.0-cef-preview.18");
+  update->SetString("recommended", "0.9.0-cef-preview.18");
   update->SetString("cef", "144.0.6");
   update->SetString("chromium", "144");
   update->SetBool("available", false);
@@ -822,6 +866,7 @@ void BrowserWindow::HandleBridge(const std::string& request,
     wchar_t port[12] = {};
     if (!GetEnvironmentVariableW(L"SOULU_UI_TEST_PORT", port, 12)) { callback->Failure(403, "Test mode required"); return; }
     auto result = CefDictionaryValue::Create();
+    result->SetBool("nativeBlur",native_blur_);
     result->SetBool("windowless", shell_ && shell_->GetHost()->IsWindowRenderingDisabled());
     result->SetInt("paintCount", surface_ ? surface_->paint_count() : 0);
     result->SetInt("toolbarAlpha", surface_ ? surface_->toolbar_alpha() : 255);
@@ -848,8 +893,8 @@ void BrowserWindow::HandleBridge(const std::string& request,
   }
   else if (action == "browser.update.check") {
     auto update = CefDictionaryValue::Create();
-    update->SetString("soulu", "0.9.0-cef-preview.17");
-    update->SetString("recommended", "0.9.0-cef-preview.17");
+    update->SetString("soulu", "0.9.0-cef-preview.18");
+    update->SetString("recommended", "0.9.0-cef-preview.18");
     update->SetString("cef", "144.0.6");
     update->SetString("chromium", "144");
     update->SetBool("available", false);
@@ -1109,6 +1154,7 @@ LRESULT CALLBACK BrowserWindow::WindowProc(HWND hwnd, UINT message, WPARAM wpara
     }
     case WM_SIZE: self->Layout(); return 0;
     case WM_MOVE: if (self->shell_) self->shell_->GetHost()->NotifyMoveOrResizeStarted(); break;
+    case WM_DWMCOMPOSITIONCHANGED: self->ApplyWindowAppearance(); return 0;
     case WM_SETTINGCHANGE: self->ApplyWindowAppearance(); self->ApplyContentTheme(); break;
     case WM_CLOSE: self->CloseAll(); return 0;
     case WM_DESTROY: CefQuitMessageLoop(); return 0;

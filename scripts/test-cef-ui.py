@@ -167,7 +167,7 @@ try:
     user.SetForegroundWindow(hwnd)
     pos=evaluate(shell,"(() => {const r=document.querySelector('#compactAddress').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()")
     scale=user.GetDpiForWindow(hwnd)/96
-    user.SetCursorPos(rect.left+round((6+pos['x'])*scale),rect.top+round((6+pos['y'])*scale))
+    user.SetCursorPos(rect.left+round(pos['x']*scale),rect.top+round(pos['y']*scale))
     user.mouse_event(2,0,0,0,0);user.mouse_event(4,0,0,0,0);time.sleep(.2)
     user.keybd_event(0x11,0,0,0);user.keybd_event(0x41,0,0,0);user.keybd_event(0x41,0,2,0);user.keybd_event(0x11,0,2,0)
     for character in 'SOULU TEST':
@@ -206,6 +206,62 @@ try:
     print('SOULU_SCREENSHOT:browser-dark='+base64.b64encode(open('browser/artifacts/browser-dark.png','rb').read()).decode())
     print('Mouse resize:',before.right-before.left,'->',after.right-after.left)
     assert (before.right-before.left)-(after.right-after.left)>80, 'Browser frame cannot resize by mouse'
+    # Pixel-level proof: change the actual window BEHIND Soulu, then check that
+    # the toolbar changes and fine stripes are blurred rather than copied sharply.
+    from PIL import ImageStat
+    user.CreateWindowExW.argtypes=[wintypes.DWORD,wintypes.LPCWSTR,wintypes.LPCWSTR,wintypes.DWORD,ctypes.c_int,ctypes.c_int,ctypes.c_int,ctypes.c_int,wintypes.HWND,wintypes.HMENU,wintypes.HINSTANCE,ctypes.c_void_p]
+    user.CreateWindowExW.restype=wintypes.HWND
+    user.SetWindowPos.argtypes=[wintypes.HWND,wintypes.HWND,ctypes.c_int,ctypes.c_int,ctypes.c_int,ctypes.c_int,wintypes.UINT]
+    user.SetClassLongPtrW.argtypes=[wintypes.HWND,ctypes.c_int,ctypes.c_ssize_t];user.SetClassLongPtrW.restype=ctypes.c_ssize_t
+    user.RedrawWindow.argtypes=[wintypes.HWND,ctypes.c_void_p,ctypes.c_void_p,wintypes.UINT]
+    user.DestroyWindow.argtypes=[wintypes.HWND]
+    gdi=ctypes.windll.gdi32
+    gdi.CreateSolidBrush.argtypes=[wintypes.DWORD];gdi.CreateSolidBrush.restype=wintypes.HBRUSH
+    gdi.CreateBitmap.argtypes=[ctypes.c_int,ctypes.c_int,wintypes.UINT,wintypes.UINT,ctypes.c_void_p];gdi.CreateBitmap.restype=wintypes.HBITMAP
+    gdi.CreatePatternBrush.argtypes=[wintypes.HBITMAP];gdi.CreatePatternBrush.restype=wintypes.HBRUSH
+    gdi.DeleteObject.argtypes=[wintypes.HGDIOBJ]
+    background=user.CreateWindowExW(0x08000080,'STATIC','Soulu blur test background',0x90000000,after.left,after.top,after.right-after.left,after.bottom-after.top,None,None,None,None)
+    assert background
+    user.SetWindowPos(background,hwnd,after.left,after.top,after.right-after.left,after.bottom-after.top,0x0010|0x0040)
+    user.SetForegroundWindow(hwnd)
+    brushes=[];bitmap=None;old_brush=None
+    try:
+        def behind(brush,name):
+            global old_brush
+            previous=user.SetClassLongPtrW(background,-10,brush)
+            if old_brush is None: old_brush=previous
+            user.RedrawWindow(background,None,None,0x0105)
+            time.sleep(.7)
+            shot=ImageGrab.grab(bbox=(after.left,after.top,after.right,after.bottom))
+            shot.save('browser/artifacts/'+name+'.png')
+            print('SOULU_SCREENSHOT:'+name+'='+base64.b64encode(open('browser/artifacts/'+name+'.png','rb').read()).decode())
+            return shot.crop((100,12,145,38))
+        for color,name in [(0x3030E0,'matte-red'),(0xE03030,'matte-blue')]:
+            brush=gdi.CreateSolidBrush(color);brushes.append(brush)
+            sample=behind(brush,name)
+            if name=='matte-red': red=ImageStat.Stat(sample).mean
+            else: blue=ImageStat.Stat(sample).mean
+        change=max(abs(a-b) for a,b in zip(red,blue))
+        print('Backdrop color response:',red,blue,'delta',change)
+        assert change>25, 'Toolbar is opaque: changing the real background has no visible effect'
+        pixels=bytes(v for y in range(8) for x in range(8) for v in ((48,48,224,255) if x<4 else (224,48,48,255)))
+        data=ctypes.create_string_buffer(pixels)
+        bitmap=gdi.CreateBitmap(8,8,1,32,data)
+        brush=gdi.CreatePatternBrush(bitmap);brushes.append(brush)
+        stripes=behind(brush,'matte-blur')
+        deviation=max(ImageStat.Stat(stripes).stddev)
+        print('Fine-stripe variation after blur:',deviation)
+        assert deviation<30, 'Backdrop is transparent but is not blurred'
+        print('Real backdrop transparency and blur pixel checks passed.')
+    finally:
+        if old_brush is not None:user.SetClassLongPtrW(background,-10,old_brush)
+        user.DestroyWindow(background)
+        for brush in brushes:gdi.DeleteObject(brush)
+        if bitmap:gdi.DeleteObject(bitmap)
+    frame=ImageGrab.grab(bbox=(after.left,after.top,after.right,after.bottom))
+    edge=frame.getpixel((3,200));inside=frame.getpixel((12,200))
+    print('Content reaches window edge:',edge,inside)
+    assert max(abs(a-b) for a,b in zip(edge,inside))<6, 'Visible border remains around browser content'
     print("CEF settings, alpha rendering, address editing, completions, black blank tab and mouse resize passed.")
 finally:
     if settings: settings.close()
