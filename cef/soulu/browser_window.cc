@@ -239,7 +239,7 @@ bool BrowserWindow::CreateNativeWindow() {
   const int height = std::min(820L, work.bottom - work.top - 60L);
   const int x = work.left + (work.right - work.left - width) / 2;
   const int y = work.top + (work.bottom - work.top - height) / 2;
-  hwnd_ = CreateWindowExW(0, kWindowClass, L"Soulu",
+  hwnd_ = CreateWindowExW(WS_EX_NOREDIRECTIONBITMAP, kWindowClass, L"Soulu",
                           WS_POPUP | WS_THICKFRAME | WS_MINIMIZEBOX |
                               WS_MAXIMIZEBOX | WS_SYSMENU,
                           x, y, width, height, nullptr, nullptr, wc.hInstance, this);

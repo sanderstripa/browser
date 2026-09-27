@@ -41,12 +41,13 @@ jobs:
           path: cef-project
 
       - name: Cache CEF download and build
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: |
             cef-project/third_party/cef
             cef-build
-          key: soulu-cef-win64-144-v1
+          key: soulu-cef-win64-144-win2025-v2
+          restore-keys: soulu-cef-win64-144-v1
 
       - name: Add Soulu target and assets
         shell: pwsh
@@ -70,13 +71,26 @@ jobs:
       - name: Configure CEF
         shell: pwsh
         run: |
-          Remove-Item cef-build/CMakeCache.txt -Force -ErrorAction SilentlyContinue
-          Remove-Item cef-build/CMakeFiles -Recurse -Force -ErrorAction SilentlyContinue
+          if (Test-Path cef-build/CMakeCache.txt) {
+            $cacheText = Get-Content cef-build/CMakeCache.txt -Raw
+            if ($cacheText -match 'CMAKE_GENERATOR_INSTANCE:INTERNAL=([^\r\n]+)' -and -not (Test-Path $Matches[1])) {
+              Remove-Item cef-build/CMakeCache.txt -Force
+              Remove-Item cef-build/CMakeFiles -Recurse -Force -ErrorAction SilentlyContinue
+            }
+          }
           cmake -S cef-project -B cef-build -A x64 -DUSE_SANDBOX=OFF
 
       - name: Build Soulu
         shell: pwsh
         run: cmake --build cef-build --config Release --target soulu --parallel 2
+
+      - name: Retain compiled CEF for visual-test retries
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            cef-project/third_party/cef
+            cef-build
+          key: soulu-cef-win64-144-win2025-v2
 
       - name: Locate output and package ZIP
         id: package
