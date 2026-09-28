@@ -29,7 +29,7 @@ jobs:
     runs-on: [self-hosted, Windows, X64]
     timeout-minutes: 90
     env:
-      PREVIEW_VERSION: 0.9.0-cef-preview.21
+      PREVIEW_VERSION: 0.9.0-cef-preview.22
     steps:
       - name: Checkout Soulu
         uses: actions/checkout@v4
@@ -293,7 +293,7 @@ jobs:
             if(-not (Test-Path $link)){throw "Soulu shortcut missing: $link"}
             $iconLocation=$shortcutShell.CreateShortcut($link).IconLocation
             "Shortcut icon: $link -> $iconLocation"
-            if($iconLocation -notmatch 'soulu-icon-v21.ico'){throw "Shortcut still references stale icon: $iconLocation"}
+            if($iconLocation -notmatch 'soulu-icon-v22.ico'){throw "Shortcut still references stale icon: $iconLocation"}
           }
           $uninstaller=Join-Path (Split-Path $installedExe) 'Uninstall Soulu.exe'
           if(-not (Test-Path $uninstaller)){throw 'Uninstall Soulu.exe is missing'}
