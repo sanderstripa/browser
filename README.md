@@ -1,81 +1,75 @@
 <p align="center">
-  <img src="ui/soulu-icon.png" width="150" alt="Soulu">
+  <img src="ui/soulu-icon-new.png" width="150" alt="Soulu">
 </p>
 
 <h1 align="center">Soulu</h1>
 
 <p align="center">
-  Браузер для Windows с собственным интерфейсом, встроенным VPN
-  и акцентом на компактность, приватность и контроль пользователя.
+  A Windows browser with its own interface, built-in VPN,
+  and a focus on compactness, privacy, and user control.
 </p>
 
 ---
 
 ## Soulu
 
-Soulu — экспериментальный браузер для Windows на базе Chromium и CEF.
+Soulu is an experimental browser for Windows built on Chromium and CEF.
 
-Проект вырос из идеи сделать браузер, в котором интерфейс не занимает половину экрана,
-настройки находятся там, где ожидаешь их найти, а VPN является частью самого браузера,
-не вмешиваясь в системный прокси Windows.
+The project grew from the idea of creating a browser where the interface does not take up half of the screen, settings are located where you expect to find them, and VPN is part of the browser itself without interfering with the Windows system proxy.
 
-Сейчас Soulu находится в стадии Preview и активно развивается.
+Soulu is currently in the Preview stage and is actively evolving.
 
-## Что уже работает
+## What already works
 
-### Собственный интерфейс
+### Custom interface
 
-Soulu использует компактную верхнюю панель, где вкладки, адресная строка
-и основные действия собраны в единое пространство.
+Soulu uses a compact top bar where tabs, the address bar, and the main actions are combined into a single space.
 
-Доступны два режима интерфейса:
+Two interface modes are available:
 
-**Основная** — компактная панель Soulu.
+**Main** — Soulu’s compact panel.
 
-**Классическая** — более привычная компоновка браузера.
+**Classic** — a more familiar browser layout.
 
-Поддерживаются светлая и тёмная темы, а также матовая прозрачность интерфейса Windows.
+Light and dark themes are supported, as well as Windows-style frosted transparency.
 
 ### Chromium + CEF
 
-Браузер использует Chromium через Chromium Embedded Framework (CEF),
-а нативная оболочка Soulu отвечает за окно, интерфейс и интеграцию с Windows.
+The browser uses Chromium through Chromium Embedded Framework (CEF), while the native Soulu shell handles the window, interface, and Windows integration.
 
-### Профили
+### Profiles
 
-Soulu поддерживает отдельные профили с независимыми:
+Soulu supports separate profiles with independent:
 
 - cookies;
-- кэшем;
-- веб-сессиями;
-- локальными данными сайтов.
+- cache;
+- web sessions;
+- local site data.
 
-Также предусмотрен режим инкогнито.
+An incognito mode is also available.
 
-### Стартовая страница
+### Start page
 
-Можно оставить новую вкладку пустой или указать собственный адрес,
-который Soulu будет открывать при запуске.
+You can keep the new tab page blank or specify your own URL that Soulu will open on startup.
 
 ### VPN
 
-В Soulu встроен собственный VPN-слой.
+Soulu includes its own built-in VPN layer.
 
-Поддерживаются конфигурации Xray и Sudoku.
+Xray and Sudoku configurations are supported.
 
-VPN работает внутри Soulu и не изменяет системные настройки прокси Windows.
+The VPN works inside Soulu and does not change the Windows system proxy settings.
 
-### Адресная строка
+### Address bar
 
-Адресная строка объединяет ввод URL и поиск и использует подсказки
-из истории, закладок, открытых вкладок и поисковой системы.
+The address bar combines URL input and search, and uses suggestions from history, bookmarks, open tabs, and the search engine.
 
-## Скачать
+## Download
 
-Актуальная версия всегда доступна в разделе **Releases**.
+The latest version is always available in the **Releases** section.
 
 ---
 
-Soulu находится в активной разработке.
+Soulu is under active development.
 
-Некоторые функции Preview-версий могут изменяться по мере развития проекта.
+Some Preview features may change as the project evolves.
