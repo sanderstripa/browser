@@ -52,7 +52,7 @@ jobs:
           restore-keys: soulu-cef-win64-144-v1
 
       - name: Add Soulu target and assets
-        shell: pwsh
+        shell: powershell
         run: |
           Copy-Item -Recurse -Force browser/cef/soulu cef-project/examples/soulu
           New-Item -ItemType Directory -Force cef-project/examples/soulu/assets/ui | Out-Null
@@ -67,11 +67,11 @@ jobs:
           python-version: "3.11"
 
       - name: Install CEF Python compatibility package
-        shell: pwsh
+        shell: powershell
         run: python -m pip install --disable-pip-version-check six
 
       - name: Configure CEF
-        shell: pwsh
+        shell: powershell
         run: |
           if (Test-Path cef-build/CMakeCache.txt) {
             $cacheText = Get-Content cef-build/CMakeCache.txt -Raw
@@ -83,7 +83,7 @@ jobs:
           cmake -S cef-project -B cef-build -A x64 -DUSE_SANDBOX=OFF
 
       - name: Build Soulu
-        shell: pwsh
+        shell: powershell
         run: cmake --build cef-build --config Release --target soulu --parallel 2
 
       - name: Retain compiled CEF for visual-test retries
@@ -96,7 +96,7 @@ jobs:
 
       - name: Locate output and package ZIP
         id: package
-        shell: pwsh
+        shell: powershell
         run: |
           $exe = Get-ChildItem cef-build -Recurse -Filter Soulu.exe | Where-Object { $_.FullName -match "Release" } | Select-Object -First 1
           if (-not $exe) { throw "Soulu.exe was not produced" }
@@ -113,7 +113,7 @@ jobs:
       - name: Test live CEF settings and toolbar on Windows
         # Explicit user-requested snapshot; ordinary builds still require a pass.
         continue-on-error: ${{ contains(github.event.head_commit.message, '[publish-as-is]') || contains(github.event.head_commit.message, '[installer-only]') }}
-        shell: pwsh
+        shell: powershell
         run: |
           python -m pip install --disable-pip-version-check websocket-client pillow dxcam
           $personalize='HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize'
@@ -131,7 +131,7 @@ jobs:
           }
 
       - name: Build installer
-        shell: pwsh
+        shell: powershell
         run: |
           choco install nsis -y --no-progress
           $buildDir = "${{ steps.package.outputs.build_dir }}"
@@ -145,7 +145,7 @@ jobs:
 
       - name: Smoke-test visible installer controls with mouse on Windows
         continue-on-error: ${{ contains(github.event.head_commit.message, '[publish-as-is]') }}
-        shell: pwsh
+        shell: powershell
         run: |
           Add-Type @'
           using System;
