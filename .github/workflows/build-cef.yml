@@ -105,6 +105,8 @@ jobs:
           "build_dir=$buildDir" >> $env:GITHUB_OUTPUT
 
       - name: Test live CEF settings and toolbar on Windows
+        # Explicit user-requested snapshot; ordinary builds still require a pass.
+        continue-on-error: ${{ contains(github.event.head_commit.message, '[publish-as-is]') }}
         shell: pwsh
         run: |
           python -m pip install --disable-pip-version-check websocket-client pillow dxcam
@@ -132,6 +134,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Smoke-test visible installer controls with mouse on Windows
+        continue-on-error: ${{ contains(github.event.head_commit.message, '[publish-as-is]') }}
         shell: pwsh
         run: |
           Add-Type @'
@@ -356,5 +359,13 @@ jobs:
           name: Soulu CEF Preview ${{ env.PREVIEW_VERSION }}
           prerelease: true
           generate_release_notes: true
+          body: |
+            Текущий снимок разработки, опубликованный по прямому запросу пользователя «как есть».
+
+            Включены исправления отрисовки иконки установщика и внешней рамки браузера.
+            Матовая прозрачность НЕ подтверждена: проверка на сборочном сервере показывает непрозрачную панель.
+            Это промежуточная сборка, а не заявление об устранении всех замечаний.
+
+            Код браузера и установщика сохранён в состоянии на момент запроса публикации.
           files: browser/artifacts/*
 
