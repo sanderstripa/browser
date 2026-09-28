@@ -22,6 +22,8 @@ on:
 permissions:
   contents: write
 
+# A publish-as-is commit keeps packaging available when a post-install UI probe is flaky.
+
 jobs:
   windows-cef:
     runs-on: windows-2025
