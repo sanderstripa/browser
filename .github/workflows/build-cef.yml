@@ -26,7 +26,7 @@ permissions:
 
 jobs:
   windows-cef:
-    runs-on: windows-2025
+    runs-on: [self-hosted, Windows, X64]
     timeout-minutes: 90
     env:
       PREVIEW_VERSION: 0.9.0-cef-preview.21
