@@ -29,7 +29,7 @@ jobs:
     runs-on: windows-2025
     timeout-minutes: 90
     env:
-      PREVIEW_VERSION: 0.9.0-cef-preview.22
+      PREVIEW_VERSION: 0.9.0-cef-preview.23
     steps:
       - name: Checkout Soulu
         uses: actions/checkout@v4
