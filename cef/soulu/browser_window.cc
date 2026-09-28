@@ -99,7 +99,7 @@ constexpr wchar_t kWindowClass[] = L"SouluBrowserWindow";
 std::string ExecutableDirectory() {
   wchar_t path[MAX_PATH] = {};
   GetModuleFileNameW(nullptr, path, MAX_PATH);
-  return std::filesystem::path(path).parent_path().u8string();
+  return CefString(std::filesystem::path(path).parent_path().wstring()).ToString();
 }
 
 std::filesystem::path UserDataDirectory() {
@@ -115,7 +115,7 @@ std::filesystem::path UserDataDirectory() {
 }
 
 std::string FileUrl(std::filesystem::path path) {
-  std::string value = std::filesystem::absolute(path).u8string();
+  std::string value = CefString(std::filesystem::absolute(path).wstring()).ToString();
   std::replace(value.begin(), value.end(), '\\', '/');
   std::string encoded;
   for (unsigned char c : value) encoded += c == ' ' ? "%20" : std::string(1, c);
