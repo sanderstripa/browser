@@ -264,6 +264,15 @@ try:
             else: blue=ImageStat.Stat(sample).mean
         change=max(abs(a-b) for a,b in zip(red,blue))
         print('Backdrop color response:',red,blue,'delta',change)
+        if change<=25:
+            for mode in range(1,6):
+                print('Testing native material mode',mode)
+                evaluate(shell, "new Promise((resolve,reject)=>cefQuery({request:JSON.stringify({action:'browser.surfaceDiagnostics',payload:"+str(mode)+"}),onSuccess:s=>resolve(JSON.parse(s)),onFailure:reject}))")
+                samples=[]
+                for color,name in [(0x3030E0,'red'),(0xE03030,'blue')]:
+                    brush=gdi.CreateSolidBrush(color);brushes.append(brush)
+                    samples.append(ImageStat.Stat(behind(brush,f'probe-{mode}-{name}')).mean)
+                print('Native material probe',mode,samples)
         assert change>25, 'Toolbar is opaque: changing the real background has no visible effect'
         pixels=bytes(v for y in range(8) for x in range(8) for v in ((48,48,224,255) if x<4 else (224,48,48,255)))
         data=ctypes.create_string_buffer(pixels)

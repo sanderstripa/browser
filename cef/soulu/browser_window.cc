@@ -879,6 +879,17 @@ void BrowserWindow::HandleBridge(const std::string& request,
   if (action == "browser.surfaceDiagnostics") {
     wchar_t port[12] = {};
     if (!GetEnvironmentVariableW(L"SOULU_UI_TEST_PORT", port, 12)) { callback->Failure(403, "Test mode required"); return; }
+    if(payload && payload->GetType()==VTYPE_INT && payload->GetInt()>0){
+      const int mode=payload->GetInt();
+      ConfigureFrostedBackdrop(hwnd_,mode>=4);
+      DWORD backdrop=mode==3?3:1;
+      DwmSetWindowAttribute(hwnd_,38,&backdrop,sizeof(backdrop));
+      const auto compose=reinterpret_cast<SetComposition>(GetProcAddress(GetModuleHandleW(L"user32.dll"),"SetWindowCompositionAttribute"));
+      AccentPolicy policy={mode==1||mode==4?3:mode==2||mode==5?4:0,2,0x20000000,0};
+      CompositionData data={19,&policy,sizeof(policy)};
+      if(compose)compose(hwnd_,&data);
+      RedrawWindow(hwnd_,nullptr,nullptr,RDW_INVALIDATE|RDW_ERASE|RDW_FRAME|RDW_ALLCHILDREN);
+    }
     auto result = CefDictionaryValue::Create();
     result->SetBool("nativeBlur",native_blur_);
     result->SetBool("windowless", shell_ && shell_->GetHost()->IsWindowRenderingDisabled());
