@@ -552,7 +552,11 @@ void BrowserWindow::AttachShell(CefRefPtr<CefBrowser> browser) {
   shell_ = browser;
   surface_->Attach(browser);
   InitializeProfiles();
-  NewTab();
+  std::string start_url = "about:blank";
+  const std::string custom_url = settings_->GetString("startPageUrl");
+  if (settings_->GetString("startPageMode") == "custom" && !custom_url.empty())
+    start_url = NormalizeAddress(custom_url);
+  NewTab(start_url);
   Layout();
   FocusAddress();
 }
