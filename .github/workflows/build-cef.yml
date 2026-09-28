@@ -16,7 +16,6 @@ on:
       - "scripts/test-cef-ui.py"
       - "ui/**"
       - "vpn/**"
-      - "scripts/cef-installer.nsi"
       - ".github/workflows/build-cef.yml"
 
 permissions:
