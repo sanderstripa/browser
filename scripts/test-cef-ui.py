@@ -211,7 +211,7 @@ try:
     from PIL import ImageStat, Image
     import dxcam
     print('Desktop capture devices:',dxcam.device_info(),dxcam.output_info())
-    camera=dxcam.create(output_color='RGB')
+    camera=dxcam.create(output_color='RGB',processor_backend='numpy')
     user.CreateWindowExW.argtypes=[wintypes.DWORD,wintypes.LPCWSTR,wintypes.LPCWSTR,wintypes.DWORD,ctypes.c_int,ctypes.c_int,ctypes.c_int,ctypes.c_int,wintypes.HWND,wintypes.HMENU,wintypes.HINSTANCE,ctypes.c_void_p]
     user.CreateWindowExW.restype=wintypes.HWND
     user.SetWindowPos.argtypes=[wintypes.HWND,wintypes.HWND,ctypes.c_int,ctypes.c_int,ctypes.c_int,ctypes.c_int,wintypes.UINT]
