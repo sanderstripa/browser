@@ -18,6 +18,10 @@ set(SOULU_SRCS
   win/resource.rc
 )
 
+# CEF appends /std:c++17 in its target flags; normalize it before its
+# helpers run so that it cannot override CXX_STANDARD for C++/WinRT.
+string(REPLACE "/std:c++17" "/std:c++20" CEF_COMPILER_FLAGS "${CEF_COMPILER_FLAGS}")
+string(REPLACE "/std:c++17" "/std:c++20" CEF_CXX_COMPILER_FLAGS "${CEF_CXX_COMPILER_FLAGS}")
 set(EXAMPLE_TARGET "soulu")
 SET_EXAMPLE_SOURCE_GROUPS("${SOULU_SRCS}")
 
