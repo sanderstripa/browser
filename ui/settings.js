@@ -10,7 +10,7 @@
       theme:"Тема",themeHint:"Оформление интерфейса",system:"Системная",light:"Светлая",dark:"Тёмная",matte:"Матовая прозрачность",matteHint:"Размытие фона за панелью браузера",language:"Язык",languageHint:"Язык меню и настроек",
       visibleWidgets:"Элементы панели",widgetsHint:"Отключённые элементы исчезают сразу. Вернуть их можно здесь.",sidebar:"Боковая панель",back:"Назад",favorites:"Избранное",newTab:"Новая вкладка",
       addressPosition:"Положение адресной строки",center:"По центру",left:"Слева",extensionsPosition:"Положение расширений",leftOfAddress:"Слева от адреса",rightOfAddress:"Справа от адреса",downloadIcon:"Иконка загрузок",dynamic:"Динамически",always:"Всегда",
-      searchEngine:"Поисковая система",addressBehavior:"Открывать адрес",currentTab:"В текущей вкладке",newIfOccupied:"В новой, если текущая занята",startPage:"Стартовая страница",blank:"Пустая",custom:"Свой адрес",startUrl:"Адрес стартовой страницы",
+      searchEngine:"Поисковая система",addressBehavior:"Открывать адрес",currentTab:"В текущей вкладке",newIfOccupied:"В новой, если текущая занята",startPage:"Стартовая страница",blank:"Пустая",custom:"Свой адрес",startUrl:"Адрес стартовой страницы",openStartPageAfterLastTab:"После закрытия последней вкладки открывать стартовую страницу",
       askLocation:"Спрашивать место сохранения",downloadPath:"Папка загрузок",vpnHint:"VPN выключен по умолчанию. Кнопку на панели можно скрыть в разделе «Панель».",vpnButton:"Показывать кнопку VPN",
       accountsHint:"Вход в Google выполняется в общей сессии браузера. Синхронизация Chrome пока не включена.",passwordsHint:"Хранилище паролей будет подключено к нативной CEF-реализации на следующем этапе."
     },
@@ -20,7 +20,7 @@
       theme:"Theme",themeHint:"Interface appearance",system:"System",light:"Light",dark:"Dark",matte:"Matte transparency",matteHint:"Blur and a soft toolbar gradient",language:"Language",languageHint:"Language for menus and settings",
       visibleWidgets:"Toolbar items",widgetsHint:"Disabled items disappear immediately. You can restore them here.",sidebar:"Sidebar",back:"Back",favorites:"Favorites",newTab:"New tab",
       addressPosition:"Address position",center:"Centered",left:"Left",extensionsPosition:"Extensions position",leftOfAddress:"Left of address",rightOfAddress:"Right of address",downloadIcon:"Downloads icon",dynamic:"Dynamic",always:"Always",
-      searchEngine:"Search engine",addressBehavior:"Open address",currentTab:"In current tab",newIfOccupied:"In a new tab when occupied",startPage:"Start page",blank:"Blank",custom:"Custom address",startUrl:"Start page address",
+      searchEngine:"Search engine",addressBehavior:"Open address",currentTab:"In current tab",newIfOccupied:"In a new tab when occupied",startPage:"Start page",blank:"Blank",custom:"Custom address",startUrl:"Start page address",openStartPageAfterLastTab:"Open the start page after closing the last tab",
       askLocation:"Ask where to save",downloadPath:"Downloads folder",vpnHint:"VPN is off by default. Its toolbar button can be hidden in Toolbar.",vpnButton:"Show VPN button",
       accountsHint:"Google sign-in uses the shared browser session. Chrome Sync is not enabled.",passwordsHint:"Password storage will be connected to the native CEF implementation in a later step."
     }
