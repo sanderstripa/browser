@@ -1,6 +1,7 @@
 #include "examples/soulu/frosted_backdrop.h"
 #include <winrt/Windows.Foundation.h>
 #include <winrt/Windows.System.h>
+#include <winrt/Windows.UI.ViewManagement.h>
 #include <winrt/Windows.UI.Composition.Desktop.h>
 #include <windows.ui.composition.interop.h>
 #include <DispatcherQueue.h>
@@ -17,6 +18,15 @@ struct Backdrop {
   SpriteVisual visual{nullptr};
 };
 std::map<HWND,Backdrop> backdrops;
+}
+int BackdropCapabilities(){
+  BOOL composition=FALSE;DwmIsCompositionEnabled(&composition);
+  int flags=composition?1:0;
+  try{if(winrt::Windows::UI::ViewManagement::UISettings().AdvancedEffectsEnabled())flags|=2;}catch(...){}
+  if(GetSystemMetrics(SM_REMOTESESSION))flags|=4;
+  HIGHCONTRASTW contrast={sizeof(contrast)};
+  if(SystemParametersInfoW(SPI_GETHIGHCONTRAST,sizeof(contrast),&contrast,0) && (contrast.dwFlags&HCF_HIGHCONTRASTON))flags|=8;
+  return flags;
 }
 bool ConfigureFrostedBackdrop(HWND window,bool enabled){
   try {

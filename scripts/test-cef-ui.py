@@ -273,7 +273,31 @@ try:
                     brush=gdi.CreateSolidBrush(color);brushes.append(brush)
                     samples.append(ImageStat.Stat(behind(brush,f'probe-{mode}-{name}')).mean)
                 print('Native material probe',mode,samples)
-        assert change>25, 'Toolbar is opaque: changing the real background has no visible effect'
+        if change<=25:
+            # Compare an independent, empty Win32 acrylic window to distinguish
+            # host composition policy from CEF/child-window interference.
+            user.ShowWindow(hwnd,0)
+            refclass=WNDCLASS();refclass.lpfnWndProc=WNDPROC(user.DefWindowProcW);refclass.lpszClassName='SouluReferenceAcrylic'
+            refclass.hbrBackground=gdi.CreateSolidBrush(0)
+            user.RegisterClassW(ctypes.byref(refclass))
+            reference=user.CreateWindowExW(0,refclass.lpszClassName,'Reference acrylic',0x90000000,after.left,after.top,after.right-after.left,after.bottom-after.top,None,None,None,None)
+            class ACCENT(ctypes.Structure):
+                _fields_=[('state',ctypes.c_int),('flags',ctypes.c_int),('color',wintypes.DWORD),('animation',ctypes.c_int)]
+            class COMPOSITION(ctypes.Structure):
+                _fields_=[('attribute',ctypes.c_int),('data',ctypes.c_void_p),('size',ctypes.c_size_t)]
+            accent=ACCENT(4,2,0x20000000,0)
+            setting=COMPOSITION(19,ctypes.addressof(accent),ctypes.sizeof(accent))
+            user.SetWindowCompositionAttribute.argtypes=[wintypes.HWND,ctypes.POINTER(COMPOSITION)]
+            print('Reference acrylic API result',user.SetWindowCompositionAttribute(reference,ctypes.byref(setting)))
+            user.SetForegroundWindow(reference)
+            samples=[]
+            for color,name in [(0x3030E0,'red'),(0xE03030,'blue')]:
+                brush=gdi.CreateSolidBrush(color);brushes.append(brush)
+                samples.append(ImageStat.Stat(behind(brush,f'reference-{name}')).mean)
+            print('Independent native acrylic response',samples)
+            user.DestroyWindow(reference)
+            user.ShowWindow(hwnd,5)
+        assert change>25, 'Toolbar is opaque: changing the real background has no visible effect' 
         pixels=bytes(v for y in range(8) for x in range(8) for v in ((48,48,224,255) if x<4 else (224,48,48,255)))
         data=ctypes.create_string_buffer(pixels)
         bitmap=gdi.CreateBitmap(8,8,1,32,data)

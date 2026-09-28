@@ -891,6 +891,7 @@ void BrowserWindow::HandleBridge(const std::string& request,
       RedrawWindow(hwnd_,nullptr,nullptr,RDW_INVALIDATE|RDW_ERASE|RDW_FRAME|RDW_ALLCHILDREN);
     }
     auto result = CefDictionaryValue::Create();
+    result->SetInt("backdropCapabilities",BackdropCapabilities());
     result->SetBool("nativeBlur",native_blur_);
     result->SetBool("windowless", shell_ && shell_->GetHost()->IsWindowRenderingDisabled());
     result->SetInt("paintError", surface_ ? surface_->paint_error() : -1);
