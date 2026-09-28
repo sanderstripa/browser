@@ -26,6 +26,9 @@ std::atomic<HANDLE> worker{nullptr};
 HANDLE workerJob=nullptr;
 Stage stage=Stage::Welcome;
 bool launch=true;
+bool dragging=false;
+POINT dragOrigin={};
+RECT dragWindow={};
 float scale=1;
 HICON icon=nullptr;
 IStream* screenStreams[3]={};
@@ -98,6 +101,7 @@ HWND Button(int id,const wchar_t* text,int x,int y,int width,int height){
 }
 void ShowStage(Stage next){
  stage=next;
+ if(stage==Stage::Installing)ReleaseCapture();
  const bool finished=stage==Stage::Finished;
  SetWindowTextW(mainButton,finished?L"Готово":stage==Stage::Error?L"Повторить":L"Установить");
  SetWindowPos(mainButton,nullptr,Px(291),Px(finished?367:380),Px(320),Px(64),SWP_NOZORDER);
@@ -163,8 +167,16 @@ LRESULT CALLBACK Proc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp){
   case WM_ERASEBKGND:return 1;
   case WM_PAINT:{PAINTSTRUCT ps;HDC dc=BeginPaint(hwnd,&ps);Paint(dc);EndPaint(hwnd,&ps);return 0;}
   case WM_DRAWITEM:DrawButton(reinterpret_cast<DRAWITEMSTRUCT*>(lp));return TRUE;
-  case WM_NCHITTEST:{POINT p={GET_X_LPARAM(lp),GET_Y_LPARAM(lp)};ScreenToClient(hwnd,&p);HWND child=ChildWindowFromPointEx(hwnd,p,CWP_SKIPINVISIBLE|CWP_SKIPDISABLED);return child&&child!=hwnd?HTCLIENT:HTCAPTION;}
-  case WM_LBUTTONDOWN:ReleaseCapture();SendMessageW(hwnd,WM_NCLBUTTONDOWN,HTCAPTION,lp);return 0;
+  case WM_NCHITTEST:return HTCLIENT;
+  case WM_LBUTTONDOWN:
+    dragging=true;GetCursorPos(&dragOrigin);GetWindowRect(hwnd,&dragWindow);SetCapture(hwnd);return 0;
+  case WM_MOUSEMOVE:
+    if(dragging&&(wp&MK_LBUTTON)){
+      POINT cursor={};GetCursorPos(&cursor);
+      SetWindowPos(hwnd,nullptr,dragWindow.left+cursor.x-dragOrigin.x,dragWindow.top+cursor.y-dragOrigin.y,0,0,SWP_NOSIZE|SWP_NOZORDER|SWP_NOACTIVATE);
+    }return 0;
+  case WM_LBUTTONUP:if(dragging){dragging=false;ReleaseCapture();}return 0;
+  case WM_CAPTURECHANGED:dragging=false;return 0;
   case WM_COMMAND:
     if(HIWORD(wp)==BN_CLICKED){switch(LOWORD(wp)){
       case kMain:Finish();break;
