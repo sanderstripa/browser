@@ -27,7 +27,7 @@ jobs:
     runs-on: windows-2025
     timeout-minutes: 90
     env:
-      PREVIEW_VERSION: 0.9.0-cef-preview.19
+      PREVIEW_VERSION: 0.9.0-cef-preview.20
     steps:
       - name: Checkout Soulu
         uses: actions/checkout@v4
@@ -102,6 +102,10 @@ jobs:
           New-Item -ItemType Directory -Force browser/artifacts | Out-Null
           $zip = Join-Path $PWD "browser/artifacts/Soulu-CEF-$env:PREVIEW_VERSION-x64.zip"
           Compress-Archive -Path "$buildDir/*" -DestinationPath $zip -Force
+          Add-Type -AssemblyName System.Drawing
+          $browserIcon=[System.Drawing.Icon]::ExtractAssociatedIcon($exe.FullName)
+          $browserIcon.ToBitmap().Save((Join-Path $PWD "browser/artifacts/browser-exe-icon.png"))
+          "SOULU_SCREENSHOT:browser-exe-icon="+[Convert]::ToBase64String([IO.File]::ReadAllBytes((Join-Path $PWD "browser/artifacts/browser-exe-icon.png")))
           "build_dir=$buildDir" >> $env:GITHUB_OUTPUT
 
       - name: Test live CEF settings and toolbar on Windows
@@ -132,6 +136,10 @@ jobs:
           $out = Join-Path $PWD "browser/artifacts/Soulu-CEF-Setup-$env:PREVIEW_VERSION-x64.exe"
           & ./browser/installer/build.ps1 -BuildDir $buildDir -OutFile $out
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Add-Type -AssemblyName System.Drawing
+          $setupIcon=[System.Drawing.Icon]::ExtractAssociatedIcon($out)
+          $setupIcon.ToBitmap().Save((Join-Path $PWD "browser/artifacts/installer-exe-icon.png"))
+          "SOULU_SCREENSHOT:installer-exe-icon="+[Convert]::ToBase64String([IO.File]::ReadAllBytes((Join-Path $PWD "browser/artifacts/installer-exe-icon.png")))
 
       - name: Smoke-test visible installer controls with mouse on Windows
         continue-on-error: ${{ contains(github.event.head_commit.message, '[publish-as-is]') }}
@@ -275,6 +283,15 @@ jobs:
             $openHwnd = [MouseTest]::FindButton($process.MainWindowHandle, "Готово")
           }
           if ($openHwnd -eq [IntPtr]::Zero) { throw "Native Open button handle was not found" }
+          $desktopLink=Join-Path ([Environment]::GetFolderPath('Desktop')) 'Soulu.lnk'
+          $startLink=Join-Path $env:APPDATA 'Microsoft/Windows/Start Menu/Programs/Soulu/Soulu.lnk'
+          $shortcutShell=New-Object -ComObject WScript.Shell
+          foreach($link in @($desktopLink,$startLink)){
+            if(-not (Test-Path $link)){throw "Soulu shortcut missing: $link"}
+            $iconLocation=$shortcutShell.CreateShortcut($link).IconLocation
+            "Shortcut icon: $link -> $iconLocation"
+            if($iconLocation -notmatch 'soulu-icon-v20.ico'){throw "Shortcut still references stale icon: $iconLocation"}
+          }
           Start-Sleep -Seconds 4
           $process.Refresh()
           if ($process.HasExited) { throw "Installer closed without clicking Open" }
@@ -364,4 +381,3 @@ jobs:
             Во всех ресурсах приложения, установщика и ярлыков используется новая цветная иконка Soulu с набором размеров 16–256 px.
             Функциональная часть браузера в этой итерации не изменялась.
           files: browser/artifacts/*
-

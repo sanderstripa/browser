@@ -226,8 +226,12 @@ bool BrowserWindow::CreateNativeWindow() {
   wc.lpfnWndProc = WindowProc;
   wc.hInstance = GetModuleHandleW(nullptr);
   wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
-  wc.hIcon = LoadIcon(wc.hInstance, MAKEINTRESOURCE(IDI_SOULU));
-  wc.hIconSm = wc.hIcon;
+  wc.hIcon = static_cast<HICON>(LoadImageW(wc.hInstance,
+      MAKEINTRESOURCEW(IDI_SOULU), IMAGE_ICON,
+      GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON), LR_DEFAULTCOLOR));
+  wc.hIconSm = static_cast<HICON>(LoadImageW(wc.hInstance,
+      MAKEINTRESOURCEW(IDI_SOULU), IMAGE_ICON,
+      GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR));
   // A permanent white class brush shows through translucent CEF pixels even
   // after switching to dark mode. Paint the exposed native surface per theme.
   wc.hbrBackground = nullptr;
@@ -1191,4 +1195,3 @@ LRESULT CALLBACK BrowserWindow::WindowProc(HWND hwnd, UINT message, WPARAM wpara
   return DefWindowProc(hwnd, message, wparam, lparam);
 }
 }
-

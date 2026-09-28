@@ -1,2 +1,3 @@
 #include "../resource.h"
+#define SOULU_ICON_REVISION 20
 IDI_SOULU ICON "../assets/ui/browser-app-icon.ico"
