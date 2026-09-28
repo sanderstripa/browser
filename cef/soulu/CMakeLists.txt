@@ -52,4 +52,4 @@ add_custom_command(TARGET ${EXAMPLE_TARGET} POST_BUILD
           "$<TARGET_FILE_DIR:${EXAMPLE_TARGET}>/vpn"
   VERBATIM)
 
-# Preview snapshot publishing keeps ordinary CEF validation unchanged.
+# Preview 25 snapshot publishing keeps ordinary CEF validation unchanged.
