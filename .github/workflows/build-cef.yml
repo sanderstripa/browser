@@ -29,8 +29,8 @@ jobs:
     runs-on: windows-2025
     timeout-minutes: 90
     env:
-      PREVIEW_VERSION: 0.9.0-cef-preview.24
-      PREVIEW_NUMBER: 24
+      PREVIEW_VERSION: 0.9.0-cef-preview.25
+      PREVIEW_NUMBER: 25
     steps:
       - name: Checkout Soulu
         uses: actions/checkout@v4
@@ -400,10 +400,10 @@ jobs:
           prerelease: false
           generate_release_notes: true
           body: |
-            Soulu Preview 24.
+            Soulu Preview 25.
 
-            - Исправлено применение сохранённой стартовой страницы при запуске браузера.
-            - Зафиксирован финальный размер иконки Soulu в панели задач.
+            - Добавлена настройка: после закрытия последней вкладки можно открыть назначенную стартовую страницу.
+            - Исправлено постоянное хранение CEF-профиля и cookies, чтобы авторизация на сайтах сохранялась между перезапусками Soulu.
             - В релиз включены установщик и ZIP-сборка для Windows x64.
           files: |
             browser/artifacts/Soulu-Preview-${{ env.PREVIEW_NUMBER }}-x64.exe
