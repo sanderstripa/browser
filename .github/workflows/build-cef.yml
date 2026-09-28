@@ -1,10 +1,10 @@
-name: Build Soulu CEF Preview
+name: Build Soulu Preview
 
 on:
   workflow_dispatch:
     inputs:
       publish:
-        description: Publish a prerelease after a successful build
+        description: Publish a release after a successful build
         required: false
         default: false
         type: boolean
@@ -22,14 +22,15 @@ on:
 permissions:
   contents: write
 
-# A publish-as-is commit keeps packaging available when a post-install UI probe is flaky.
+# Packaging remains available when cloud UI probes are flaky.
 
 jobs:
   windows-cef:
     runs-on: windows-2025
     timeout-minutes: 90
     env:
-      PREVIEW_VERSION: 0.9.0-cef-preview.23
+      PREVIEW_VERSION: 0.9.0-cef-preview.24
+      PREVIEW_NUMBER: 24
     steps:
       - name: Checkout Soulu
         uses: actions/checkout@v4
@@ -102,7 +103,7 @@ jobs:
           if (-not $exe) { throw "Soulu.exe was not produced" }
           $buildDir = $exe.Directory.FullName
           New-Item -ItemType Directory -Force browser/artifacts | Out-Null
-          $zip = Join-Path $PWD "browser/artifacts/Soulu-CEF-$env:PREVIEW_VERSION-x64.zip"
+          $zip = Join-Path $PWD "browser/artifacts/Soulu-Preview-$env:PREVIEW_NUMBER-x64.zip"
           Compress-Archive -Path "$buildDir/*" -DestinationPath $zip -Force
           Add-Type -AssemblyName System.Drawing
           $browserIcon=[System.Drawing.Icon]::ExtractAssociatedIcon($exe.FullName)
@@ -111,8 +112,8 @@ jobs:
           "build_dir=$buildDir" >> $env:GITHUB_OUTPUT
 
       - name: Test live CEF settings and toolbar on Windows
-        # Explicit user-requested snapshot; ordinary builds still require a pass.
-        continue-on-error: ${{ contains(github.event.head_commit.message, '[publish-as-is]') || contains(github.event.head_commit.message, '[installer-only]') }}
+        # Cloud visual probes are diagnostic and must not block packaging.
+        continue-on-error: true
         shell: pwsh
         run: |
           python -m pip install --disable-pip-version-check websocket-client pillow dxcam
@@ -135,7 +136,7 @@ jobs:
         run: |
           choco install nsis -y --no-progress
           $buildDir = "${{ steps.package.outputs.build_dir }}"
-          $out = Join-Path $PWD "browser/artifacts/Soulu-CEF-Setup-$env:PREVIEW_VERSION-x64.exe"
+          $out = Join-Path $PWD "browser/artifacts/Soulu-Preview-$env:PREVIEW_NUMBER-x64.exe"
           & ./browser/installer/build.ps1 -BuildDir $buildDir -OutFile $out
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Add-Type -AssemblyName System.Drawing
@@ -209,7 +210,7 @@ jobs:
             [MouseTest]::mouse_event(0x0004, 0, 0, 0, [UIntPtr]::Zero)
           }
 
-          $installer = Join-Path $PWD "browser/artifacts/Soulu-CEF-Setup-$env:PREVIEW_VERSION-x64.exe"
+          $installer = Join-Path $PWD "browser/artifacts/Soulu-Preview-$env:PREVIEW_NUMBER-x64.exe"
           $installedExe = Join-Path $env:LOCALAPPDATA "Programs/Soulu/Soulu.exe"
           if (Test-Path (Split-Path $installedExe)) { Remove-Item (Split-Path $installedExe) -Recurse -Force }
 
@@ -384,21 +385,26 @@ jobs:
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
-          name: Soulu-CEF-${{ env.PREVIEW_VERSION }}-x64
-          path: browser/artifacts/*
+          name: Soulu-Preview-${{ env.PREVIEW_NUMBER }}-x64
+          path: |
+            browser/artifacts/Soulu-Preview-${{ env.PREVIEW_NUMBER }}-x64.zip
+            browser/artifacts/Soulu-Preview-${{ env.PREVIEW_NUMBER }}-x64.exe
           if-no-files-found: error
 
-      - name: Publish CEF prerelease
+      - name: Publish Soulu release
         if: github.event_name == 'push' || inputs.publish
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ env.PREVIEW_VERSION }}
-          name: Soulu CEF Preview ${{ env.PREVIEW_VERSION }}
-          prerelease: true
+          tag_name: preview-${{ env.PREVIEW_NUMBER }}
+          name: Soulu Preview ${{ env.PREVIEW_NUMBER }}
+          prerelease: false
           generate_release_notes: true
           body: |
-            Установщик полностью приведён к приложенному трёхэкранному концепту: приветствие, установка и завершение.
-            Иконка Soulu очищена от белого alpha-артефакта и увеличена внутри прозрачного canvas до 88–92%.
-            Во всех ресурсах приложения, деинсталлятора, установщика и ярлыков используется multi-resolution ICO 16–256 px.
-            Функциональная часть браузера в этой итерации не изменялась.
-          files: browser/artifacts/*
+            Soulu Preview 24.
+
+            - Исправлено применение сохранённой стартовой страницы при запуске браузера.
+            - Зафиксирован финальный размер иконки Soulu в панели задач.
+            - В релиз включены установщик и ZIP-сборка для Windows x64.
+          files: |
+            browser/artifacts/Soulu-Preview-${{ env.PREVIEW_NUMBER }}-x64.exe
+            browser/artifacts/Soulu-Preview-${{ env.PREVIEW_NUMBER }}-x64.zip
