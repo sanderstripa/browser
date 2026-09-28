@@ -164,6 +164,7 @@ LRESULT CALLBACK Proc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp){
   case WM_PAINT:{PAINTSTRUCT ps;HDC dc=BeginPaint(hwnd,&ps);Paint(dc);EndPaint(hwnd,&ps);return 0;}
   case WM_DRAWITEM:DrawButton(reinterpret_cast<DRAWITEMSTRUCT*>(lp));return TRUE;
   case WM_NCHITTEST:{POINT p={GET_X_LPARAM(lp),GET_Y_LPARAM(lp)};ScreenToClient(hwnd,&p);HWND child=ChildWindowFromPointEx(hwnd,p,CWP_SKIPINVISIBLE|CWP_SKIPDISABLED);return child&&child!=hwnd?HTCLIENT:HTCAPTION;}
+  case WM_LBUTTONDOWN:ReleaseCapture();SendMessageW(hwnd,WM_NCLBUTTONDOWN,HTCAPTION,lp);return 0;
   case WM_COMMAND:
     if(HIWORD(wp)==BN_CLICKED){switch(LOWORD(wp)){
       case kMain:Finish();break;
