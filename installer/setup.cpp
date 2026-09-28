@@ -9,6 +9,7 @@
 #include <string>
 #include <vector>
 #include <algorithm>
+#include <cstring>
 #include <atomic>
 #include <thread>
 #include <objidl.h>
@@ -18,7 +19,7 @@
 #pragma comment(lib,"ole32.lib")
 using namespace Gdiplus;
 namespace {
-constexpr int kWidth=600,kHeight=400,kMain=1001,kMin=1002,kClose=1003,kLaunch=1004;
+constexpr int kWidth=900,kHeight=593,kMain=1001,kMin=1002,kClose=1003,kLaunch=1004;
 enum class Stage { Welcome, Installing, Finished, Error };
 HWND window=nullptr,mainButton=nullptr,launchButton=nullptr;
 std::atomic<HANDLE> worker{nullptr};
@@ -27,8 +28,8 @@ Stage stage=Stage::Welcome;
 bool launch=true;
 float scale=1;
 HICON icon=nullptr;
-std::vector<BYTE> logoPixels;
-Bitmap* logo=nullptr;
+IStream* screenStreams[3]={};
+Bitmap* screens[3]={};
 std::wstring payloadPath,installDir,errorText;
 ULONG_PTR graphicsToken=0;
 int Px(float v){return static_cast<int>(v*scale+.5f);}
@@ -41,72 +42,54 @@ void Text(Graphics& g,const wchar_t* text,float size,RectF rect,Color color, boo
  SolidBrush brush(color);StringFormat format;format.SetAlignment(StringAlignmentCenter);format.SetLineAlignment(StringAlignmentCenter);
  g.DrawString(text,-1,&font,rect,&format,&brush);
 }
-void Background(Graphics& g){
- SolidBrush base(Color(255,250,249,248));g.FillRectangle(&base,0,0,kWidth,kHeight);
- LinearGradientBrush wash(Point(0,0),Point(kWidth,kHeight),Color(255,255,255,255),Color(255,246,246,247));
- g.FillRectangle(&wash,0,0,kWidth,kHeight);
- GraphicsPath wave;wave.AddBezier(-20,320,125,215,110,395,335,358);wave.AddBezier(335,358,455,338,510,285,630,255);wave.AddLine(630,255,630,420);wave.AddLine(630,420,-20,420);wave.CloseFigure();
- SolidBrush shade(Color(24,152,167,185));g.FillPath(&shade,&wave);
- GraphicsPath wave2;wave2.AddBezier(-20,345,160,260,202,421,391,363);wave2.AddBezier(391,363,502,334,530,321,630,303);wave2.AddLine(630,303,630,420);wave2.AddLine(630,420,-20,420);wave2.CloseFigure();
- SolidBrush light(Color(170,255,255,255));g.FillPath(&light,&wave2);
+Bitmap* LoadPngResource(int id,IStream** keptStream){
+ HRSRC resource=FindResourceW(nullptr,MAKEINTRESOURCEW(id),RT_RCDATA);
+ HGLOBAL source=resource?LoadResource(nullptr,resource):nullptr;
+ const DWORD size=resource?SizeofResource(nullptr,resource):0;
+ const void* bytes=source?LockResource(source):nullptr;
+ if(!bytes||!size)return nullptr;
+ HGLOBAL copy=GlobalAlloc(GMEM_MOVEABLE,size);
+ if(!copy)return nullptr;
+ void* target=GlobalLock(copy);memcpy(target,bytes,size);GlobalUnlock(copy);
+ if(FAILED(CreateStreamOnHGlobal(copy,TRUE,keptStream))){GlobalFree(copy);return nullptr;}
+ Bitmap* image=Bitmap::FromStream(*keptStream,FALSE);
+ if(!image||image->GetLastStatus()!=Ok){delete image;(*keptStream)->Release();*keptStream=nullptr;return nullptr;}
+ return image;
+}
+Bitmap* CurrentScreen(){
+ if(stage==Stage::Installing||stage==Stage::Error)return screens[1];
+ return stage==Stage::Finished?screens[2]:screens[0];
 }
 void Paint(HDC dc){
  Bitmap buffer(Px(kWidth),Px(kHeight),PixelFormat32bppPARGB);Graphics g(&buffer);
- g.ScaleTransform(scale,scale);g.SetSmoothingMode(SmoothingModeAntiAlias);g.SetTextRenderingHint(TextRenderingHintClearTypeGridFit);
- Background(g);
- if(stage==Stage::Installing){
-   Text(g,L"Установка Soulu",27,RectF(40,159,520,42),Color(255,25,49,72));
-   Text(g,L"Это займёт всего несколько мгновений.",14,RectF(40,203,520,26),Color(255,94,105,120));
- }else if(stage==Stage::Error){
-   Text(g,L"Не удалось завершить установку",23,RectF(30,135,540,50),Color(255,25,49,72));
-   Text(g,errorText.c_str(),13,RectF(45,190,510,58),Color(255,110,72,72));
- }else{
-   const bool done=stage==Stage::Finished;
-   const int size=done?72:86,y=done?48:46;
-   if(logo){
-     g.SetInterpolationMode(InterpolationModeHighQualityBicubic);
-     g.SetPixelOffsetMode(PixelOffsetModeHighQuality);
-     ImageAttributes attributes;attributes.SetWrapMode(WrapModeTileFlipXY);
-     g.DrawImage(logo,RectF((kWidth-size)/2.0f,static_cast<float>(y),static_cast<float>(size),static_cast<float>(size)),0,0,static_cast<float>(logo->GetWidth()),static_cast<float>(logo->GetHeight()),UnitPixel,&attributes);
-   }
-   Text(g,done?L"Всё готово":L"Soulu",done?29:35,RectF(35,done?136:143,530,48),Color(255,23,49,74));
-   Text(g,done?L"Браузер установлен. Можно начинать.":L"Спокойный и умный браузер\nдля больших возможностей.",15,RectF(45,done?190:195,510,48),Color(255,87,99,114));
-   if(!done)Text(g,L"Быстро. Безопасно. Для того, что важно.",12,RectF(30,361,540,22),Color(255,109,117,128));
+ g.ScaleTransform(scale,scale);g.SetSmoothingMode(SmoothingModeAntiAlias);g.SetInterpolationMode(InterpolationModeHighQualityBicubic);g.SetPixelOffsetMode(PixelOffsetModeHighQuality);g.SetTextRenderingHint(TextRenderingHintClearTypeGridFit);
+ if(Bitmap* image=CurrentScreen())g.DrawImage(image,RectF(0,0,kWidth,kHeight),0,0,image->GetWidth(),image->GetHeight(),UnitPixel);
+ else{SolidBrush fallback(Color(255,247,250,255));g.FillRectangle(&fallback,0,0,kWidth,kHeight);}
+ if(stage==Stage::Finished&&!launch){
+   SolidBrush cover(Color(255,238,246,255));g.FillRectangle(&cover,360.0f,448.0f,29.0f,29.0f);
+   GraphicsPath box;Round(box,RectF(363,451,24,24),5);Pen line(Color(255,66,104,164),1.4f);g.DrawPath(&line,&box);
+ }
+ if(stage==Stage::Error){
+   SolidBrush panel(Color(236,247,250,255));GraphicsPath card;Round(card,RectF(235,194,430,170),22);g.FillPath(&panel,&card);
+   Text(g,L"Не удалось завершить установку",26,RectF(255,216,390,42),Color(255,12,43,84));
+   Text(g,errorText.c_str(),15,RectF(270,267,360,58),Color(255,78,99,135));
  }
  Graphics screen(dc);screen.DrawImage(&buffer,0,0);
 }
 void DrawButton(DRAWITEMSTRUCT* item){
- RECT r;GetWindowRect(item->hwndItem,&r);POINT p={r.left,r.top};ScreenToClient(window,&p);
- const float x=p.x/scale,y=p.y/scale,w=(r.right-r.left)/scale,h=(r.bottom-r.top)/scale;
- Graphics g(item->hDC);g.SetSmoothingMode(SmoothingModeAntiAlias);g.SetTextRenderingHint(TextRenderingHintClearTypeGridFit);g.ScaleTransform(scale,scale);
- g.TranslateTransform(-x,-y);Background(g);g.TranslateTransform(x,y);
- bool pressed=(item->itemState&ODS_SELECTED)!=0;
- if(item->CtlID==kMain){
-   GraphicsPath path;Round(path,RectF(1,1,w-2,h-2),22);
-   SolidBrush fill(pressed?Color(255,42,65,86):Color(255,25,45,64));g.FillPath(&fill,&path);
-   Text(g,stage==Stage::Finished?L"Готово":stage==Stage::Error?L"Повторить":L"Установить  →",15,RectF(0,0,w,h),Color(255,255,255,255));
-   if(item->itemState&ODS_FOCUS){Pen line(Color(255,119,158,192),1);g.DrawPath(&line,&path);}
- }else if(item->CtlID==kLaunch){
-   GraphicsPath box;Round(box,RectF(14,7,16,16),4);SolidBrush fill(launch?Color(255,30,54,77):Color(255,255,255,255));g.FillPath(&fill,&box);
-   Pen border(Color(255,126,139,150),1);g.DrawPath(&border,&box);
-   if(launch){Pen check(Color(255,255,255,255),1.6f);g.DrawLine(&check,18.0f,15.0f,21.0f,18.0f);g.DrawLine(&check,21.0f,18.0f,27.0f,11.0f);}
-   Text(g,L"Запустить Soulu",12.5f,RectF(35,0,w-42,h),Color(255,79,92,108));
- }else{
-   if(pressed){SolidBrush fill(Color(24,40,60,80));g.FillRectangle(&fill,0.0f,0.0f,w,h);}
-   Pen pen(Color(255,42,61,81),1.2f);
-   if(item->CtlID==kClose){g.DrawLine(&pen,w/2-4.5f,h/2-4.5f,w/2+4.5f,h/2+4.5f);g.DrawLine(&pen,w/2+4.5f,h/2-4.5f,w/2-4.5f,h/2+4.5f);}
-   else g.DrawLine(&pen,w/2-5,h/2,w/2+5,h/2);
- }
+ FillRect(item->hDC,&item->rcItem,static_cast<HBRUSH>(GetStockObject(BLACK_BRUSH)));
 }
 HWND Button(int id,const wchar_t* text,int x,int y,int width,int height){
- return CreateWindowExW(0,L"BUTTON",text,WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_OWNERDRAW,
+ HWND button=CreateWindowExW(WS_EX_LAYERED,L"BUTTON",text,WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_OWNERDRAW,
     Px(x),Px(y),Px(width),Px(height),window,reinterpret_cast<HMENU>(static_cast<INT_PTR>(id)),GetModuleHandleW(nullptr),nullptr);
+ SetLayeredWindowAttributes(button,0,1,LWA_ALPHA);
+ return button;
 }
 void ShowStage(Stage next){
  stage=next;
  const bool finished=stage==Stage::Finished;
  SetWindowTextW(mainButton,finished?L"Готово":stage==Stage::Error?L"Повторить":L"Установить");
- SetWindowPos(mainButton,nullptr,Px(190),Px(finished?268:284),Px(220),Px(46),SWP_NOZORDER);
+ SetWindowPos(mainButton,nullptr,Px(291),Px(finished?367:380),Px(320),Px(64),SWP_NOZORDER);
  ShowWindow(mainButton,stage==Stage::Installing?SW_HIDE:SW_SHOW);
  ShowWindow(launchButton,finished?SW_SHOW:SW_HIDE);
  InvalidateRect(window,nullptr,FALSE);UpdateWindow(window);
@@ -175,7 +158,7 @@ LRESULT CALLBACK Proc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp){
       case kMain:Finish();break;
       case kClose:SendMessageW(hwnd,WM_CLOSE,0,0);break;
       case kMin:ShowWindow(hwnd,SW_MINIMIZE);break;
-      case kLaunch:launch=!launch;InvalidateRect(launchButton,nullptr,FALSE);break;
+      case kLaunch:launch=!launch;InvalidateRect(window,nullptr,FALSE);UpdateWindow(window);break;
     }}return 0;
   case WM_APP+1:if(stage!=Stage::Installing)StartInstall();return 0;
   case WM_APP+2:KillTimer(hwnd,1);CleanupWorker(false);errorText=L"Не удалось запустить установку. Попробуй ещё раз.";ShowStage(Stage::Error);return 0;
@@ -195,37 +178,25 @@ int WINAPI wWinMain(HINSTANCE instance,HINSTANCE,wchar_t*,int){
  GdiplusStartupInput input;GdiplusStartup(&graphicsToken,&input,nullptr);
  wchar_t local[MAX_PATH]={};GetEnvironmentVariableW(L"LOCALAPPDATA",local,MAX_PATH);installDir=std::wstring(local)+L"\\Programs\\Soulu";
  icon=static_cast<HICON>(LoadImageW(instance,MAKEINTRESOURCEW(101),IMAGE_ICON,256,256,LR_DEFAULTCOLOR));
- // Read the original 32-bit icon pixels without drawing its monochrome AND
- // mask. GDI+ then scales premultiplied alpha with a smooth edge.
- ICONINFO info={};
- if(GetIconInfo(icon,&info)){
-   BITMAP source={};GetObjectW(info.hbmColor,sizeof(source),&source);
-   const int width=source.bmWidth,height=source.bmHeight;
-   logoPixels.resize(static_cast<size_t>(width)*height*4);
-   BITMAPINFO format={};format.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);
-   format.bmiHeader.biWidth=width;format.bmiHeader.biHeight=-height;
-   format.bmiHeader.biPlanes=1;format.bmiHeader.biBitCount=32;format.bmiHeader.biCompression=BI_RGB;
-   HDC dc=GetDC(nullptr);
-   if(GetDIBits(dc,info.hbmColor,0,height,logoPixels.data(),&format,DIB_RGB_COLORS))
-     logo=new Bitmap(width,height,width*4,PixelFormat32bppPARGB,logoPixels.data());
-   ReleaseDC(nullptr,dc);DeleteObject(info.hbmColor);DeleteObject(info.hbmMask);
- }
+ screens[0]=LoadPngResource(102,&screenStreams[0]);
+ screens[1]=LoadPngResource(103,&screenStreams[1]);
+ screens[2]=LoadPngResource(104,&screenStreams[2]);
  WNDCLASSEXW cls={sizeof(cls)};cls.lpfnWndProc=Proc;cls.hInstance=instance;cls.lpszClassName=L"SouluInstaller";
  cls.hCursor=LoadCursor(nullptr,IDC_ARROW);cls.hIcon=icon;cls.hIconSm=icon;RegisterClassExW(&cls);
  scale=GetDpiForSystem()/96.0f;
  RECT work={};SystemParametersInfoW(SPI_GETWORKAREA,0,&work,0);
  window=CreateWindowExW(WS_EX_APPWINDOW,cls.lpszClassName,L"Soulu Setup",WS_POPUP|WS_MINIMIZEBOX|WS_SYSMENU,
    work.left+(work.right-work.left-Px(kWidth))/2,work.top+(work.bottom-work.top-Px(kHeight))/2,Px(kWidth),Px(kHeight),nullptr,nullptr,instance,nullptr);
- HRGN region=CreateRoundRectRgn(0,0,Px(kWidth)+1,Px(kHeight)+1,Px(20),Px(20));SetWindowRgn(window,region,TRUE);
+ HRGN region=CreateRoundRectRgn(0,0,Px(kWidth)+1,Px(kHeight)+1,Px(28),Px(28));SetWindowRgn(window,region,TRUE);
  DWORD corner=2;DwmSetWindowAttribute(window,33,&corner,sizeof(corner));
- mainButton=Button(kMain,L"Установить",190,284,220,46);
- Button(kMin,L"Свернуть",514,10,36,32);Button(kClose,L"Закрыть",552,10,36,32);
- launchButton=Button(kLaunch,L"Запустить Soulu",210,322,180,30);ShowWindow(launchButton,SW_HIDE);
+ mainButton=Button(kMain,L"Установить",291,380,320,64);
+ Button(kMin,L"Свернуть",780,15,46,40);Button(kClose,L"Закрыть",840,15,46,40);
+ launchButton=Button(kLaunch,L"Запустить Soulu",350,444,220,40);ShowWindow(launchButton,SW_HIDE);
  ShowWindow(window,SW_SHOW);SetFocus(mainButton);UpdateWindow(window);
  MSG message;while(GetMessageW(&message,nullptr,0,0)>0){
    if(message.message==WM_KEYDOWN&&message.wParam==VK_RETURN){Finish();continue;}
    if(message.message==WM_KEYDOWN&&message.wParam==VK_ESCAPE){SendMessageW(window,WM_CLOSE,0,0);continue;}
    if(!IsDialogMessageW(window,&message)){TranslateMessage(&message);DispatchMessageW(&message);}
  }
- CleanupWorker(false);if(icon)DestroyIcon(icon);delete logo;GdiplusShutdown(graphicsToken);return 0;
+ CleanupWorker(false);if(icon)DestroyIcon(icon);for(int i=0;i<3;++i){delete screens[i];if(screenStreams[i])screenStreams[i]->Release();}GdiplusShutdown(graphicsToken);return 0;
 }
