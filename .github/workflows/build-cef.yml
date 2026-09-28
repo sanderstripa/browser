@@ -166,6 +166,7 @@ jobs:
             }
             [DllImport("user32.dll")] public static extern void mouse_event(uint flags, uint dx, uint dy, uint data, UIntPtr extra);
             [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
+            [DllImport("user32.dll", EntryPoint="GetClassLongPtrW")] public static extern IntPtr GetClassLongPtr(IntPtr hWnd, int index);
             [DllImport("user32.dll")] static extern bool EnumChildWindows(IntPtr parent, EnumProc callback, IntPtr data);
             [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern int GetWindowText(IntPtr hwnd, System.Text.StringBuilder text, int max);
             [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern int GetClassName(IntPtr hwnd, System.Text.StringBuilder text, int max);
@@ -326,6 +327,8 @@ jobs:
           }
           if($soulu.MainWindowHandle -eq 0){throw 'Soulu taskbar window was not created'}
           $taskbarIcon=[MouseTest]::SendMessage($soulu.MainWindowHandle,0x007F,[IntPtr]2,[IntPtr]::Zero)
+          if($taskbarIcon -eq [IntPtr]::Zero){$taskbarIcon=[MouseTest]::GetClassLongPtr($soulu.MainWindowHandle,-34)}
+          if($taskbarIcon -eq [IntPtr]::Zero){$taskbarIcon=[MouseTest]::GetClassLongPtr($soulu.MainWindowHandle,-14)}
           if($taskbarIcon -eq [IntPtr]::Zero){throw 'Soulu taskbar window has no small icon'}
           [System.Drawing.Icon]::FromHandle($taskbarIcon).ToBitmap().Save((Join-Path $PWD 'browser/artifacts/taskbar-window-icon.png'))
           $soulu | Stop-Process -Force
