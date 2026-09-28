@@ -173,6 +173,7 @@ BrowserWindow::BrowserWindow()
   settings_->SetString("downloadsMode", "dynamic");
   settings_->SetString("startPageMode", "blank");
   settings_->SetString("startPageUrl", "");
+  settings_->SetBool("openStartPageAfterLastTab", false);
   settings_->SetBool("askDownloadLocation", true);
   settings_->SetString("downloadPath", "");
   settings_->SetString("updateChannel", "stable");
@@ -598,7 +599,17 @@ void BrowserWindow::CloseTab(int id) {
   const bool active = id == active_tab_id_;
   tabs_.erase(it);
   if (active) active_tab_id_ = 0;
-  if (!closing_ && active_tab_id_ == 0) NewTab();
+  if (!closing_ && active_tab_id_ == 0) {
+    if (settings_->GetBool("openStartPageAfterLastTab")) {
+      std::string start_url = "about:blank";
+      const std::string custom_url = settings_->GetString("startPageUrl");
+      if (settings_->GetString("startPageMode") == "custom" && !custom_url.empty())
+        start_url = NormalizeAddress(custom_url);
+      NewTab(start_url);
+    } else {
+      NewTab();
+    }
+  }
   Layout();
   EmitState();
 }
@@ -618,7 +629,17 @@ void BrowserWindow::BrowserClosed(CefRefPtr<CefBrowser> browser, int tab_id,
           });
       active_tab_id_ = next == tabs_.end() ? 0 : next->id;
     }
-    if (!closing_ && active_tab_id_ == 0) NewTab();
+    if (!closing_ && active_tab_id_ == 0) {
+      if (settings_->GetBool("openStartPageAfterLastTab")) {
+        std::string start_url = "about:blank";
+        const std::string custom_url = settings_->GetString("startPageUrl");
+        if (settings_->GetString("startPageMode") == "custom" && !custom_url.empty())
+          start_url = NormalizeAddress(custom_url);
+        NewTab(start_url);
+      } else {
+        NewTab();
+      }
+    }
   }
   if (closing_ && !shell_ && tabs_.empty()) DestroyWindow(hwnd_);
   else { Layout(); EmitState(); }
