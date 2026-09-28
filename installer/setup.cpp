@@ -77,12 +77,23 @@ void Paint(HDC dc){
  Graphics screen(dc);screen.DrawImage(&buffer,0,0);
 }
 void DrawButton(DRAWITEMSTRUCT* item){
- FillRect(item->hDC,&item->rcItem,static_cast<HBRUSH>(GetStockObject(BLACK_BRUSH)));
+ RECT screenRect={};GetWindowRect(item->hwndItem,&screenRect);
+ POINT origin={screenRect.left,screenRect.top};ScreenToClient(window,&origin);
+ const float x=origin.x/scale,y=origin.y/scale;
+ const float width=(screenRect.right-screenRect.left)/scale;
+ const float height=(screenRect.bottom-screenRect.top)/scale;
+ Graphics g(item->hDC);g.SetSmoothingMode(SmoothingModeAntiAlias);g.SetInterpolationMode(InterpolationModeHighQualityBicubic);g.SetPixelOffsetMode(PixelOffsetModeHighQuality);
+ if(Bitmap* image=CurrentScreen())
+   g.DrawImage(image,RectF(0,0,width*scale,height*scale),x,y,width,height,UnitPixel);
+ if(item->CtlID==kLaunch&&!launch){
+   g.ScaleTransform(scale,scale);
+   SolidBrush cover(Color(255,238,246,255));g.FillRectangle(&cover,10.0f,4.0f,29.0f,29.0f);
+   GraphicsPath box;Round(box,RectF(13,7,24,24),5);Pen line(Color(255,66,104,164),1.4f);g.DrawPath(&line,&box);
+ }
 }
 HWND Button(int id,const wchar_t* text,int x,int y,int width,int height){
- HWND button=CreateWindowExW(WS_EX_LAYERED,L"BUTTON",text,WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_OWNERDRAW,
+ HWND button=CreateWindowExW(0,L"BUTTON",text,WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_OWNERDRAW,
     Px(x),Px(y),Px(width),Px(height),window,reinterpret_cast<HMENU>(static_cast<INT_PTR>(id)),GetModuleHandleW(nullptr),nullptr);
- SetLayeredWindowAttributes(button,0,1,LWA_ALPHA);
  return button;
 }
 void ShowStage(Stage next){
