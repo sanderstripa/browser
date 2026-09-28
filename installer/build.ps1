@@ -3,7 +3,7 @@ $ErrorActionPreference='Stop'
 $payload=Join-Path $PSScriptRoot 'payload.exe'
 & "${env:ProgramFiles(x86)}\NSIS\makensis.exe" /INPUTCHARSET UTF8 "/DBUILD_DIR=$BuildDir" "/DOUT_FILE=$payload" "$PSScriptRoot/payload.nsi"
 if($LASTEXITCODE -ne 0){throw 'Payload compilation failed'}
-$icon=(Join-Path $BuildDir 'ui/browser-app-icon.ico').Replace('\','/')
+$icon=(Join-Path $BuildDir 'ui/soulu-icon.ico').Replace('\','/')
 $welcome=(Join-Path $PSScriptRoot 'assets/welcome.png').Replace('\','/')
 $installing=(Join-Path $PSScriptRoot 'assets/installing.png').Replace('\','/')
 $finished=(Join-Path $PSScriptRoot 'assets/finished.png').Replace('\','/')
