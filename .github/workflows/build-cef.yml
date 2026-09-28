@@ -27,7 +27,7 @@ jobs:
     runs-on: windows-2025
     timeout-minutes: 90
     env:
-      PREVIEW_VERSION: 0.9.0-cef-preview.20
+      PREVIEW_VERSION: 0.9.0-cef-preview.21
     steps:
       - name: Checkout Soulu
         uses: actions/checkout@v4
@@ -290,8 +290,15 @@ jobs:
             if(-not (Test-Path $link)){throw "Soulu shortcut missing: $link"}
             $iconLocation=$shortcutShell.CreateShortcut($link).IconLocation
             "Shortcut icon: $link -> $iconLocation"
-            if($iconLocation -notmatch 'soulu-icon-v20.ico'){throw "Shortcut still references stale icon: $iconLocation"}
+            if($iconLocation -notmatch 'soulu-icon-v21.ico'){throw "Shortcut still references stale icon: $iconLocation"}
           }
+          $uninstaller=Join-Path (Split-Path $installedExe) 'Uninstall Soulu.exe'
+          if(-not (Test-Path $uninstaller)){throw 'Uninstall Soulu.exe is missing'}
+          $uninstallIcon=[System.Drawing.Icon]::ExtractAssociatedIcon($uninstaller)
+          if(-not $uninstallIcon){throw 'Uninstall Soulu.exe has no associated icon'}
+          $uninstallIcon.ToBitmap().Save((Join-Path $PWD 'browser/artifacts/uninstaller-exe-icon.png'))
+          $appEntry=Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu'
+          if($appEntry.DisplayIcon -ne $installedExe){throw "Installed Apps icon target is wrong: $($appEntry.DisplayIcon)"}
           Start-Sleep -Seconds 4
           $process.Refresh()
           if ($process.HasExited) { throw "Installer closed without clicking Open" }
@@ -313,6 +320,14 @@ jobs:
             $soulu = Get-Process Soulu -ErrorAction SilentlyContinue
           }
           if (-not $soulu) { throw "Mouse click on Open did not launch Soulu" }
+          $windowDeadline=(Get-Date).AddSeconds(30)
+          while((Get-Date) -lt $windowDeadline -and $soulu.MainWindowHandle -eq 0){
+            Start-Sleep -Milliseconds 250;$soulu.Refresh()
+          }
+          if($soulu.MainWindowHandle -eq 0){throw 'Soulu taskbar window was not created'}
+          $taskbarIcon=[MouseTest]::SendMessage($soulu.MainWindowHandle,0x007F,[IntPtr]2,[IntPtr]::Zero)
+          if($taskbarIcon -eq [IntPtr]::Zero){throw 'Soulu taskbar window has no small icon'}
+          [System.Drawing.Icon]::FromHandle($taskbarIcon).ToBitmap().Save((Join-Path $PWD 'browser/artifacts/taskbar-window-icon.png'))
           $soulu | Stop-Process -Force
           "Physical mouse-click, extraction drag and persistent finish checks passed."
           # Repeat with launch unchecked: Done must close without starting Soulu.
@@ -378,6 +393,7 @@ jobs:
           generate_release_notes: true
           body: |
             Установщик полностью приведён к приложенному трёхэкранному концепту: приветствие, установка и завершение.
-            Во всех ресурсах приложения, установщика и ярлыков используется новая цветная иконка Soulu с набором размеров 16–256 px.
+            Иконка Soulu очищена от белого alpha-артефакта и увеличена внутри прозрачного canvas до 88–92%.
+            Во всех ресурсах приложения, деинсталлятора, установщика и ярлыков используется multi-resolution ICO 16–256 px.
             Функциональная часть браузера в этой итерации не изменялась.
           files: browser/artifacts/*
