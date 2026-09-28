@@ -208,7 +208,10 @@ try:
     assert (before.right-before.left)-(after.right-after.left)>80, 'Browser frame cannot resize by mouse'
     # Pixel-level proof: change the actual window BEHIND Soulu, then check that
     # the toolbar changes and fine stripes are blurred rather than copied sharply.
-    from PIL import ImageStat
+    from PIL import ImageStat, Image
+    import dxcam
+    print('Desktop capture devices:',dxcam.device_info(),dxcam.output_info())
+    camera=dxcam.create(output_color='RGB')
     user.CreateWindowExW.argtypes=[wintypes.DWORD,wintypes.LPCWSTR,wintypes.LPCWSTR,wintypes.DWORD,ctypes.c_int,ctypes.c_int,ctypes.c_int,ctypes.c_int,wintypes.HWND,wintypes.HMENU,wintypes.HINSTANCE,ctypes.c_void_p]
     user.CreateWindowExW.restype=wintypes.HWND
     user.SetWindowPos.argtypes=[wintypes.HWND,wintypes.HWND,ctypes.c_int,ctypes.c_int,ctypes.c_int,ctypes.c_int,wintypes.UINT]
@@ -253,7 +256,7 @@ try:
             print('Actual background reference',name,ImageStat.Stat(reference).mean)
             if name=='matte-red': assert ImageStat.Stat(reference).mean[0]>180, 'Test background did not paint red'
             if name=='matte-blue': assert ImageStat.Stat(reference).mean[2]>180, 'Test background did not paint blue'
-            shot=ImageGrab.grab(include_layered_windows=True,bbox=(after.left,after.top,after.right,after.bottom))
+            shot=Image.fromarray(camera.grab(region=(after.left,after.top,after.right,after.bottom),new_frame_only=False))
             shot.save('browser/artifacts/'+name+'.png')
             print('SOULU_SCREENSHOT:'+name+'='+base64.b64encode(open('browser/artifacts/'+name+'.png','rb').read()).decode())
             return shot.crop((100,12,145,38))
@@ -278,7 +281,7 @@ try:
             # host composition policy from CEF/child-window interference.
             user.ShowWindow(hwnd,0)
             refclass=WNDCLASS();refclass.lpfnWndProc=WNDPROC(user.DefWindowProcW);refclass.lpszClassName='SouluReferenceAcrylic'
-            refclass.hbrBackground=gdi.CreateSolidBrush(0)
+            refclass.hbrBackground=None
             user.RegisterClassW(ctypes.byref(refclass))
             reference=user.CreateWindowExW(0,refclass.lpszClassName,'Reference acrylic',0x90000000,after.left,after.top,after.right-after.left,after.bottom-after.top,None,None,None,None)
             class ACCENT(ctypes.Structure):

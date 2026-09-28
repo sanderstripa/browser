@@ -107,7 +107,7 @@ jobs:
       - name: Test live CEF settings and toolbar on Windows
         shell: pwsh
         run: |
-          python -m pip install --disable-pip-version-check websocket-client pillow
+          python -m pip install --disable-pip-version-check websocket-client pillow dxcam
           $personalize='HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize'
           New-Item $personalize -Force | Out-Null
           Set-ItemProperty $personalize EnableTransparency 1 -Type DWord
