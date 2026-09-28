@@ -7,11 +7,15 @@
 #include "include/cef_command_line.h"
 
 namespace {
-std::wstring LocalDataPath() {
+std::filesystem::path SouluDataRoot() {
   wchar_t buffer[MAX_PATH] = {};
   DWORD size = GetEnvironmentVariableW(L"LOCALAPPDATA", buffer, MAX_PATH);
   std::filesystem::path root = size ? buffer : L".";
-  return (root / L"Soulu" / L"CEF").wstring();
+  return root / L"Soulu";
+}
+
+std::wstring LocalDataPath() {
+  return (SouluDataRoot() / L"CEF").wstring();
 }
 }
 
@@ -38,7 +42,7 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, wchar_t*, int) {
     settings.remote_debugging_port = _wtoi(test_port);
   settings.multi_threaded_message_loop = false;
   CefString(&settings.cache_path) = LocalDataPath();
-  CefString(&settings.root_cache_path) = LocalDataPath();
+  CefString(&settings.root_cache_path) = SouluDataRoot().wstring();
   CefString(&settings.locale) = "ru-RU";
   CefString(&settings.accept_language_list) = "ru-RU,ru,en-US,en";
   if (!CefInitialize(main_args, settings, app, nullptr)) return 1;
