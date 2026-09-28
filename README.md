@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="ui/soulu-icon-new.png" width="150" alt="Soulu">
+  <img src="ui/soulu-icon.PNG" width="150" alt="Soulu">
 </p>
 
 <h1 align="center">Soulu</h1>
