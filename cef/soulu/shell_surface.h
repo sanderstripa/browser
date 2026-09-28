@@ -13,6 +13,7 @@ class ShellSurface final : public CefRenderHandler {
   void Focus();
   void Cursor(HCURSOR cursor);
   HWND hwnd() const { return hwnd_; }
+  int paint_error() const { return paint_error_; }
   int paint_count() const { return paint_count_; }
   int toolbar_alpha() const { return toolbar_alpha_; }
   void GetViewRect(CefRefPtr<CefBrowser>, CefRect& rect) override;
@@ -38,6 +39,7 @@ class ShellSurface final : public CefRenderHandler {
   int width_ = 1, height_ = 48;
   float scale_ = 1;
   bool tracking_ = false;
+  int paint_error_ = 0;
   int paint_count_ = 0, toolbar_alpha_ = 255;
   IMPLEMENT_REFCOUNTING(ShellSurface);
 };

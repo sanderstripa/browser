@@ -240,7 +240,7 @@ bool BrowserWindow::CreateNativeWindow() {
   const int height = std::min(820L, work.bottom - work.top - 60L);
   const int x = work.left + (work.right - work.left - width) / 2;
   const int y = work.top + (work.bottom - work.top - height) / 2;
-  hwnd_ = CreateWindowExW(WS_EX_NOREDIRECTIONBITMAP, kWindowClass, L"Soulu",
+  hwnd_ = CreateWindowExW(0, kWindowClass, L"Soulu",
                           WS_POPUP | WS_THICKFRAME | WS_MINIMIZEBOX |
                               WS_MAXIMIZEBOX | WS_SYSMENU,
                           x, y, width, height, nullptr, nullptr, wc.hInstance, this);
@@ -389,6 +389,15 @@ void BrowserWindow::ApplyWindowAppearance() {
   ResizeFrostedBackdrop(hwnd_,area.right,static_cast<int>((settings_->GetString("layout")=="classic"?82:48)*GetDpiForWindow(hwnd_)/96));
   const MARGINS glass=matte?MARGINS{-1,-1,-1,-1}:MARGINS{0,0,0,0};
   DwmExtendFrameIntoClientArea(hwnd_,&glass);
+  // Keep the native redirection surface for layered child chrome, but expose
+  // its transparent pixels to the desktop composition backdrop.
+  HRGN region=CreateRectRgn(0,0,-1,-1);
+  DWM_BLURBEHIND blur={};
+  blur.dwFlags=DWM_BB_ENABLE|DWM_BB_BLURREGION;
+  blur.fEnable=matte;
+  blur.hRgnBlur=region;
+  DwmEnableBlurBehindWindow(hwnd_,&blur);
+  DeleteObject(region);
   RedrawWindow(hwnd_,nullptr,nullptr,RDW_INVALIDATE|RDW_ERASE|RDW_FRAME|RDW_ALLCHILDREN);
 
 }
@@ -873,6 +882,7 @@ void BrowserWindow::HandleBridge(const std::string& request,
     auto result = CefDictionaryValue::Create();
     result->SetBool("nativeBlur",native_blur_);
     result->SetBool("windowless", shell_ && shell_->GetHost()->IsWindowRenderingDisabled());
+    result->SetInt("paintError", surface_ ? surface_->paint_error() : -1);
     result->SetInt("paintCount", surface_ ? surface_->paint_count() : 0);
     result->SetInt("toolbarAlpha", surface_ ? surface_->toolbar_alpha() : 255);
     return Reply(callback, result);

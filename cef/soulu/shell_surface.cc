@@ -76,7 +76,7 @@ void ShellSurface::OnPaint(CefRefPtr<CefBrowser>, PaintElementType type, const R
   if (width > 120 && height > 5) toolbar_alpha_ = static_cast<const unsigned char*>(buffer)[(4 * width + 110) * 4 + 3];
   SIZE size = {width, height}; POINT source = {0, 0};
   BLENDFUNCTION blend = {AC_SRC_OVER, 0, 255, AC_SRC_ALPHA};
-  UpdateLayeredWindow(hwnd_, nullptr, nullptr, &size, memory_, &source, 0, &blend, ULW_ALPHA);
+  paint_error_ = UpdateLayeredWindow(hwnd_, nullptr, nullptr, &size, memory_, &source, 0, &blend, ULW_ALPHA) ? 0 : static_cast<int>(GetLastError());
 }
 uint32_t ShellSurface::Modifiers() {
   uint32_t flags = 0;
