@@ -11,8 +11,8 @@ SetCompressor /SOLID lzma
 Name "Soulu"
 OutFile "${OUT_FILE}"
 InstallDir "$LOCALAPPDATA\Programs\Soulu"
-Icon "${BUILD_DIR}\ui\browser-app-icon.ico"
-UninstallIcon "${BUILD_DIR}\ui\browser-app-icon.ico"
+Icon "${BUILD_DIR}\ui\soulu-icon.ico"
+UninstallIcon "${BUILD_DIR}\ui\soulu-icon.ico"
 Section
   nsExec::ExecToStack /TIMEOUT=5000 'taskkill /F /IM Soulu.exe'
   Pop $0
@@ -24,15 +24,15 @@ Section
   File /r "${BUILD_DIR}\*"
   IfErrors install_failed
   SetOutPath "$INSTDIR\ui"
-  File /oname=soulu-icon-v22.ico "${BUILD_DIR}\ui\browser-app-icon.ico"
+  File /oname=soulu-icon-v24.ico "${BUILD_DIR}\ui\soulu-icon.ico"
   SetOutPath "$INSTDIR"
   WriteUninstaller "$INSTDIR\Uninstall Soulu.exe"
   WriteRegStr HKCU "Software\Soulu" "InstallDir" "$INSTDIR"
   CreateDirectory "$SMPROGRAMS\Soulu"
   Delete "$SMPROGRAMS\Soulu\Soulu.lnk"
   Delete "$DESKTOP\Soulu.lnk"
-  CreateShortcut "$SMPROGRAMS\Soulu\Soulu.lnk" "$INSTDIR\Soulu.exe" "" "$INSTDIR\ui\soulu-icon-v22.ico" 0 SW_SHOWNORMAL
-  CreateShortcut "$DESKTOP\Soulu.lnk" "$INSTDIR\Soulu.exe" "" "$INSTDIR\ui\soulu-icon-v22.ico" 0 SW_SHOWNORMAL
+  CreateShortcut "$SMPROGRAMS\Soulu\Soulu.lnk" "$INSTDIR\Soulu.exe" "" "$INSTDIR\ui\soulu-icon-v24.ico" 0 SW_SHOWNORMAL
+  CreateShortcut "$DESKTOP\Soulu.lnk" "$INSTDIR\Soulu.exe" "" "$INSTDIR\ui\soulu-icon-v24.ico" 0 SW_SHOWNORMAL
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "DisplayName" "Soulu"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "DisplayIcon" "$INSTDIR\Soulu.exe"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "UninstallString" '$"$INSTDIR\Uninstall Soulu.exe$"'
