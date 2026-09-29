@@ -28,6 +28,7 @@ jobs:
     runs-on: windows-2025
     timeout-minutes: 90
     env:
+      CEF_VERSION: 154.0.32+g682c378+chromium-154.0.8037.58
       PREVIEW_VERSION: 0.9.0-cef-preview.25
       PREVIEW_NUMBER: 25
     steps:
@@ -42,14 +43,22 @@ jobs:
           repository: chromiumembedded/cef-project
           path: cef-project
 
+      - name: Select stable CEF version
+        shell: pwsh
+        run: |
+          $path = "cef-project/CMakeLists.txt"
+          $content = Get-Content $path -Raw
+          $updated = $content -replace 'set\(CEF_VERSION "[^"]+"\)', "set(CEF_VERSION `"$env:CEF_VERSION`")"
+          if ($updated -eq $content) { throw "CEF_VERSION declaration not found" }
+          Set-Content $path $updated -NoNewline
+
       - name: Cache CEF download and build
         uses: actions/cache/restore@v4
         with:
           path: |
             cef-project/third_party/cef
             cef-build
-          key: soulu-cef-win64-144-win2025-v2
-          restore-keys: soulu-cef-win64-144-v1
+          key: soulu-cef-win64-${{ env.CEF_VERSION }}-win2025-v1
 
       - name: Add Soulu target and assets
         shell: pwsh
@@ -92,7 +101,7 @@ jobs:
           path: |
             cef-project/third_party/cef
             cef-build
-          key: soulu-cef-win64-144-win2025-v2
+          key: soulu-cef-win64-${{ env.CEF_VERSION }}-win2025-v1
 
       - name: Locate output and package ZIP
         id: package
