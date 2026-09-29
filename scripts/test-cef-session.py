@@ -66,9 +66,9 @@ def content_target(port: int, timeout: float = 30) -> dict:
 
 
 class DevTools:
-    def __init__(self, target: dict):
+    def __init__(self, target: dict, port: int):
         self.socket = websocket.create_connection(
-            target["webSocketDebuggerUrl"], timeout=5, origin="http://localhost"
+            target["webSocketDebuggerUrl"], timeout=5, origin=f"http://127.0.0.1:{port}"
         )
         self.next_id = 0
 
@@ -233,7 +233,7 @@ def main() -> int:
 
     try:
         process = launch(executable, data_root, debug_port)
-        devtools = DevTools(content_target(debug_port))
+        devtools = DevTools(content_target(debug_port), debug_port)
         try:
             navigate(devtools, f"http://127.0.0.1:{site_port}/")
             initial = write_site_state(devtools)
