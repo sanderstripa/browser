@@ -49,7 +49,13 @@ jobs:
           $path = "cef-project/CMakeLists.txt"
           $content = Get-Content $path -Raw
           $updated = $content -replace 'set\(CEF_VERSION "[^"]+"\)', "set(CEF_VERSION `"$env:CEF_VERSION`")"
+          $gtestTarget = 'add_subdirectory(${CEF_ROOT}/tests/gtest)'
+          $gmockTarget = 'add_subdirectory(${CEF_ROOT}/tests/gmock)'
+          if (-not $updated.Contains($gmockTarget)) {
+            $updated = $updated.Replace($gtestTarget, "$gmockTarget`n$gtestTarget")
+          }
           if ($updated -eq $content) { throw "CEF_VERSION declaration not found" }
+          if (-not $updated.Contains($gmockTarget)) { throw "CEF gmock target declaration not found" }
           Set-Content $path $updated -NoNewline
 
       - name: Cache CEF download and build
