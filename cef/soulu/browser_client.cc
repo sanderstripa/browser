@@ -3,6 +3,7 @@
 #include <string>
 
 #include "examples/soulu/browser_window.h"
+#include "include/cef_task.h"
 #include "include/wrapper/cef_helpers.h"
 
 namespace soulu {
@@ -25,6 +26,22 @@ class BridgeHandler final : public CefMessageRouterBrowserSide::Handler {
   }
  private:
   CefRefPtr<BrowserWindow> owner_;
+};
+
+class BrowserClosedTask final : public CefTask {
+ public:
+  BrowserClosedTask(CefRefPtr<BrowserWindow> owner, int tab_id, bool shell)
+      : owner_(owner), tab_id_(tab_id), shell_(shell) {}
+
+  void Execute() override {
+    owner_->BrowserClosed(nullptr, tab_id_, shell_);
+  }
+
+ private:
+  CefRefPtr<BrowserWindow> owner_;
+  const int tab_id_;
+  const bool shell_;
+  IMPLEMENT_REFCOUNTING(BrowserClosedTask);
 };
 }
 
@@ -69,7 +86,13 @@ void BrowserClient::OnBeforeClose(CefRefPtr<CefBrowser> browser) {
     bridge_.reset();
     router_ = nullptr;
   }
-  owner_->BrowserClosed(browser, tab_id_, role_ == BrowserRole::kShell);
+  // BrowserClosed may destroy the native top-level window when the final CEF
+  // browser closes. Doing that synchronously from OnBeforeClose tears down the
+  // Win32/CEF message loop while CEF is still unwinding this callback, which
+  // can produce an access violation during graceful WM_CLOSE shutdown.
+  // Defer only Soulu's bookkeeping until the callback has returned.
+  CefPostTask(TID_UI, new BrowserClosedTask(
+      owner_, tab_id_, role_ == BrowserRole::kShell));
 }
 
 void BrowserClient::OnTitleChange(CefRefPtr<CefBrowser>, const CefString& title) {
@@ -108,4 +131,3 @@ void BrowserClient::OnDownloadUpdated(CefRefPtr<CefBrowser>,
   owner_->UpdateDownload(item);
 }
 }
-
