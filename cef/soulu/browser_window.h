@@ -2,6 +2,7 @@
 
 #include <windows.h>
 
+#include <cstddef>
 #include <string>
 #include <vector>
 
@@ -13,6 +14,8 @@
 #include "include/wrapper/cef_message_router.h"
 
 namespace soulu {
+class CookieFlushCallback;
+
 class BrowserWindow final : public CefBaseRefCounted {
  public:
   static void Create();
@@ -33,6 +36,8 @@ class BrowserWindow final : public CefBaseRefCounted {
   void ApplyContentTheme();
 
  private:
+  friend class CookieFlushCallback;
+
   struct Tab {
     int id = 0;
     CefRefPtr<CefBrowser> browser;
@@ -76,6 +81,8 @@ class BrowserWindow final : public CefBaseRefCounted {
   void FocusAddress();
   void Layout();
   void CloseAll();
+  void CloseBrowsers();
+  void OnCookieFlushComplete();
   Tab* ActiveTab();
   Tab* FindTab(int id);
   std::string VisibleProfileId() const;
@@ -114,6 +121,7 @@ class BrowserWindow final : public CefBaseRefCounted {
   bool sidebar_visible_ = false;
   bool vpn_enabled_ = false;
   bool closing_ = false;
+  size_t pending_cookie_flushes_ = 0;
   IMPLEMENT_REFCOUNTING(BrowserWindow);
 };
 }
