@@ -9,7 +9,7 @@ on:
         default: false
         type: boolean
   push:
-    branches: [main]
+    branches: [main, cef-154-upgrade]
     paths:
       - "cef/**"
       - "installer/**"
@@ -30,6 +30,7 @@ jobs:
     env:
       PREVIEW_VERSION: 0.9.0-cef-preview.25
       PREVIEW_NUMBER: 25
+      CEF_VERSION: 154.0.32+g682c378+chromium-154.0.8037.58
     steps:
       - name: Checkout Soulu
         uses: actions/checkout@v4
@@ -42,14 +43,26 @@ jobs:
           repository: chromiumembedded/cef-project
           path: cef-project
 
+      - name: Pin CEF binary version
+        shell: pwsh
+        run: |
+          $cmake = 'cef-project/CMakeLists.txt'
+          $text = Get-Content $cmake -Raw
+          $pattern = 'set\(CEF_VERSION\s+"[^"]+"\)'
+          $replacement = 'set(CEF_VERSION "' + $env:CEF_VERSION + '")'
+          $updated = [regex]::Replace($text, $pattern, $replacement, 1)
+          if ($updated -eq $text) { throw 'CEF_VERSION line was not found in cef-project/CMakeLists.txt' }
+          Set-Content -Path $cmake -Value $updated -NoNewline
+          Write-Host "Pinned CEF to $env:CEF_VERSION"
+
       - name: Cache CEF download and build
         uses: actions/cache/restore@v4
         with:
           path: |
             cef-project/third_party/cef
             cef-build
-          key: soulu-cef-win64-144-win2025-v2
-          restore-keys: soulu-cef-win64-144-v1
+          key: soulu-cef-win64-154-win2025-v1
+          restore-keys: soulu-cef-win64-154-
 
       - name: Add Soulu target and assets
         shell: pwsh
@@ -92,7 +105,7 @@ jobs:
           path: |
             cef-project/third_party/cef
             cef-build
-          key: soulu-cef-win64-144-win2025-v2
+          key: soulu-cef-win64-154-win2025-v1
 
       - name: Locate output and package ZIP
         id: package
@@ -391,7 +404,7 @@ jobs:
           if-no-files-found: error
 
       - name: Publish Soulu release
-        if: github.event_name == 'push' || inputs.publish
+        if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || inputs.publish
         uses: softprops/action-gh-release@v2
         with:
           tag_name: preview-${{ env.PREVIEW_NUMBER }}
