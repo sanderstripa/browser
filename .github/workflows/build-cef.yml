@@ -52,6 +52,10 @@ jobs:
           $replacement = 'set(CEF_VERSION "' + $env:CEF_VERSION + '")'
           $updated = [regex]::Replace($text, $pattern, $replacement, 1)
           if ($updated -eq $text) { throw 'CEF_VERSION line was not found in cef-project/CMakeLists.txt' }
+          # CEF 154 binary distributions no longer expose the old cef_gmock target
+          # expected by cef-project's bundled test targets. Soulu only needs the
+          # libcef wrapper and examples, so skip upstream test applications.
+          $updated = [regex]::Replace($updated, '(?m)^add_subdirectory\(\$\{CEF_ROOT\}/tests/(cefclient|cefsimple|gtest|ceftests)\)\r?\n?', '')
           Set-Content -Path $cmake -Value $updated -NoNewline
           Write-Host "Pinned CEF to $env:CEF_VERSION"
 
