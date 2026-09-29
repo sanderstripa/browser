@@ -278,4 +278,10 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except Exception as error:
+        import traceback
+        traceback.print_exc()
+        print(f"::error file=scripts/test-cef-session.py,line=1::Session test failed: {type(error).__name__}: {error}", flush=True)
+        raise
