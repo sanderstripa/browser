@@ -139,6 +139,13 @@ jobs:
             Get-Process Soulu -ErrorAction SilentlyContinue | Stop-Process -Force
           }
 
+      - name: Test persistent CEF session across restart
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check websocket-client
+          $installedExe = Join-Path "${{ steps.package.outputs.build_dir }}" "Soulu.exe"
+          python browser/scripts/test-cef-session.py $installedExe
+
       - name: Build installer
         shell: pwsh
         run: |
