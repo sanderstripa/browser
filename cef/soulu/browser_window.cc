@@ -17,10 +17,24 @@
 #include "examples/soulu/frosted_backdrop.h"
 #include "examples/soulu/resource.h"
 #include "include/cef_app.h"
+#include "include/cef_cookie.h"
 #include "include/cef_parser.h"
 #include "include/wrapper/cef_helpers.h"
 
 namespace soulu {
+
+class CookieFlushCallback final : public CefCompletionCallback {
+ public:
+  explicit CookieFlushCallback(CefRefPtr<BrowserWindow> owner)
+      : owner_(owner) {}
+
+  void OnComplete() override { owner_->OnCookieFlushComplete(); }
+
+ private:
+  CefRefPtr<BrowserWindow> owner_;
+  IMPLEMENT_REFCOUNTING(CookieFlushCallback);
+};
+
 namespace {
 class SuggestClient final : public CefURLRequestClient {
  public:
@@ -1157,12 +1171,31 @@ void BrowserWindow::HandleBridge(const std::string& request,
   ReplyEmpty(callback);
 }
 
-void BrowserWindow::CloseAll() {
-  if (closing_) return;
-  closing_ = true;
+void BrowserWindow::OnCookieFlushComplete() {
+  if (pending_cookie_flushes_ == 0) return;
+  if (--pending_cookie_flushes_ == 0) CloseBrowsers();
+}
+
+void BrowserWindow::CloseBrowsers() {
   for (auto& tab : tabs_) if (tab.browser) tab.browser->GetHost()->CloseBrowser(true);
   if (shell_) shell_->GetHost()->CloseBrowser(true);
   if (!shell_ && tabs_.empty()) DestroyWindow(hwnd_);
+}
+
+void BrowserWindow::CloseAll() {
+  if (closing_) return;
+  closing_ = true;
+  pending_cookie_flushes_ = profiles_.size();
+  if (pending_cookie_flushes_ == 0) {
+    CloseBrowsers();
+    return;
+  }
+  for (auto& profile : profiles_) {
+    auto manager = profile.context
+        ? profile.context->GetCookieManager(nullptr) : nullptr;
+    if (!manager || !manager->FlushStore(new CookieFlushCallback(this)))
+      OnCookieFlushComplete();
+  }
 }
 
 LRESULT CALLBACK BrowserWindow::WindowProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam) {
