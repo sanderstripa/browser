@@ -1,0 +1,68 @@
+name: Publish CEF 154 Test Release
+
+on:
+  push:
+    branches: [cef-154-upgrade]
+    paths:
+      - ".github/workflows/publish-cef154-test.yml"
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      ARTIFACT_NAME: Soulu-Preview-25-x64
+      TAG: cef154-test-1
+    steps:
+      - name: Find latest CEF 154 build artifact
+        id: run
+        shell: bash
+        run: |
+          set -euo pipefail
+          run_id="$(gh run list \
+            --repo "$REPO" \
+            --branch cef-154-upgrade \
+            --workflow "Build Soulu Preview" \
+            --limit 20 \
+            --json databaseId,status \
+            --jq '[.[] | select(.status == "completed")][0].databaseId')"
+          if [[ -z "$run_id" || "$run_id" == "null" ]]; then
+            echo "No completed Build Soulu Preview run found on cef-154-upgrade" >&2
+            exit 1
+          fi
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+          echo "Using workflow run $run_id"
+
+      - name: Download installer and ZIP from build artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          gh run download "${{ steps.run.outputs.run_id }}" \
+            --repo "$REPO" \
+            --name "$ARTIFACT_NAME" \
+            --dir dist
+          test -f dist/Soulu-Preview-25-x64.exe
+          test -f dist/Soulu-Preview-25-x64.zip
+          ls -lah dist
+
+      - name: Publish GitHub prerelease
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
+            gh release delete "$TAG" --repo "$REPO" --yes --cleanup-tag
+          fi
+          gh release create "$TAG" \
+            dist/Soulu-Preview-25-x64.exe \
+            dist/Soulu-Preview-25-x64.zip \
+            --repo "$REPO" \
+            --target cef-154-upgrade \
+            --title "Soulu CEF 154 Test" \
+            --prerelease \
+            --notes "Тестовая сборка Soulu на CEF 154.0.32 / Chromium 154.0.8037.58 из ветки cef-154-upgrade. Основная сборка Soulu и установщик успешно собраны; известный smoke-тест интерфейса установщика в CI завершился ошибкой, поэтому релиз помечен как prerelease для ручной проверки. Main не изменён."
