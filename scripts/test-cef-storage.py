@@ -166,12 +166,16 @@ def main():
         local_value = evaluate(ws, "localStorage.getItem('soulu-test')")
         cookies = command(ws, "Network.getAllCookies").get("cookies", [])
         command(ws, "IndexedDB.enable")
+        frame_id = command(ws, "Page.getFrameTree")["frameTree"]["frame"]["id"]
+        storage_key = command(ws, "Storage.getStorageKeyForFrame", {
+            "frameId": frame_id
+        })["storageKey"]
         databases = command(ws, "IndexedDB.requestDatabaseNames", {
-            "securityOrigin": origin
+            "storageKey": storage_key
         }).get("databaseNames", [])
         assert "soulu-test-db" in databases, databases
         entries = command(ws, "IndexedDB.requestData", {
-            "securityOrigin": origin,
+            "storageKey": storage_key,
             "databaseName": "soulu-test-db",
             "objectStoreName": "values",
             "indexName": "",
