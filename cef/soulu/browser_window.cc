@@ -551,6 +551,9 @@ int BrowserWindow::PreparePopup(int source_id, const std::string& url,
   GetClientRect(hwnd_, &rect);
   info.SetAsChild(hwnd_, CefRect(0, 48, rect.right,
                                 std::max(1L, rect.bottom - 48L)));
+  // Soulu owns the window and tab lifecycle. The default Chrome runtime
+  // creates a Chrome Browser window even when a native parent is supplied.
+  info.runtime_style = CEF_RUNTIME_STYLE_ALLOY;
   // Keep the child hidden until AttachContent applies the selected tab's layout.
   info.style &= ~WS_VISIBLE;
   EmitState();
@@ -586,6 +589,7 @@ void BrowserWindow::NewTab(const std::string& url, bool incognito,
   CefWindowInfo info;
   info.SetAsChild(hwnd_, CefRect(0, 48, rect.right,
                                 std::max(1L, rect.bottom - 48L)));
+  info.runtime_style = CEF_RUNTIME_STYLE_ALLOY;
   if (!foreground) info.style &= ~WS_VISIBLE;
   CefBrowserSettings browser_settings;
   const bool dark = settings_->GetString("theme") == "dark" || (settings_->GetString("theme") == "system" && IsWindowsDarkMode());
