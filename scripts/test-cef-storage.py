@@ -4,10 +4,13 @@ import http.server
 import json
 import os
 import socket
+import sqlite3
 import subprocess
 import sys
 import threading
 import time
+import tempfile
+from pathlib import Path
 import urllib.request
 
 import websocket
@@ -31,6 +34,7 @@ class SiteHandler(http.server.BaseHTTPRequestHandler):
         if self.path.startswith("/seed"):
             # Deliberately a session cookie: no Expires or Max-Age.
             self.send_header("Set-Cookie", f"soulu_auth={COOKIE_VALUE}; Path=/; HttpOnly; SameSite=Lax")
+            self.send_header("Set-Cookie", f"soulu_persistent={COOKIE_VALUE}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400")
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
@@ -94,7 +98,7 @@ def navigate(ws, url):
     command(ws, "Page.navigate", {"url": url})
     deadline = time.monotonic() + 20
     while time.monotonic() < deadline:
-        if evaluate(ws, "document.readyState") == "complete":
+        if evaluate(ws, "location.href") == url and evaluate(ws, "document.readyState") == "complete":
             return
         time.sleep(0.2)
     raise AssertionError(f"Page did not load: {url}")
@@ -121,13 +125,27 @@ def close_normally(process):
     process.wait(timeout=30)
 
 
-def launch(executable):
+def launch(executable, data_root):
     environment = os.environ.copy()
     environment["SOULU_UI_TEST_PORT"] = str(DEBUG_PORT)
+    environment["LOCALAPPDATA"] = str(data_root)
     return subprocess.Popen([executable], env=environment)
 
 
-def main():
+def verify_profile_cookies(data_root):
+    # Inspect the content profile, never the shell/global cookie manager.
+    profile = data_root / "Soulu" / "User Data" / "Profiles" / "personal"
+    database = profile / "Network" / "Cookies"
+    assert database.is_file(), f"Content profile cookie database missing: {database}"
+    with sqlite3.connect(f"{database.as_uri()}?mode=ro", uri=True) as connection:
+        rows = dict(connection.execute(
+            "SELECT name, is_persistent FROM cookies WHERE host_key = ?",
+            ("127.0.0.1",)))
+    assert rows.get("soulu_auth") == 0, rows
+    assert rows.get("soulu_persistent") == 1, rows
+
+
+def run(data_root):
     if len(sys.argv) != 2:
         raise SystemExit("usage: test-cef-storage.py <Soulu.exe>")
     executable = os.path.abspath(sys.argv[1])
@@ -136,7 +154,7 @@ def main():
     threading.Thread(target=server.serve_forever, daemon=True).start()
     origin = f"http://127.0.0.1:{site_port}"
 
-    first = launch(executable)
+    first = launch(executable, data_root)
     try:
         ws = page_socket()
         navigate(ws, origin + "/seed")
@@ -168,11 +186,12 @@ def main():
         assert any(item["name"] == "soulu_auth" and item["value"] == COOKIE_VALUE for item in cookies)
         ws.close()
         close_normally(first)
+        verify_profile_cookies(data_root)
     finally:
         if first.poll() is None:
             first.kill()
 
-    second = launch(executable)
+    second = launch(executable, data_root)
     try:
         ws = page_socket()
         navigate(ws, origin + "/verify")
@@ -202,7 +221,9 @@ def main():
         ), None)
         cookie_value = next((item["value"] for item in cookies if item["name"] == "soulu_auth"), None)
         assert cookie_value == COOKIE_VALUE, f"session cookie missing after restart: {cookie_value!r}"
+        assert any(item["name"] == "soulu_persistent" and item["value"] == COOKIE_VALUE for item in cookies), cookies
         assert f"soulu_auth={COOKIE_VALUE}" in received_cookie, received_cookie
+        assert f"soulu_persistent={COOKIE_VALUE}" in received_cookie, received_cookie
         assert local_value == STORAGE_VALUE, local_value
         assert indexed_value == IDB_VALUE, indexed_value
         print(json.dumps({
@@ -211,6 +232,8 @@ def main():
             "localStorage": "preserved",
             "IndexedDB": "preserved",
             "clean_restart": True,
+            "content_profile_cookie_database": "verified",
+            "persistent_cookie": "preserved",
         }))
         ws.close()
         close_normally(second)
@@ -221,4 +244,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    with tempfile.TemporaryDirectory(prefix="soulu-auth-regression-") as directory:
+        run(Path(directory))
