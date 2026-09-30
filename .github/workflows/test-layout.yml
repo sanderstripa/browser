@@ -1,0 +1,115 @@
+name: Soulu layout test build
+on:
+  push:
+    branches: [codex/layout-resize-composition]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  layout:
+    runs-on: windows-2025
+    timeout-minutes: 45
+    steps:
+      - name: Checkout Soulu
+        uses: actions/checkout@v4
+        with:
+          path: browser
+
+      - name: Checkout official CEF project
+        uses: actions/checkout@v4
+        with:
+          repository: chromiumembedded/cef-project
+          ref: 3aec7049cf63a36876d7a6ef538842d6af314482
+          path: cef-project
+
+      - name: Pin the approved CEF distribution on a clean path
+        shell: pwsh
+        run: |
+          if ((Test-Path cef-project/third_party/cef) -or (Test-Path cef-build)) {
+            throw 'Clean build required: CEF distribution or build directory already exists'
+          }
+          $index = Invoke-RestMethod 'https://cef-builds.spotifycdn.com/index.json'
+          $versions = @($index.windows64.versions | Where-Object {
+            $_.cef_version -match '^154\.0\.32\+g[0-9a-f]+\+chromium-154\.0\.8037\.58$' -and
+            $_.chromium_version -eq '154.0.8037.58'
+          })
+          if ($versions.Count -ne 1) { throw 'Exactly one approved CEF distribution must exist; no fallback allowed' }
+          $version = $versions[0].cef_version
+          $cmakeFile = 'cef-project/CMakeLists.txt'
+          $cmake = Get-Content $cmakeFile -Raw
+          $pattern = 'set\(CEF_VERSION "[^"]+"\)'
+          if ([regex]::Matches($cmake, $pattern).Count -ne 1) { throw 'CEF project version declaration changed' }
+          $cmake = [regex]::Replace($cmake, $pattern, ('set(CEF_VERSION "' + $version + '")'))
+          # Soulu needs the wrapper and examples, not upstream CEF test applications.
+          # The project snapshot's test targets are incompatible with this distribution.
+          foreach ($target in @('cefclient', 'cefsimple', 'gtest', 'ceftests')) {
+            $line = 'add_subdirectory(${CEF_ROOT}/tests/' + $target + ')'
+            if (!$cmake.Contains($line)) { throw "Upstream target declaration changed: $target" }
+            $cmake = $cmake.Replace($line, '')
+          }
+          Set-Content $cmakeFile $cmake -Encoding utf8
+          Write-Host "Pinned CEF distribution: $version"
+
+      - name: Add Soulu target and assets
+        shell: pwsh
+        run: |
+          Copy-Item -Recurse -Force browser/cef/soulu cef-project/examples/soulu
+          New-Item -ItemType Directory -Force cef-project/examples/soulu/assets/ui | Out-Null
+          New-Item -ItemType Directory -Force cef-project/examples/soulu/assets/vpn | Out-Null
+          Copy-Item -Recurse -Force browser/ui/* cef-project/examples/soulu/assets/ui/
+          Copy-Item -Recurse -Force browser/vpn/* cef-project/examples/soulu/assets/vpn/
+          Add-Content cef-project/examples/CMakeLists.txt "`nadd_subdirectory(soulu)`n"
+
+      - name: Use CEF-compatible Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install CEF Python compatibility package
+        shell: pwsh
+        run: python -m pip install --disable-pip-version-check six
+
+      - name: Configure CEF
+        shell: pwsh
+        run: |
+          cmake -S cef-project -B cef-build -A x64 -DUSE_SANDBOX=OFF
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Build Soulu
+        shell: pwsh
+        run: |
+          cmake --build cef-build --config Release --target soulu --parallel 2
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Package verified fresh test build
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem cef-build -Recurse -Filter Soulu.exe | Where-Object { $_.FullName -match 'Release' } | Select-Object -First 1
+          if (!$exe) { throw 'No test executable' }
+          $buildDir = $exe.Directory.FullName
+          New-Item -ItemType Directory -Force browser/artifacts | Out-Null
+          & ./browser/scripts/verify-cef-engine.ps1 -BuildDir $buildDir -ReportPath browser/artifacts/engine-version.json
+          Compress-Archive -Path "$buildDir/*" -DestinationPath browser/artifacts/Soulu-layout-test-x64.zip
+          "SOULU_TEST_EXE=$($exe.FullName)" >> $env:GITHUB_ENV
+      - name: Upload test build for manual review
+        uses: actions/upload-artifact@v4
+        with:
+          name: Soulu-layout-test-x64
+          path: |
+            browser/artifacts/Soulu-layout-test-x64.zip
+            browser/artifacts/engine-version.json
+          if-no-files-found: error
+      - name: Exercise actual native sizing loop and Chromium viewport
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check websocket-client pillow
+          python browser/scripts/test-cef-layout.py "$env:SOULU_TEST_EXE" browser/artifacts/layout-evidence
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Upload layout evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Soulu-layout-evidence
+          path: browser/artifacts/layout-evidence
+          if-no-files-found: ignore
+
