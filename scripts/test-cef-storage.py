@@ -114,7 +114,11 @@ def close_normally(process):
     def callback(hwnd, _):
         pid = ctypes.c_ulong()
         user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
-        if pid.value == process.pid and user32.IsWindowVisible(hwnd):
+        class_name = ctypes.create_unicode_buffer(256)
+        user32.GetClassNameW(hwnd, class_name, len(class_name))
+        # Close the application host, not a Chromium-owned popup/tooltip that
+        # can precede it in EnumWindows and leave the application running.
+        if pid.value == process.pid and class_name.value == 'SouluBrowserWindow':
             handles.append(hwnd)
             return False
         return True

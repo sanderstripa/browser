@@ -93,17 +93,25 @@ jobs:
           key: soulu-preview31-cef154-win2025-${{ hashFiles('browser/cef/**') }}
       - name: Verify persistent cookies and storage
         id: storage
-        continue-on-error: true
         shell: pwsh
         run: |
+          $env:LOCALAPPDATA = Join-Path $env:RUNNER_TEMP 'soulu-preview31-storage'
           python browser/scripts/test-cef-storage.py '${{ steps.binary.outputs.build_dir }}/Soulu.exe'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Verify popup and background tabs
         id: navigation
+        shell: pwsh
+        run: |
+          $env:LOCALAPPDATA = Join-Path $env:RUNNER_TEMP 'soulu-preview31-navigation'
+          python browser/scripts/test-cef-navigation.py '${{ steps.binary.outputs.build_dir }}/Soulu.exe'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Record live site navigation and TLS
+        id: sites
         continue-on-error: true
         shell: pwsh
         run: |
-          python browser/scripts/test-cef-navigation.py '${{ steps.binary.outputs.build_dir }}/Soulu.exe'
+          $env:LOCALAPPDATA = Join-Path $env:RUNNER_TEMP 'soulu-preview31-sites'
+          python browser/scripts/test-cef-sites.py '${{ steps.binary.outputs.build_dir }}/Soulu.exe' browser/artifacts/site-navigation.json
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Package ZIP and installer
         shell: pwsh
@@ -123,6 +131,9 @@ jobs:
           $setup = Start-Process (Join-Path $PWD 'browser/installer/payload.exe') -ArgumentList @('/S', "/D=$dir") -WindowStyle Hidden -Wait -PassThru
           if ($setup.ExitCode -ne 0) { throw "Installer failed: $($setup.ExitCode)" }
           if ((Get-Item "$dir/libcef.dll").VersionInfo.ProductVersion -ne $env:CEF_VERSION) { throw 'Installed CEF version mismatch' }
+          $env:LOCALAPPDATA = Join-Path $env:RUNNER_TEMP 'soulu-preview31-installed'
+          python browser/scripts/test-cef-storage.py "$dir/Soulu.exe"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Record checksums
         shell: pwsh
         run: |

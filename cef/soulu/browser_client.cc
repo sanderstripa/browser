@@ -110,7 +110,16 @@ void BrowserClient::OnBeforePopupAborted(CefRefPtr<CefBrowser>, int popup_id) {
   pending_popups_.erase(it);
 }
 
-bool BrowserClient::DoClose(CefRefPtr<CefBrowser>) { return false; }
+bool BrowserClient::DoClose(CefRefPtr<CefBrowser> browser) {
+  CEF_REQUIRE_UI_THREAD();
+  if (role_ == BrowserRole::kShell) return false;
+  // Alloy's default close targets the top-level parent. A tab must destroy
+  // only its own child HWND, allowing OnBeforeClose to update the tab manager.
+  // The Soulu host stays alive until every browser and cookie flush completes.
+  const HWND child = browser->GetHost()->GetWindowHandle();
+  if (child && IsWindow(child)) DestroyWindow(child);
+  return true;
+}
 
 void BrowserClient::OnBeforeClose(CefRefPtr<CefBrowser> browser) {
   CEF_REQUIRE_UI_THREAD();

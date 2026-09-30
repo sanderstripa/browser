@@ -373,7 +373,9 @@ CefRefPtr<CefRequestContext> BrowserWindow::ContextForNewTab(bool incognito) {
 void BrowserWindow::ApplyProxy(CefRefPtr<CefRequestContext> context) {
   if (!context) return;
   auto proxy = CefDictionaryValue::Create();
-  proxy->SetString("mode", vpn_enabled_ ? "fixed_servers" : "direct");
+  // With Soulu's tunnel off, respect the user's existing system network route.
+  // Forcing direct bypasses a configured Windows proxy and breaks reachable sites.
+  proxy->SetString("mode", vpn_enabled_ ? "fixed_servers" : "system");
   if (vpn_enabled_) {
     proxy->SetString("server", "socks5://127.0.0.1:17890");
     proxy->SetString("bypass_list", "<-loopback>");

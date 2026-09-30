@@ -1,5 +1,6 @@
 """Small release smoke check for native CEF popup ownership and tab activation."""
 import importlib.util
+import ctypes
 import json
 import pathlib
 import sys
@@ -20,6 +21,26 @@ def wait_for(predicate):
     raise AssertionError('Tab state did not reach expected condition')
 
 
+def native_windows(process):
+    """Include owned popups too: none may escape Soulu's child tab host."""
+    windows = []
+    user32 = ctypes.windll.user32
+    callback_type = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
+    user32.GetWindow.argtypes = [ctypes.c_void_p, ctypes.c_uint]
+    user32.GetWindow.restype = ctypes.c_void_p
+
+    @callback_type
+    def collect(hwnd, _):
+        pid = ctypes.c_ulong()
+        user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+        if pid.value == process.pid and user32.IsWindowVisible(hwnd):
+            windows.append(hwnd)
+        return True
+
+    user32.EnumWindows(collect, 0)
+    return sorted(windows)
+
+
 process = s.launch(sys.argv[1])
 try:
     shell_target = next(t for t in s.targets() if '/ui/index.html' in t.get('url', ''))
@@ -30,7 +51,10 @@ try:
     def state():
         return s.evaluate(shell, 'window.browserShell.getState()')
 
+    wait_for(lambda: s.evaluate(shell, 'typeof window.browserShell !== "undefined"'))
     initial = state()
+    main_windows = native_windows(process)
+    assert len(main_windows) == 1, {'initial_native_windows': main_windows}
     opener_id = initial['activeTabId']
     s.navigate(content, 'data:text/html,<title>Soulu navigation opener</title><a id="link" href="about:blank" target="_blank">popup</a>')
     initial_url = s.evaluate(content, 'location.href')
@@ -41,6 +65,7 @@ try:
     popup_state = wait_for(lambda: (v if len(v['tabs']) == 2 and v['activeTabId'] != opener_id else None)
                            if (v := state()) else None)
     popup_id = popup_state['activeTabId']
+    assert native_windows(process) == main_windows, 'window.open created another native window'
     assert any(t['id'] == opener_id for t in popup_state['tabs']), popup_state
     popup_target = next(t for t in s.targets() if t.get('type') == 'page' and t.get('url') == 'about:blank')
     popup = s.websocket.create_connection(popup_target['webSocketDebuggerUrl'], timeout=30, origin=s.BASE)
@@ -49,6 +74,14 @@ try:
     closed = wait_for(lambda: (v if len(v['tabs']) == 1 and v['activeTabId'] == opener_id else None)
                      if (v := state()) else None)
     assert s.evaluate(content, 'location.href') == initial_url
+
+    # An ordinary target=_blank click must use the same ownership path.
+    s.command(content, 'Runtime.evaluate', {'expression': "document.getElementById('link').click()", 'userGesture': True})
+    blank = wait_for(lambda: (v if len(v['tabs']) == 2 and v['activeTabId'] != opener_id else None)
+                     if (v := state()) else None)
+    assert native_windows(process) == main_windows, 'target=_blank created another native window'
+    s.evaluate(shell, f"window.browserShell.closeTab({blank['activeTabId']})")
+    wait_for(lambda: len(state()['tabs']) == 1)
 
     # Chromium's modifier-click path exercises the background disposition.
     s.command(content, 'Runtime.evaluate', {'expression': "document.getElementById('link').removeAttribute('target')"})
@@ -60,10 +93,12 @@ try:
         })
     background = wait_for(lambda: (v if len(v['tabs']) == 2 else None) if (v := state()) else None)
     assert background['activeTabId'] == opener_id, background
+    assert native_windows(process) == main_windows, 'background tab created another native window'
     assert s.evaluate(content, 'location.href') == initial_url
     assert not any(t.get('url', '').startswith('chrome://omnibox-popup') for t in s.targets())
     print(json.dumps({'window_open': 'internal tab', 'opener': 'preserved',
-                      'popup_close': 'opener retained', 'background_tab': 'active tab retained'}))
+                      'popup_close': 'opener retained', 'background_tab': 'active tab retained',
+                      'top_level_windows': len(main_windows)}))
     content.close()
     shell.close()
     s.close_normally(process)
