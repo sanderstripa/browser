@@ -2,7 +2,6 @@
 
 #include <filesystem>
 #include <cstdlib>
-#include <fstream>
 
 #include "examples/soulu/app_factory.h"
 #include "include/cef_command_line.h"
@@ -51,9 +50,7 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, wchar_t*, int) {
   CefString(&settings.accept_language_list) = "ru-RU,ru,en-US,en";
   if (!CefInitialize(main_args, settings, app, nullptr)) return 1;
   CefRunMessageLoop();
-  if (test_port[0]) std::ofstream(SouluDataRoot() / L"auth-shutdown.log") << "message loop exited; entering CefShutdown\n";
   CefShutdown();
-  if (test_port[0]) std::ofstream(SouluDataRoot() / L"auth-shutdown.log", std::ios::app) << "CefShutdown returned\n";
   return 0;
 }
 

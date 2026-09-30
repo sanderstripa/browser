@@ -203,8 +203,6 @@ def run(data_root):
     finally:
         if first.poll() is None:
             first.kill()
-        for diagnostic in data_root.rglob("auth-shutdown.log"):
-            print(diagnostic.read_text(), flush=True)
 
     second = launch(executable, data_root)
     try:
@@ -225,7 +223,6 @@ def run(data_root):
             "storageKey": storage_key,
             "databaseName": "soulu-test-db",
             "objectStoreName": "values",
-            "indexName": "",
             "skipCount": 0,
             "pageSize": 10,
         }).get("objectStoreDataEntries", [])
