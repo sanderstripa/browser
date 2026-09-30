@@ -619,6 +619,19 @@ void BrowserWindow::AttachShell(CefRefPtr<CefBrowser> browser) {
 
 void BrowserWindow::AttachContent(int tab_id, CefRefPtr<CefBrowser> browser) {
   if (auto* tab = FindTab(tab_id)) tab->browser = browser;
+  wchar_t test_port[12] = {};
+  if (GetEnvironmentVariableW(L"SOULU_UI_TEST_PORT", test_port, 12) > 0) {
+    const auto context = browser->GetHost()->GetRequestContext();
+    auto diagnostic = CefDictionaryValue::Create();
+    diagnostic->SetString("cache_path", context->GetCachePath());
+    if (auto* tab = FindTab(tab_id)) {
+      diagnostic->SetString("profile_id", tab->profile_id);
+      for (const auto& profile : profiles_)
+        if (profile.id == tab->profile_id)
+          diagnostic->SetBool("same_context", context->IsSame(profile.context));
+    }
+    std::ofstream(UserDataDirectory() / L"auth-context.json") << CefWriteJSON(Wrap(diagnostic), JSON_WRITER_DEFAULT);
+  }
   Layout();
   EmitState();
 }

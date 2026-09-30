@@ -1,6 +1,7 @@
 """Regression test for persistent CEF profile cookies and site storage."""
 import ctypes
 import http.server
+import hashlib
 import json
 import os
 import socket
@@ -160,6 +161,19 @@ def verify_profile_cookies(data_root):
     assert rows.get("soulu_persistent") == 1, rows
 
 
+def profile_diagnostics(data_root):
+    for state_path in data_root.rglob("Local State"):
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        print(json.dumps({"local_state": str(state_path),
+                          "os_crypt_fingerprints": {key: hashlib.sha256(str(value).encode()).hexdigest()
+                                                    for key, value in state.get("os_crypt", {}).items()}}), flush=True)
+    context_path = data_root / "Soulu" / "User Data" / "auth-context.json"
+    context = json.loads(context_path.read_text())
+    print(json.dumps({"actual_content_context": context}), flush=True)
+    assert context["same_context"] and context["profile_id"] == "personal", context
+    assert Path(context["cache_path"]) == data_root / "Soulu" / "User Data" / "Profiles" / "personal", context
+
+
 def run(data_root):
     if len(sys.argv) != 2:
         raise SystemExit("usage: test-cef-storage.py <Soulu.exe>")
@@ -202,6 +216,7 @@ def run(data_root):
         ws.close()
         close_normally(first)
         verify_profile_cookies(data_root)
+        profile_diagnostics(data_root)
     finally:
         if first.poll() is None:
             first.kill()
@@ -209,6 +224,7 @@ def run(data_root):
     second = launch(executable, data_root)
     try:
         ws = page_socket()
+        profile_diagnostics(data_root)
         command(ws, "Network.enable")
         navigate(ws, origin + "/verify")
         local_value = evaluate(ws, "localStorage.getItem('soulu-test')")
