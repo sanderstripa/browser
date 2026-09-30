@@ -21,6 +21,7 @@ import websocket
 from PIL import ImageGrab
 
 u = C.WinDLL('user32', use_last_error=True)
+dwm = C.WinDLL('dwmapi')
 u.FindWindowW.argtypes = [W.LPCWSTR, W.LPCWSTR]
 u.FindWindowW.restype = W.HWND
 u.GetClientRect.argtypes = [W.HWND, C.POINTER(W.RECT)]
@@ -36,6 +37,7 @@ u.PostMessageW.argtypes = [W.HWND, W.UINT, W.WPARAM, W.LPARAM]
 u.MapWindowPoints.argtypes = [W.HWND, W.HWND, C.POINTER(W.POINT), W.UINT]
 CALLBACK = C.WINFUNCTYPE(W.BOOL, W.HWND, W.LPARAM)
 u.EnumChildWindows.argtypes = [W.HWND, CALLBACK, W.LPARAM]
+u.EnumWindows.argtypes = [CALLBACK, W.LPARAM]
 u.IsWindowVisible.argtypes = [W.HWND]
 u.GetWindowThreadProcessId.argtypes = [W.HWND, C.POINTER(W.DWORD)]
 u.GetWindowThreadProcessId.restype = W.DWORD
@@ -64,12 +66,27 @@ def wait(fn, timeout=20):
     raise AssertionError(f'timed out: {last}')
 
 def targets():
-    with urllib.request.urlopen(base + '/json/list', timeout=2) as r:
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    with opener.open(base + '/json/list', timeout=2) as r:
         return json.load(r)
 
 def connect(fragment, exclude=()):
     target = wait(lambda: next((t for t in targets() if fragment in t.get('url', '') and t['type'] == 'page' and t['id'] not in exclude), None))
-    return websocket.create_connection(target['webSocketDebuggerUrl'], timeout=4, origin=base)
+    return websocket.create_connection(target['webSocketDebuggerUrl'], timeout=4, origin=base, http_no_proxy=['127.0.0.1', 'localhost'])
+
+def own_window():
+    result = []
+    @CALLBACK
+    def visit(hwnd, _):
+        pid = W.DWORD()
+        u.GetWindowThreadProcessId(hwnd, C.byref(pid))
+        name = C.create_unicode_buffer(128)
+        u.GetClassNameW(hwnd, name, len(name))
+        if pid.value == process.pid and name.value == 'SouluBrowserWindow':
+            result.append(hwnd)
+        return True
+    u.EnumWindows(visit, 0)
+    return result[0] if result else None
 
 def evaluate(ws, expression):
     global seq
@@ -125,13 +142,23 @@ def check(label, sidebar=False, screenshot=False):
         assert abs(viewport['w'] * viewport['dpr'] - content[2]) <= 2, (label, viewport, content)
         assert abs(viewport['h'] * viewport['dpr'] - content[3]) <= 2, (label, viewport, content)
         assert abs(dom['w'] * dom['dpr'] - width) <= 2, (label, dom, width)
+        assert abs(dom['h'] * dom['dpr'] - toolbar[3]) <= 2, (label, dom, toolbar)
         return {'scenario': label, 'client': [width, height], 'shell': toolbar, 'content': content, 'viewport': viewport, 'shellDOM': dom}
     row = wait(sample)
-    checks.append(row)
     if screenshot:
+        # DOM/viewport acknowledgement precedes raster and DWM presentation.
+        # Synchronize evidence with two renderer frames and compositor flush;
+        # an immediate screenshot can still contain the previous backing frame.
+        frame = 'new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))'
+        frame_start = time.monotonic()
+        evaluate(page, frame)
+        evaluate(shell, frame)
+        assert dwm.DwmFlush() == 0
+        row['presentationWaitMs'] = round((time.monotonic() - frame_start) * 1000)
         r = W.RECT()
         u.GetWindowRect(window, C.byref(r))
         ImageGrab.grab(bbox=(r.left, r.top, r.right, r.bottom)).save(out / (label + '.png'))
+    checks.append(row)
     print(json.dumps(row), flush=True)
 
 def resize(width, height):
@@ -140,6 +167,14 @@ def resize(width, height):
 def modal_drag(label, dx, dy, delay):
     resize(850, 580)
     check(label + '-before')
+    if os.environ.get('SOULU_LAYOUT_SKIP_MODAL') == '1':
+        # Optional local evidence collection without taking over the desktop's
+        # native sizing loop. These samples do not count as modal-loop tests.
+        for step in range(1, 9):
+            resize(850 + dx * step // 8, 580 + dy * step // 8)
+            time.sleep(delay)
+        check(label + '-programmatic', screenshot=True)
+        return
     thread = u.GetWindowThreadProcessId(window, None)
     def in_size_loop():
         info = GUIINFO()
@@ -170,13 +205,14 @@ with socket.socket() as s:
     s.bind(('127.0.0.1', 0))
     port = s.getsockname()[1]
 base = f'http://127.0.0.1:{port}'
-with tempfile.TemporaryDirectory(prefix='soulu-layout-') as profile:
+window = None
+with tempfile.TemporaryDirectory(prefix='soulu-layout-', ignore_cleanup_errors=True) as profile:
     env = dict(os.environ, LOCALAPPDATA=profile, SOULU_UI_TEST_PORT=str(port))
     process = subprocess.Popen([str(Path(sys.argv[1]).resolve())], env=env)
     try:
         shell = connect('/ui/index.html')
         page = connect('/ui/start.html')
-        window = wait(lambda: u.FindWindowW('SouluBrowserWindow', None))
+        window = wait(own_window)
         wait(lambda: u.IsWindowVisible(window))
         wait(lambda: evaluate(shell, 'Boolean(window.browserShell && document.querySelector(".browser-toolbar"))'))
         resize(850, 580)
@@ -221,12 +257,16 @@ with tempfile.TemporaryDirectory(prefix='soulu-layout-') as profile:
             check(name + '-resize', screenshot=True)
         diagnostics = evaluate(shell, 'new Promise((resolve,reject)=>cefQuery({request:JSON.stringify({action:"browser.surfaceDiagnostics"}),onSuccess:r=>resolve(JSON.parse(r)),onFailure:(_,m)=>reject(m)}))')
         assert diagnostics['paintError'] == 0, diagnostics
-        (out / 'report.json').write_text(json.dumps({'checks': checks, 'diagnostics': diagnostics, 'visualReviewRequired': True}, indent=2), encoding='utf-8')
+        (out / 'report.json').write_text(json.dumps({'checks': checks, 'diagnostics': diagnostics,
+            'nativeSizingLoopTested': os.environ.get('SOULU_LAYOUT_SKIP_MODAL') != '1',
+            'visualReviewRequired': True}, indent=2), encoding='utf-8')
     finally:
         (out / 'checks.json').write_text(json.dumps(checks, indent=2), encoding='utf-8')
-        process.terminate()
+        if window:
+            u.PostMessageW(window, 0x10, 0, 0)
         try:
             process.wait(timeout=12)
         except subprocess.TimeoutExpired:
             process.kill()
+            process.wait(timeout=5)
 
