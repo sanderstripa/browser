@@ -10,7 +10,7 @@ on:
         type: boolean
   push:
     branches: [main]
-    tags: [preview-34]
+    tags: [preview-35]
     paths:
       - "cef/**"
       - "installer/**"
@@ -33,8 +33,8 @@ jobs:
     runs-on: windows-2025
     timeout-minutes: 90
     env:
-      PREVIEW_VERSION: 0.9.0-cef-preview.34
-      PREVIEW_NUMBER: 34
+      PREVIEW_VERSION: 0.9.0-cef-preview.35
+      PREVIEW_NUMBER: 35
       PYTHONUTF8: 1
       PYTHONDONTWRITEBYTECODE: 1
     steps:
@@ -187,7 +187,7 @@ jobs:
       - name: Test persistent CEF cookies and site storage
         shell: pwsh
         run: |
-          $env:LOCALAPPDATA = Join-Path $env:RUNNER_TEMP 'soulu-preview34-storage'
+          $env:LOCALAPPDATA = Join-Path $env:RUNNER_TEMP 'soulu-preview35-storage'
           $env:SOULU_UI_TEST_PORT = "9223"
           $installedExe = Join-Path "${{ steps.package.outputs.build_dir }}" "Soulu.exe"
           python browser/scripts/test-cef-storage.py $installedExe
@@ -198,17 +198,17 @@ jobs:
         run: |
           $env:SOULU_UI_TEST_PORT = '9223'
           $installedExe = Join-Path '${{ steps.package.outputs.build_dir }}' 'Soulu.exe'
-          $env:LOCALAPPDATA = Join-Path $env:RUNNER_TEMP 'soulu-preview34-navigation'
+          $env:LOCALAPPDATA = Join-Path $env:RUNNER_TEMP 'soulu-preview35-navigation'
           python browser/scripts/test-cef-navigation.py $installedExe
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $env:LOCALAPPDATA = Join-Path $env:RUNNER_TEMP 'soulu-preview34-menu'
+          $env:LOCALAPPDATA = Join-Path $env:RUNNER_TEMP 'soulu-preview35-menu'
           python browser/scripts/test-cef-link-menu.py $installedExe
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Verify retained layout and native resize
         shell: pwsh
         run: |
-          $env:LOCALAPPDATA = Join-Path $env:RUNNER_TEMP 'soulu-preview34-layout'
+          $env:LOCALAPPDATA = Join-Path $env:RUNNER_TEMP 'soulu-preview35-layout'
           python browser/scripts/test-cef-layout.py '${{ steps.package.outputs.build_dir }}/Soulu.exe' browser/artifacts/layout-evidence
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
@@ -279,6 +279,9 @@ jobs:
           }
 
           $installer = Join-Path $PWD "browser/artifacts/Soulu-Preview-$env:PREVIEW_NUMBER-x64.exe"
+          # Keep the installed-browser check independent of the diagnostic UI
+          # probe's settings and force-closed profile.
+          $env:LOCALAPPDATA = Join-Path $env:RUNNER_TEMP 'soulu-installer-smoke'
           $installedExe = Join-Path $env:LOCALAPPDATA "Programs/Soulu/Soulu.exe"
           if (Test-Path (Split-Path $installedExe)) { Remove-Item (Split-Path $installedExe) -Recurse -Force }
 
@@ -389,20 +392,17 @@ jobs:
           $soulu = $null
           while ((Get-Date) -lt $deadline -and -not $soulu) {
             Start-Sleep -Milliseconds 500
-            $soulu = Get-Process Soulu -ErrorAction SilentlyContinue
+            # CEF also starts Soulu processes with no top-level window. Wait
+            # for the browser host, rather than inspect the whole process array.
+            $soulu = Get-Process Soulu -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero } | Select-Object -First 1
           }
-          if (-not $soulu) { throw "Mouse click on Open did not launch Soulu" }
-          $windowDeadline=(Get-Date).AddSeconds(30)
-          while((Get-Date) -lt $windowDeadline -and $soulu.MainWindowHandle -eq 0){
-            Start-Sleep -Milliseconds 250;$soulu.Refresh()
-          }
-          if($soulu.MainWindowHandle -eq 0){throw 'Soulu taskbar window was not created'}
+          if (-not $soulu) { throw "Mouse click on Open did not create a Soulu taskbar window" }
           $taskbarIcon=[MouseTest]::SendMessage($soulu.MainWindowHandle,0x007F,[IntPtr]2,[IntPtr]::Zero)
           if($taskbarIcon -eq [IntPtr]::Zero){$taskbarIcon=[MouseTest]::GetClassLongPtr($soulu.MainWindowHandle,-34)}
           if($taskbarIcon -eq [IntPtr]::Zero){$taskbarIcon=[MouseTest]::GetClassLongPtr($soulu.MainWindowHandle,-14)}
           if($taskbarIcon -eq [IntPtr]::Zero){throw 'Soulu taskbar window has no small icon'}
           [System.Drawing.Icon]::FromHandle($taskbarIcon).ToBitmap().Save((Join-Path $PWD 'browser/artifacts/taskbar-window-icon.png'))
-          $soulu | Stop-Process -Force
+          Get-Process Soulu -ErrorAction SilentlyContinue | Stop-Process -Force
           "Physical mouse-click, extraction drag and persistent finish checks passed."
           # Repeat with launch unchecked: Done must close without starting Soulu.
           $noLaunch = Start-Process $installer -PassThru
@@ -462,7 +462,7 @@ jobs:
           if-no-files-found: error
 
       - name: Publish Soulu release
-        if: success() && (github.ref == 'refs/tags/preview-34' || (github.ref == 'refs/heads/main' && inputs.publish)) && steps.verified.outputs.passed == 'true'
+        if: success() && (github.ref == 'refs/tags/preview-35' || (github.ref == 'refs/heads/main' && inputs.publish)) && steps.verified.outputs.passed == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: preview-${{ env.PREVIEW_NUMBER }}
