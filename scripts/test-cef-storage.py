@@ -23,12 +23,18 @@ STORAGE_VALUE = "soulu-local-storage"
 IDB_VALUE = "soulu-indexed-db"
 sequence = 0
 received_cookie = ""
+received_requests = []
 
 
 class SiteHandler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         global received_cookie
-        received_cookie = self.headers.get("Cookie", "")
+        cookie_header = self.headers.get("Cookie", "")
+        received_requests.append({'path': self.path, 'cookie': cookie_header})
+        # Verify the authentication request itself. An unrelated favicon or
+        # prefetch request must not overwrite the server-side observation.
+        if self.path.startswith('/verify'):
+            received_cookie = cookie_header
         body = b"<!doctype html><meta charset=utf-8><title>Soulu storage test</title>"
         self.send_response(200)
         if self.path.startswith("/seed"):
@@ -227,7 +233,7 @@ def main():
                           "localStorage": local_value, "IndexedDB": indexed_value}), flush=True)
         assert cookie_value == COOKIE_VALUE, f"session cookie missing after restart: {cookie_value!r}"
         assert persistent_value == 'control', 'persistent cookie missing after restart'
-        assert f"soulu_auth={COOKIE_VALUE}" in received_cookie, received_cookie
+        assert f"soulu_auth={COOKIE_VALUE}" in received_cookie, received_requests
         assert local_value == STORAGE_VALUE, local_value
         assert indexed_value == IDB_VALUE, indexed_value
         print(json.dumps({
