@@ -1,4 +1,4 @@
-name: Build Soulu Installer From Artifact
+name: Publish Soulu Preview 26
 
 on:
   push:
@@ -12,42 +12,43 @@ permissions:
   actions: read
 
 jobs:
-  installer:
+  release:
     runs-on: windows-2025
     timeout-minutes: 30
     steps:
       - name: Checkout Soulu
         uses: actions/checkout@v4
 
-      - name: Download compiled Soulu artifact from run 127
+      - name: Download compiled Soulu auth-persistence artifact
         uses: actions/download-artifact@v4
         with:
           name: Soulu-Preview-25-x64
           path: source-artifact
           github-token: ${{ github.token }}
           repository: sanderstripa/browser
-          run-id: 36686809973
+          run-id: 36704502327
 
-      - name: Extract compiled Soulu
+      - name: Extract compiled Soulu and prepare Preview 26 ZIP
         shell: pwsh
         run: |
-          $zip = Join-Path $PWD "source-artifact/Soulu-Preview-25-x64.zip"
-          if (-not (Test-Path $zip)) { throw "Compiled Soulu ZIP was not downloaded" }
+          $sourceZip = Join-Path $PWD "source-artifact/Soulu-Preview-25-x64.zip"
+          if (-not (Test-Path $sourceZip)) { throw "Compiled Soulu ZIP was not downloaded" }
           $buildDir = Join-Path $PWD "soulu-build"
           New-Item -ItemType Directory -Force $buildDir | Out-Null
-          Expand-Archive -Path $zip -DestinationPath $buildDir -Force
+          Expand-Archive -Path $sourceZip -DestinationPath $buildDir -Force
           if (-not (Test-Path (Join-Path $buildDir "Soulu.exe"))) { throw "Soulu.exe is missing from compiled artifact" }
+          New-Item -ItemType Directory -Force artifacts | Out-Null
+          Copy-Item $sourceZip (Join-Path $PWD "artifacts/Soulu-Preview-26-x64.zip") -Force
 
       - name: Install NSIS
         shell: pwsh
         run: choco install nsis -y --no-progress
 
-      - name: Build installer
+      - name: Build Soulu Preview 26 installer
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force artifacts | Out-Null
           $buildDir = Join-Path $PWD "soulu-build"
-          $out = Join-Path $PWD "artifacts/Soulu-Preview-25-x64.exe"
+          $out = Join-Path $PWD "artifacts/Soulu-Preview-26-x64.exe"
           ./installer/build.ps1 -BuildDir $buildDir -OutFile $out
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           if (-not (Test-Path $out)) { throw "Installer was not produced" }
@@ -79,22 +80,26 @@ jobs:
           }
           Stop-Process -Id $app.Id -Force
 
-      - name: Upload installer
+      - name: Upload Preview 26 artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: Soulu-Preview-25-installer
-          path: artifacts/Soulu-Preview-25-x64.exe
+          name: Soulu-Preview-26-x64
+          path: |
+            artifacts/Soulu-Preview-26-x64.exe
+            artifacts/Soulu-Preview-26-x64.zip
           if-no-files-found: error
 
-      - name: Publish visible GitHub prerelease
+      - name: Publish stable GitHub release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag = "preview25-auth-test-1"
+          $tag = "preview-26"
+          $exe = "artifacts/Soulu-Preview-26-x64.exe"
+          $zip = "artifacts/Soulu-Preview-26-x64.zip"
           gh release view $tag *> $null
           if ($LASTEXITCODE -eq 0) {
-            gh release upload $tag artifacts/Soulu-Preview-25-x64.exe --clobber
+            gh release upload $tag $exe $zip --clobber
           } else {
-            gh release create $tag artifacts/Soulu-Preview-25-x64.exe --target 01229e04fdc0eb1e09f42aee316ebb4cf91602dd --title "Soulu Preview 25 Auth Test" --notes "Test build from CEF 154 persistence work. Installer payload and a normal installed launch were smoke-tested in Windows CI before publication." --prerelease
+            gh release create $tag $exe $zip --target 01a7a3f660d6e6bfbaafd9aac1d1051b8d7beaf7 --title "Soulu Preview 26" --notes "Soulu Preview 26. Обновлён CEF/Chromium до ветки 154. Переработано постоянное хранение профиля CEF и cookies между штатными перезапусками. Добавлены проверки session/persistent cookies, localStorage и IndexedDB после перезапуска. В релиз включены установщик и ZIP-сборка для Windows x64." --latest
           }
