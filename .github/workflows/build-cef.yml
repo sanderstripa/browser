@@ -14,6 +14,7 @@ on:
       - "cef/**"
       - "installer/**"
       - "scripts/test-cef-ui.py"
+      - "scripts/test-cef-storage.py"
       - "ui/**"
       - "vpn/**"
       - ".github/workflows/build-cef.yml"
