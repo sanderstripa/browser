@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   actions: read
 
 jobs:
@@ -53,9 +53,48 @@ jobs:
           if (-not (Test-Path $out)) { throw "Installer was not produced" }
           Get-Item $out | Format-List FullName,Length,LastWriteTime
 
+      - name: Smoke-test installed Soulu normal launch
+        shell: pwsh
+        run: |
+          Get-Process Soulu -ErrorAction SilentlyContinue | Stop-Process -Force
+          $installDir = Join-Path $env:LOCALAPPDATA "Programs/Soulu"
+          if (Test-Path $installDir) { Remove-Item $installDir -Recurse -Force }
+          $payload = Join-Path $PWD "installer/payload.exe"
+          if (-not (Test-Path $payload)) { throw "Installer payload was not produced" }
+          $install = Start-Process $payload -ArgumentList @('/S', "/D=$installDir") -PassThru -Wait
+          if ($install.ExitCode -ne 0) { throw "Installer payload failed with exit code $($install.ExitCode)" }
+          $installedExe = Join-Path $installDir "Soulu.exe"
+          if (-not (Test-Path $installedExe)) { throw "Installed Soulu.exe is missing" }
+          Remove-Item Env:SOULU_UI_TEST_PORT -ErrorAction SilentlyContinue
+          $app = Start-Process $installedExe -WorkingDirectory $installDir -PassThru
+          Start-Sleep -Seconds 12
+          $app.Refresh()
+          if ($app.HasExited) {
+            Write-Host "Soulu exited early with code $($app.ExitCode)"
+            Get-WinEvent -FilterHashtable @{LogName='Application'; StartTime=(Get-Date).AddMinutes(-3)} -ErrorAction SilentlyContinue |
+              Where-Object { $_.Message -match 'Soulu|libcef|chrome_elf' } |
+              Select-Object -First 20 TimeCreated, Id, ProviderName, LevelDisplayName, Message |
+              Format-List
+            throw "Installed Soulu did not remain running"
+          }
+          Stop-Process -Id $app.Id -Force
+
       - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
           name: Soulu-Preview-25-installer
           path: artifacts/Soulu-Preview-25-x64.exe
           if-no-files-found: error
+
+      - name: Publish visible GitHub prerelease
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "preview25-auth-test-1"
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $tag artifacts/Soulu-Preview-25-x64.exe --clobber
+          } else {
+            gh release create $tag artifacts/Soulu-Preview-25-x64.exe --target 01229e04fdc0eb1e09f42aee316ebb4cf91602dd --title "Soulu Preview 25 Auth Test" --notes "Test build from CEF 154 persistence work. Installer payload and a normal installed launch were smoke-tested in Windows CI before publication." --prerelease
+          }
