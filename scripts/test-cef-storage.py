@@ -142,7 +142,7 @@ def launch(executable, data_root):
     environment = os.environ.copy()
     environment["SOULU_UI_TEST_PORT"] = str(DEBUG_PORT)
     environment["LOCALAPPDATA"] = str(data_root)
-    return subprocess.Popen([executable], env=environment)
+    return subprocess.Popen([executable, f"--log-file={data_root / 'cef-debug.log'}"], env=environment)
 
 
 def verify_profile_cookies(data_root):
@@ -253,6 +253,7 @@ def run(data_root):
         ws.close()
         close_normally(second)
     finally:
+        print(f"Restarted Soulu exit status before cleanup: {second.poll()}", flush=True)
         if second.poll() is None:
             second.kill()
         server.shutdown()
@@ -260,4 +261,9 @@ def run(data_root):
 
 if __name__ == "__main__":
     with tempfile.TemporaryDirectory(prefix="soulu-auth-regression-") as directory:
-        run(Path(directory))
+        try:
+            run(Path(directory))
+        finally:
+            diagnostic = Path(directory) / "cef-debug.log"
+            if diagnostic.exists():
+                print("\n".join(diagnostic.read_text(errors="replace").splitlines()[-80:]), flush=True)
