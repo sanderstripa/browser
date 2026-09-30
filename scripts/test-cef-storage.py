@@ -1,4 +1,3 @@
-7007 test-cef-storage.py
 """Regression test for persistent CEF profile cookies and site storage."""
 import ctypes
 import http.server
