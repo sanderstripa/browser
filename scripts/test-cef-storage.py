@@ -203,6 +203,13 @@ def main():
         if first.poll() is None:
             first.kill()
 
+    # Existing installations can select personal as Chromium's initial
+    # profile. This exposed duplicate contexts for mixed-slash Windows paths;
+    # fresh profiles with Default as the initial profile missed the regression.
+    state_file = root / "Local State"
+    state = json.loads(state_file.read_text(encoding="utf-8"))
+    state.setdefault("profile", {})["last_used"] = "personal"
+    state_file.write_text(json.dumps(state), encoding="utf-8")
     second = launch(executable)
     try:
         ws = page_socket()

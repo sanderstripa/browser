@@ -1,4 +1,5 @@
 #include "examples/soulu/browser_window.h"
+#include "include/cef_app.h"
 
 #include <windowsx.h>
 #include <ws2tcpip.h>
@@ -14,6 +15,7 @@
 #include <sstream>
 
 #include "examples/soulu/browser_client.h"
+#include "examples/soulu/engine_version.h"
 #include "examples/soulu/frosted_backdrop.h"
 #include "examples/soulu/resource.h"
 #include "include/cef_app.h"
@@ -248,7 +250,7 @@ void BrowserWindow::Create() {
 
 bool BrowserWindow::CreateNativeWindow() {
   WNDCLASSEXW wc = {sizeof(wc)};
-  wc.style = CS_HREDRAW | CS_VREDRAW;
+  wc.style = 0;
   wc.lpfnWndProc = WindowProc;
   wc.hInstance = GetModuleHandleW(nullptr);
   wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
@@ -271,7 +273,7 @@ bool BrowserWindow::CreateNativeWindow() {
   const int x = work.left + (work.right - work.left - width) / 2;
   const int y = work.top + (work.bottom - work.top - height) / 2;
   hwnd_ = CreateWindowExW(0, kWindowClass, L"Soulu",
-                          WS_POPUP | WS_THICKFRAME | WS_MINIMIZEBOX |
+                          WS_POPUP | WS_THICKFRAME | WS_MINIMIZEBOX | WS_CLIPCHILDREN |
                               WS_MAXIMIZEBOX | WS_SYSMENU,
                           x, y, width, height, nullptr, nullptr, wc.hInstance, this);
   if (!hwnd_) return false;
@@ -286,17 +288,15 @@ bool BrowserWindow::CreateNativeWindow() {
   SetLayeredWindowAttributes(resize_border_,0,1,LWA_ALPHA);
   ApplyWindowAppearance();
 
-  ShowWindow(hwnd_, SW_SHOW);
-  UpdateWindow(hwnd_);
+  // Composition and both browser hosts are prepared while the window is
+  // hidden. ShowWhenReady exposes the first composed shell/content layout.
   return true;
 }
 
 void BrowserWindow::CreateShellBrowser() {
-  RECT rect = {};
-  GetClientRect(hwnd_, &rect);
   CefWindowInfo info;
   surface_ = new ShellSurface(hwnd_);
-  surface_->Resize(0, 0, rect.right, 48);
+  Layout();
   info.SetAsWindowless(surface_->hwnd());
   info.runtime_style = CEF_RUNTIME_STYLE_ALLOY;
   CefBrowserSettings settings;
@@ -336,8 +336,12 @@ void BrowserWindow::CreateProfile(const std::string& name,
                            : "profile-" + std::to_string(profiles_.size() + 1))
       : requested_id;
   CefRequestContextSettings context_settings;
-  const auto profile_path = UserDataDirectory() /
-      std::filesystem::u8path("Profiles/" + id);
+  auto profile_path = UserDataDirectory() / L"Profiles" /
+      std::filesystem::u8path(id);
+  // CEF's Windows context registry compares path strings. Match Chromium's
+  // native initial-profile path so a restored last-used profile reuses its
+  // context instead of opening the same databases a second time.
+  profile_path.make_preferred();
   std::filesystem::create_directories(profile_path);
   CefString(&context_settings.cache_path) = profile_path.wstring();
   context_settings.persist_session_cookies = 1;
@@ -422,8 +426,6 @@ void BrowserWindow::ApplyWindowAppearance() {
   CompositionData data={19,&policy,sizeof(policy)};
   if(compose)compose(hwnd_,&data);
   native_blur_=ConfigureFrostedBackdrop(hwnd_,matte);
-  RECT area={};GetClientRect(hwnd_,&area);
-  ResizeFrostedBackdrop(hwnd_,area.right,static_cast<int>((settings_->GetString("layout")=="classic"?82:48)*GetDpiForWindow(hwnd_)/96));
   const MARGINS glass=matte?MARGINS{-1,-1,-1,-1}:MARGINS{0,0,0,0};
   DwmExtendFrameIntoClientArea(hwnd_,&glass);
   // Keep the native redirection surface for layered child chrome, but expose
@@ -435,7 +437,8 @@ void BrowserWindow::ApplyWindowAppearance() {
   blur.hRgnBlur=region;
   DwmEnableBlurBehindWindow(hwnd_,&blur);
   DeleteObject(region);
-  RedrawWindow(hwnd_,nullptr,nullptr,RDW_INVALIDATE|RDW_ERASE|RDW_FRAME|RDW_ALLCHILDREN);
+  Layout();
+  RedrawWindow(hwnd_,nullptr,nullptr,RDW_INVALIDATE|RDW_ERASE|RDW_FRAME);
 
 }
 
@@ -577,10 +580,7 @@ int BrowserWindow::PreparePopup(int source_id, const std::string& url,
   tab.profile_id = source->profile_id;
   tab.activate_on_attach = !background;
   tabs_.push_back(tab);
-  RECT rect = {};
-  GetClientRect(hwnd_, &rect);
-  info.SetAsChild(hwnd_, CefRect(0, 48, rect.right,
-                                std::max(1L, rect.bottom - 48L)));
+  info.SetAsChild(hwnd_, CurrentGeometry().content);
   // Soulu owns the window and tab lifecycle. The default Chrome runtime
   // creates a Chrome Browser window even when a native parent is supplied.
   info.runtime_style = CEF_RUNTIME_STYLE_ALLOY;
@@ -615,13 +615,12 @@ void BrowserWindow::NewTab(const std::string& url, bool incognito,
   const int previous_active = active_tab_id_;
   if (foreground) active_tab_id_ = id;
 
-  RECT rect = {};
-  GetClientRect(hwnd_, &rect);
   CefWindowInfo info;
-  info.SetAsChild(hwnd_, CefRect(0, 48, rect.right,
-                                std::max(1L, rect.bottom - 48L)));
+  info.SetAsChild(hwnd_, CurrentGeometry().content);
   info.runtime_style = CEF_RUNTIME_STYLE_ALLOY;
-  if (!foreground) info.style &= ~WS_VISIBLE;
+  // OnAfterCreated commits current bounds/visibility, including changes that
+  // occurred while browser creation was in flight.
+  info.style &= ~WS_VISIBLE;
   CefBrowserSettings browser_settings;
   const bool dark = settings_->GetString("theme") == "dark" || (settings_->GetString("theme") == "system" && IsWindowsDarkMode());
   browser_settings.background_color = dark ? CefColorSetARGB(255,8,9,11) : CefColorSetARGB(255,250,250,250);
@@ -672,7 +671,16 @@ void BrowserWindow::AttachContent(int tab_id, CefRefPtr<CefBrowser> browser) {
     tab->activate_on_attach = false;
   }
   Layout();
+  ShowWhenReady();
   EmitState();
+}
+
+void BrowserWindow::ShowWhenReady() {
+  if (closing_ || !shell_frame_ready_ || IsWindowVisible(hwnd_)) return;
+  const auto* tab = ActiveTab();
+  if (!tab || !tab->browser) return;
+  Layout();
+  ShowWindow(hwnd_, SW_SHOW);
 }
 
 BrowserWindow::Tab* BrowserWindow::FindTab(int id) {
@@ -850,43 +858,80 @@ CefRefPtr<CefListValue> BrowserWindow::ProfileDownloads() const {
   return result;
 }
 
-void BrowserWindow::Layout() {
-  if (!hwnd_) return;
+BrowserWindow::Geometry BrowserWindow::CurrentGeometry() const {
   RECT client = {}; GetClientRect(hwnd_, &client);
   const float scale = GetDpiForWindow(hwnd_) / 96.0f;
   const auto px = [scale](int value) { return static_cast<int>(std::round(value * scale)); };
-  // Content reaches every edge; a transparent hit area handles resizing.
-  const int border = 0;
-  const int width = std::max(1L, client.right - border * 2);
-  const int height = std::max(1L, client.bottom - border * 2);
-  const int toolbar = px(settings_->GetString("layout") == "classic" ? 82 : 48);
-  ResizeFrostedBackdrop(hwnd_,width,toolbar);
-  const int x = sidebar_visible_ ? px(276) : 0;
+  Geometry g = {};
+  g.scale = scale;
+  g.width = std::max(1L, client.right - client.left);
+  g.height = std::max(1L, client.bottom - client.top);
+  g.toolbar = px(settings_->GetString("layout") == "classic" ? 82 : 48);
+  g.sidebar = sidebar_visible_ ? px(276) : 0;
+  g.panel = px(std::max(0, right_panel_width_));
+  g.shell_height = sidebar_visible_ || g.panel > 0 ? g.height :
+      std::min(g.height, std::max(g.toolbar, px(suggestions_height_)));
+  g.content = CefRect(g.sidebar, g.toolbar,
+      std::max(1, g.width - g.sidebar - g.panel), std::max(1, g.height - g.toolbar));
+  return g;
+}
+
+void BrowserWindow::Layout() {
+  CEF_REQUIRE_UI_THREAD();
+  if (!hwnd_ || IsIconic(hwnd_)) return;
+  const auto g = CurrentGeometry();
+  struct Position { HWND hwnd, after; int x, y, width, height; UINT flags; };
+  std::vector<Position> positions;
+  constexpr UINT flags = SWP_NOACTIVATE | SWP_NOCOPYBITS;
   const std::string profile = VisibleProfileId();
   for (auto& tab : tabs_) {
     if (!tab.browser) continue;
     HWND child = tab.browser->GetHost()->GetWindowHandle();
     const bool belongs = tab.incognito ? profile == "__incognito__" : tab.profile_id == profile;
-    if (belongs && tab.id == active_tab_id_)
-      SetWindowPos(child, HWND_TOP, border + x, border + toolbar,
-        std::max(1, width - x - px(right_panel_width_)), std::max(1, height - toolbar), SWP_SHOWWINDOW | SWP_NOACTIVATE);
-    else ShowWindow(child, SW_HIDE);
+    const bool visible = belongs && tab.id == active_tab_id_;
+    positions.push_back({child, HWND_BOTTOM, g.content.x, g.content.y, g.content.width, g.content.height,
+        flags | (visible ? SWP_SHOWWINDOW : SWP_HIDEWINDOW)});
   }
   if (surface_) {
-    const int shell_height = sidebar_visible_ || right_panel_width_ > 0 ? height :
-        std::min(height, std::max(toolbar, px(suggestions_height_)));
-    surface_->Resize(border, border, width, shell_height);
+    surface_->PrepareResize(g.width, g.shell_height, g.scale);
+    positions.push_back({surface_->hwnd(), resize_border_ ? resize_border_ : HWND_TOP,
+        0, 0, g.width, g.shell_height, flags | SWP_SHOWWINDOW});
   }
   if(resize_border_){
-    if(IsZoomed(hwnd_))ShowWindow(resize_border_,SW_HIDE);
-    else{
-      const int edge=px(6);
-      HRGN ring=CreateRectRgn(0,0,width,height),inside=CreateRectRgn(edge,edge,width-edge,height-edge);
+    if(!IsZoomed(hwnd_)){
+      const int edge=static_cast<int>(std::round(6 * g.scale));
+      HRGN ring=CreateRectRgn(0,0,g.width,g.height),inside=CreateRectRgn(edge,edge,g.width-edge,g.height-edge);
       CombineRgn(ring,ring,inside,RGN_DIFF);DeleteObject(inside);
       SetWindowRgn(resize_border_,ring,FALSE);
-      SetWindowPos(resize_border_,HWND_TOP,0,0,width,height,SWP_NOACTIVATE|SWP_SHOWWINDOW);
+    }
+    positions.push_back({resize_border_, HWND_TOP, 0, 0, g.width, g.height,
+        flags | (IsZoomed(hwnd_) ? SWP_HIDEWINDOW : SWP_SHOWWINDOW)});
+  }
+  // Bridge events (for example suggestion updates) can request layout without
+  // changing geometry. Do not invalidate or reposition those surfaces again.
+  positions.erase(std::remove_if(positions.begin(), positions.end(), [this](const Position& p) {
+    RECT actual = {};
+    if (!GetWindowRect(p.hwnd, &actual)) return false;
+    MapWindowPoints(nullptr, hwnd_, reinterpret_cast<POINT*>(&actual), 2);
+    const bool visible = (GetWindowLongPtrW(p.hwnd, GWL_STYLE) & WS_VISIBLE) != 0;
+    return actual.left == p.x && actual.top == p.y &&
+        actual.right - actual.left == p.width && actual.bottom - actual.top == p.height &&
+        visible == ((p.flags & SWP_SHOWWINDOW) != 0);
+  }), positions.end());
+  if (!positions.empty()) {
+    HDWP batch = BeginDeferWindowPos(static_cast<int>(positions.size()));
+    for (const auto& p : positions) {
+      if (!batch) break;
+      batch = DeferWindowPos(batch, p.hwnd, p.after, p.x, p.y, p.width, p.height, p.flags);
+    }
+    if (!batch || !EndDeferWindowPos(batch)) {
+      // A failed deferred batch must not leave the hosts at previous bounds.
+      for (const auto& p : positions)
+        SetWindowPos(p.hwnd, p.after, p.x, p.y, p.width, p.height, p.flags);
     }
   }
+  ResizeFrostedBackdrop(hwnd_, g.width, std::min(g.height, g.toolbar));
+  if (surface_) surface_->CommitResize();
 }
 
 void BrowserWindow::ApplyContentTheme() {
@@ -941,10 +986,10 @@ CefRefPtr<CefDictionaryValue> BrowserWindow::State() const {
   }
   state->SetList("profiles", profiles);
   auto update = CefDictionaryValue::Create();
-  update->SetString("soulu", "0.9.0-cef-preview.31");
-  update->SetString("recommended", "0.9.0-cef-preview.31");
-  update->SetString("cef", "154.0.32");
-  update->SetString("chromium", "154.0.8037.58");
+  update->SetString("soulu", "0.9.0-cef-preview.33");
+  update->SetString("recommended", "0.9.0-cef-preview.33");
+  update->SetString("cef", EngineVersion(0, 3));
+  update->SetString("chromium", EngineVersion(4, 4));
   update->SetBool("available", false);
   update->SetBool("security", false);
   state->SetDictionary("update", update);
@@ -1059,10 +1104,10 @@ void BrowserWindow::HandleBridge(const std::string& request,
   }
   else if (action == "browser.update.check") {
     auto update = CefDictionaryValue::Create();
-    update->SetString("soulu", "0.9.0-cef-preview.31");
-    update->SetString("recommended", "0.9.0-cef-preview.31");
-    update->SetString("cef", "154.0.32");
-    update->SetString("chromium", "154.0.8037.58");
+    update->SetString("soulu", "0.9.0-cef-preview.33");
+    update->SetString("recommended", "0.9.0-cef-preview.33");
+    update->SetString("cef", EngineVersion(0, 3));
+    update->SetString("chromium", EngineVersion(4, 4));
     update->SetBool("available", false);
     update->SetBool("security", false);
     return Reply(callback, update);
@@ -1313,18 +1358,30 @@ LRESULT CALLBACK BrowserWindow::WindowProc(HWND hwnd, UINT message, WPARAM wpara
   if (!self) return DefWindowProc(hwnd, message, wparam, lparam);
   switch (message) {
     case WM_NCCALCSIZE:
-      if (wparam) return 0;
+      if (wparam) {
+        // A borderless maximized client must not extend into the invisible
+        // thick-frame margin outside the monitor work area.
+        if (IsZoomed(hwnd)) {
+          auto* params = reinterpret_cast<NCCALCSIZE_PARAMS*>(lparam);
+          MONITORINFO monitor = {sizeof(monitor)};
+          if (GetMonitorInfoW(MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST), &monitor))
+            IntersectRect(&params->rgrc[0], &params->rgrc[0], &monitor.rcWork);
+        }
+        return 0;
+      }
       break;
     case WM_GETMINMAXINFO: {
       auto* sizes = reinterpret_cast<MINMAXINFO*>(lparam);
-      sizes->ptMinTrackSize = {620, 420}; return 0;
+      const UINT dpi = GetDpiForWindow(hwnd);
+      sizes->ptMinTrackSize = {MulDiv(620, dpi, 96), MulDiv(420, dpi, 96)};
+      return 0;
     }
     case WM_NCHITTEST: {
       if (IsZoomed(hwnd)) return HTCLIENT;
       const LRESULT hit = DefWindowProc(hwnd, message, wparam, lparam);
       if (hit != HTCLIENT) return hit;
       RECT r = {}; GetWindowRect(hwnd, &r);
-      const int x = GET_X_LPARAM(lparam), y = GET_Y_LPARAM(lparam), edge = 7;
+      const int x = GET_X_LPARAM(lparam), y = GET_Y_LPARAM(lparam), edge = MulDiv(7, GetDpiForWindow(hwnd), 96);
       const bool left = x < r.left + edge, right = x >= r.right - edge;
       const bool top = y < r.top + edge, bottom = y >= r.bottom - edge;
       if (top && left) return HTTOPLEFT; if (top && right) return HTTOPRIGHT;
@@ -1346,6 +1403,34 @@ LRESULT CALLBACK BrowserWindow::WindowProc(HWND hwnd, UINT message, WPARAM wpara
       return 1;
     }
     case WM_SIZE: self->Layout(); return 0;
+    case WM_SYSCOMMAND:
+      if ((wparam & 0xFFF0) == SC_MOVE || (wparam & 0xFFF0) == SC_SIZE) {
+        // CEF 154 disables nestable Chromium work by default. Win32's move/
+        // resize modal loop must continue processing renderer resize/paint.
+        // Keep the owner alive if a close task runs in that loop.
+        CefRefPtr<BrowserWindow> keep_alive(self);
+        CefScopedSetNestableTasksAllowed allow_tasks;
+        return DefWindowProc(hwnd, message, wparam, lparam);
+      }
+      break;
+    case WM_ENTERSIZEMOVE:
+      if (self->shell_) self->shell_->GetHost()->NotifyMoveOrResizeStarted();
+      for (auto& tab : self->tabs_)
+        if (tab.browser) tab.browser->GetHost()->NotifyMoveOrResizeStarted();
+      return 0;
+    case WM_EXITSIZEMOVE: self->Layout(); return 0;
+    case WM_DPICHANGED: {
+      const auto* rect = reinterpret_cast<const RECT*>(lparam);
+      SetWindowPos(hwnd, nullptr, rect->left, rect->top,
+                   rect->right - rect->left, rect->bottom - rect->top,
+                   SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOCOPYBITS);
+      self->Layout();
+      return 0;
+    }
+    case ShellSurface::kFirstFrame:
+      self->shell_frame_ready_ = true;
+      self->ShowWhenReady();
+      return 0;
     case WM_MOVE: if (self->shell_) self->shell_->GetHost()->NotifyMoveOrResizeStarted(); break;
     case WM_DWMCOMPOSITIONCHANGED: self->ApplyWindowAppearance(); return 0;
     case WM_SETTINGCHANGE: self->ApplyWindowAppearance(); self->ApplyContentTheme(); break;
