@@ -316,7 +316,6 @@ void BrowserWindow::CreateProfile(const std::string& name,
   std::filesystem::create_directories(profile_path);
   CefString(&context_settings.cache_path) = profile_path.wstring();
   context_settings.persist_session_cookies = 1;
-  context_settings.persist_user_preferences = 1;
 
   Profile profile;
   profile.id = id;
