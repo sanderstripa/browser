@@ -65,6 +65,13 @@ jobs:
           $pattern = 'set\(CEF_VERSION "[^"]+"\)'
           if ([regex]::Matches($cmake, $pattern).Count -ne 1) { throw 'CEF project version declaration changed' }
           $cmake = [regex]::Replace($cmake, $pattern, ('set(CEF_VERSION "' + $version + '")'))
+          # Soulu needs the wrapper and examples, not upstream CEF test applications.
+          # The project snapshot's test targets are incompatible with this distribution.
+          foreach ($target in @('cefclient', 'cefsimple', 'gtest', 'ceftests')) {
+            $line = 'add_subdirectory(${CEF_ROOT}/tests/' + $target + ')'
+            if (!$cmake.Contains($line)) { throw "Upstream target declaration changed: $target" }
+            $cmake = $cmake.Replace($line, '')
+          }
           Set-Content $cmakeFile $cmake -Encoding utf8
           Write-Host "Pinned CEF distribution: $version"
 
