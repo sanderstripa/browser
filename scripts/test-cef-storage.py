@@ -128,7 +128,14 @@ def close_normally(process):
     if not handles:
         raise AssertionError("Soulu top-level window was not found")
     user32.PostMessageW(handles[0], 0x0010, 0, 0)  # WM_CLOSE
-    assert process.wait(timeout=30) == 0, f"Soulu exited abnormally: {process.returncode}"
+    exit_code = process.wait(timeout=30)
+    if exit_code:
+        diagnostic = subprocess.run([
+            "powershell", "-NoProfile", "-Command",
+            "Get-WinEvent -FilterHashtable @{LogName='Application'; Id=1000} -MaxEvents 3 -ErrorAction SilentlyContinue | Select-Object TimeCreated,Message | Format-List"
+        ], capture_output=True, text=True, errors="replace", timeout=20)
+        print(diagnostic.stdout, flush=True)
+    assert exit_code == 0, f"Soulu exited abnormally: {process.returncode}"
 
 
 def launch(executable, data_root):
@@ -196,6 +203,8 @@ def run(data_root):
     finally:
         if first.poll() is None:
             first.kill()
+        for diagnostic in data_root.rglob("auth-shutdown.log"):
+            print(diagnostic.read_text(), flush=True)
 
     second = launch(executable, data_root)
     try:
