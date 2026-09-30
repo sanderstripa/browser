@@ -11,17 +11,37 @@
 #include <dwmapi.h>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <sstream>
 
 #include "examples/soulu/browser_client.h"
 #include "examples/soulu/frosted_backdrop.h"
 #include "examples/soulu/resource.h"
 #include "include/cef_app.h"
+#include "include/cef_cookie.h"
 #include "include/cef_parser.h"
 #include "include/wrapper/cef_helpers.h"
 
 namespace soulu {
 namespace {
+class CookieFlushTask final : public CefTask {
+ public:
+  explicit CookieFlushTask(std::function<void()> done) : done_(std::move(done)) {}
+  void Execute() override { done_(); }
+ private:
+  std::function<void()> done_;
+  IMPLEMENT_REFCOUNTING(CookieFlushTask);
+};
+class CookieFlushComplete final : public CefCompletionCallback {
+ public:
+  explicit CookieFlushComplete(std::function<void()> done) : done_(std::move(done)) {}
+  void OnComplete() override {
+    CefPostTask(TID_UI, new CookieFlushTask(std::move(done_)));
+  }
+ private:
+  std::function<void()> done_;
+  IMPLEMENT_REFCOUNTING(CookieFlushComplete);
+};
 class SuggestClient final : public CefURLRequestClient {
  public:
   SuggestClient(CefRefPtr<CefListValue> local, CefRefPtr<CefMessageRouterBrowserSide::Callback> reply)
@@ -95,6 +115,7 @@ LRESULT CALLBACK ResizeProc(HWND window,UINT message,WPARAM wp,LPARAM lp){
   return DefWindowProcW(window,message,wp,lp);
 }
 constexpr wchar_t kWindowClass[] = L"SouluBrowserWindow";
+constexpr UINT kFinishClose = WM_APP + 1;
 
 std::string ExecutableDirectory() {
   wchar_t path[MAX_PATH] = {};
@@ -312,7 +333,7 @@ void BrowserWindow::CreateProfile(const std::string& name,
       : requested_id;
   CefRequestContextSettings context_settings;
   const auto profile_path = UserDataDirectory() /
-      std::filesystem::u8path("Profiles/" + id);
+      L"Profiles" / std::filesystem::u8path(id);
   std::filesystem::create_directories(profile_path);
   CefString(&context_settings.cache_path) = profile_path.wstring();
   context_settings.persist_session_cookies = 1;
@@ -541,10 +562,14 @@ void BrowserWindow::NewTab(const std::string& url, bool incognito) {
   const BrowserRole role =
       url.find("/ui/settings.html") != std::string::npos
           ? BrowserRole::kSettings : BrowserRole::kContent;
-  CefBrowserHost::CreateBrowser(
-      info, new BrowserClient(this, role, id),
-      url == "about:blank" ? FileUrl(std::filesystem::u8path(ExecutableDirectory()) / "ui" / "start.html") : url, browser_settings,
-      nullptr, ContextForNewTab(incognito));
+  const auto context = ContextForNewTab(incognito);
+  auto browser_url = url == "about:blank"
+      ? FileUrl(std::filesystem::u8path(ExecutableDirectory()) / "ui" / "start.html") : url;
+  wchar_t auth_test_token[32] = {};
+  if (url == "about:blank" && GetEnvironmentVariableW(L"SOULU_AUTH_TEST_TOKEN", auth_test_token, 32) > 0)
+    browser_url += "?soulu-auth-test=" + CefString(auth_test_token).ToString();
+  CefBrowserHost::CreateBrowser(info, new BrowserClient(this, role, id),
+                                browser_url, browser_settings, nullptr, context);
   EmitState();
   if (url == "about:blank") FocusAddress();
 }
@@ -564,6 +589,22 @@ void BrowserWindow::AttachShell(CefRefPtr<CefBrowser> browser) {
 
 void BrowserWindow::AttachContent(int tab_id, CefRefPtr<CefBrowser> browser) {
   if (auto* tab = FindTab(tab_id)) tab->browser = browser;
+  wchar_t test_port[12] = {};
+  if (GetEnvironmentVariableW(L"SOULU_UI_TEST_PORT", test_port, 12) > 0) {
+    const auto context = browser->GetHost()->GetRequestContext();
+    auto diagnostic = CefDictionaryValue::Create();
+    diagnostic->SetString("cache_path", context->GetCachePath());
+    diagnostic->SetBool("shares_global_context", context->IsSharingWith(CefRequestContext::GetGlobalContext()));
+    if (auto preference = context->GetPreference("session.restore_on_startup"))
+      diagnostic->SetValue("restore_on_startup", preference);
+    if (auto* tab = FindTab(tab_id)) {
+      diagnostic->SetString("profile_id", tab->profile_id);
+      for (const auto& profile : profiles_)
+        if (profile.id == tab->profile_id)
+          diagnostic->SetBool("same_context", context->IsSame(profile.context));
+    }
+    std::ofstream(UserDataDirectory() / L"auth-context.json") << CefWriteJSON(Wrap(diagnostic), JSON_WRITER_DEFAULT);
+  }
   Layout();
   EmitState();
 }
@@ -641,8 +682,14 @@ void BrowserWindow::BrowserClosed(CefRefPtr<CefBrowser> browser, int tab_id,
       }
     }
   }
-  if (closing_ && !shell_ && tabs_.empty()) DestroyWindow(hwnd_);
-  else { Layout(); EmitState(); }
+  if (closing_ && !shell_ && tabs_.empty()) {
+    // Drop application-owned contexts before CefShutdown tears down profiles.
+    for (auto& profile : profiles_) profile.context = nullptr;
+    incognito_context_ = nullptr;
+    // Let CEF finish OnBeforeClose before destroying its native parent.
+    PostMessageW(hwnd_, kFinishClose, 0, 0);
+  }
+  else if (!closing_) { Layout(); EmitState(); }
 }
 
 void BrowserWindow::FocusAddress() {
@@ -1160,9 +1207,25 @@ void BrowserWindow::HandleBridge(const std::string& request,
 void BrowserWindow::CloseAll() {
   if (closing_) return;
   closing_ = true;
+  // Keep the content contexts and message loop alive until their cookie stores
+  // are on disk. Continue closing on a subsequent UI task after completion.
+  pending_cookie_flushes_ = static_cast<int>(profiles_.size());
+  if (!pending_cookie_flushes_) { CloseBrowsers(); return; }
+  CefRefPtr<BrowserWindow> self = this;
+  for (auto& profile : profiles_) {
+    auto manager = profile.context->GetCookieManager(nullptr);
+    auto done = [self]() {
+      if (--self->pending_cookie_flushes_ == 0) self->CloseBrowsers();
+    };
+    if (!manager || !manager->FlushStore(new CookieFlushComplete(done)))
+      CefPostTask(TID_UI, new CookieFlushTask(std::move(done)));
+  }
+}
+
+void BrowserWindow::CloseBrowsers() {
   for (auto& tab : tabs_) if (tab.browser) tab.browser->GetHost()->CloseBrowser(true);
   if (shell_) shell_->GetHost()->CloseBrowser(true);
-  if (!shell_ && tabs_.empty()) DestroyWindow(hwnd_);
+  if (!shell_ && tabs_.empty()) PostMessageW(hwnd_, kFinishClose, 0, 0);
 }
 
 LRESULT CALLBACK BrowserWindow::WindowProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam) {
@@ -1213,6 +1276,7 @@ LRESULT CALLBACK BrowserWindow::WindowProc(HWND hwnd, UINT message, WPARAM wpara
     case WM_DWMCOMPOSITIONCHANGED: self->ApplyWindowAppearance(); return 0;
     case WM_SETTINGCHANGE: self->ApplyWindowAppearance(); self->ApplyContentTheme(); break;
     case WM_CLOSE: self->CloseAll(); return 0;
+    case kFinishClose: DestroyWindow(hwnd); return 0;
     case WM_DESTROY: ReleaseFrostedBackdrop(hwnd); CefQuitMessageLoop(); return 0;
     case WM_NCDESTROY:
       SetWindowLongPtr(hwnd, GWLP_USERDATA, 0); self->hwnd_ = nullptr; self->Release(); break;

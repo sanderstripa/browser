@@ -11,11 +11,13 @@ std::filesystem::path SouluDataRoot() {
   wchar_t buffer[MAX_PATH] = {};
   DWORD size = GetEnvironmentVariableW(L"LOCALAPPDATA", buffer, MAX_PATH);
   std::filesystem::path root = size ? buffer : L".";
-  return root / L"Soulu";
+  // Chrome-backed CEF requires request-context profiles to be immediate
+  // children of root_cache_path. Keep the existing per-profile directories.
+  return std::filesystem::absolute(root / L"Soulu" / L"User Data" / L"Profiles");
 }
 
 std::wstring LocalDataPath() {
-  return (SouluDataRoot() / L"CEF").wstring();
+  return (SouluDataRoot() / L"Default").wstring();
 }
 }
 

@@ -76,6 +76,7 @@ class BrowserWindow final : public CefBaseRefCounted {
   void FocusAddress();
   void Layout();
   void CloseAll();
+  void CloseBrowsers();
   Tab* ActiveTab();
   Tab* FindTab(int id);
   std::string VisibleProfileId() const;
@@ -114,6 +115,7 @@ class BrowserWindow final : public CefBaseRefCounted {
   bool sidebar_visible_ = false;
   bool vpn_enabled_ = false;
   bool closing_ = false;
+  int pending_cookie_flushes_ = 0;
   IMPLEMENT_REFCOUNTING(BrowserWindow);
 };
 }

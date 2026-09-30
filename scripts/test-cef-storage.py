@@ -1,13 +1,18 @@
 """Regression test for persistent CEF profile cookies and site storage."""
 import ctypes
+import contextlib
+from ctypes import wintypes
 import http.server
 import json
 import os
 import socket
+import sqlite3
 import subprocess
 import sys
 import threading
 import time
+import tempfile
+from pathlib import Path
 import urllib.request
 
 import websocket
@@ -19,18 +24,19 @@ COOKIE_VALUE = "soulu-session-cookie"
 STORAGE_VALUE = "soulu-local-storage"
 IDB_VALUE = "soulu-indexed-db"
 sequence = 0
-received_cookie = ""
+launch_number = 0
+received_cookies = {}
 
 
 class SiteHandler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
-        global received_cookie
-        received_cookie = self.headers.get("Cookie", "")
+        received_cookies[self.path] = self.headers.get("Cookie", "")
         body = b"<!doctype html><meta charset=utf-8><title>Soulu storage test</title>"
         self.send_response(200)
         if self.path.startswith("/seed"):
             # Deliberately a session cookie: no Expires or Max-Age.
             self.send_header("Set-Cookie", f"soulu_auth={COOKIE_VALUE}; Path=/; HttpOnly; SameSite=Lax")
+            self.send_header("Set-Cookie", f"soulu_persistent={COOKIE_VALUE}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400")
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
@@ -58,11 +64,14 @@ def targets(timeout=45):
 
 
 def page_socket():
-    for target in targets():
-        if target.get("type") == "page" and "/ui/index.html" not in target.get("url", ""):
-            return websocket.create_connection(
-                target["webSocketDebuggerUrl"], timeout=30,
-                origin=f"http://127.0.0.1:{DEBUG_PORT}")
+    deadline = time.monotonic() + 45
+    while time.monotonic() < deadline:
+        for target in targets(timeout=max(1, deadline - time.monotonic())):
+            if target.get("type") == "page" and f"/ui/start.html?soulu-auth-test=launch-{launch_number}" in target.get("url", ""):
+                return websocket.create_connection(
+                    target["webSocketDebuggerUrl"], timeout=30,
+                    origin=f"http://127.0.0.1:{DEBUG_PORT}")
+        time.sleep(0.25)
     raise AssertionError("CEF content target did not appear")
 
 
@@ -94,7 +103,7 @@ def navigate(ws, url):
     command(ws, "Page.navigate", {"url": url})
     deadline = time.monotonic() + 20
     while time.monotonic() < deadline:
-        if evaluate(ws, "document.readyState") == "complete":
+        if evaluate(ws, "location.href") == url and evaluate(ws, "document.readyState") == "complete":
             return
         time.sleep(0.2)
     raise AssertionError(f"Page did not load: {url}")
@@ -102,6 +111,9 @@ def navigate(ws, url):
 
 def close_normally(process):
     user32 = ctypes.windll.user32
+    user32.GetWindowThreadProcessId.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_ulong)]
+    user32.IsWindowVisible.argtypes = [ctypes.c_void_p]
+    user32.PostMessageW.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_size_t, ctypes.c_ssize_t]
     handles = []
     callback_type = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
 
@@ -117,17 +129,103 @@ def close_normally(process):
     user32.EnumWindows(callback, 0)
     if not handles:
         raise AssertionError("Soulu top-level window was not found")
+    child_handles = descendant_handles(process.pid)
     user32.PostMessageW(handles[0], 0x0010, 0, 0)  # WM_CLOSE
-    process.wait(timeout=30)
+    exit_code = process.wait(timeout=30)
+    if exit_code:
+        diagnostic = subprocess.run([
+            "powershell", "-NoProfile", "-Command",
+            "Get-WinEvent -FilterHashtable @{LogName='Application'; Id=1000} -MaxEvents 3 -ErrorAction SilentlyContinue | Select-Object TimeCreated,Message | Format-List"
+        ], capture_output=True, text=True, errors="replace", timeout=20)
+        print(diagnostic.stdout, flush=True)
+    assert exit_code == 0, f"Soulu exited abnormally: {process.returncode}"
+    deadline = time.monotonic() + 30
+    kernel32 = ctypes.windll.kernel32
+    try:
+        for pid, handle in child_handles:
+            result = kernel32.WaitForSingleObject(handle, max(0, int((deadline - time.monotonic()) * 1000)))
+            assert result == 0, f"CEF child {pid} still running after normal shutdown"
+    finally:
+        for _, handle in child_handles:
+            kernel32.CloseHandle(handle)
 
 
-def launch(executable):
+def descendant_handles(parent_pid):
+    class ProcessEntry(ctypes.Structure):
+        _fields_ = [("size", wintypes.DWORD), ("usage", wintypes.DWORD),
+                    ("pid", wintypes.DWORD), ("heap", ctypes.c_size_t),
+                    ("module", wintypes.DWORD), ("threads", wintypes.DWORD),
+                    ("parent", wintypes.DWORD), ("priority", wintypes.LONG),
+                    ("flags", wintypes.DWORD), ("exe", wintypes.WCHAR * 260)]
+    kernel32 = ctypes.windll.kernel32
+    kernel32.CreateToolhelp32Snapshot.restype = wintypes.HANDLE
+    kernel32.Process32FirstW.argtypes = [wintypes.HANDLE, ctypes.POINTER(ProcessEntry)]
+    kernel32.Process32NextW.argtypes = [wintypes.HANDLE, ctypes.POINTER(ProcessEntry)]
+    kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    kernel32.OpenProcess.restype = wintypes.HANDLE
+    kernel32.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+    snapshot = kernel32.CreateToolhelp32Snapshot(2, 0)
+    entry = ProcessEntry()
+    entry.size = ctypes.sizeof(entry)
+    parents = {}
+    try:
+        more = kernel32.Process32FirstW(snapshot, ctypes.byref(entry))
+        while more:
+            parents[entry.pid] = entry.parent
+            more = kernel32.Process32NextW(snapshot, ctypes.byref(entry))
+    finally:
+        kernel32.CloseHandle(snapshot)
+    descendants = {parent_pid}
+    while True:
+        expanded = descendants | {pid for pid, parent in parents.items() if parent in descendants}
+        if expanded == descendants:
+            break
+        descendants = expanded
+    result = []
+    for pid in descendants - {parent_pid}:
+        handle = kernel32.OpenProcess(0x00100000, False, pid)
+        if handle:
+            result.append((pid, handle))
+    return result
+
+
+def launch(executable, data_root):
+    global launch_number
+    launch_number += 1
     environment = os.environ.copy()
     environment["SOULU_UI_TEST_PORT"] = str(DEBUG_PORT)
+    environment["LOCALAPPDATA"] = str(data_root)
+    environment["SOULU_AUTH_TEST_TOKEN"] = f"launch-{launch_number}"
     return subprocess.Popen([executable], env=environment)
 
 
-def main():
+def verify_profile_cookies(data_root):
+    # Inspect the content profile, never the shell/global cookie manager.
+    profile = data_root / "Soulu" / "User Data" / "Profiles" / "personal"
+    database = profile / "Network" / "Cookies"
+    assert database.is_file(), f"Content profile cookie database missing: {database}"
+    # sqlite3 connection context managers end transactions but do not close
+    # file handles. Chromium must have sole ownership when it restarts.
+    with contextlib.closing(sqlite3.connect(f"{database.as_uri()}?mode=ro", uri=True)) as connection:
+        rows = dict(connection.execute(
+            "SELECT name, is_persistent FROM cookies WHERE host_key = ?",
+            ("127.0.0.1",)))
+    assert rows.get("soulu_auth") == 0, rows
+    assert rows.get("soulu_persistent") == 1, rows
+
+
+def verify_content_context(data_root):
+    context_path = data_root / "Soulu" / "User Data" / "auth-context.json"
+    context = json.loads(context_path.read_text())
+    print(json.dumps({"actual_content_context": context}), flush=True)
+    assert context["same_context"] and context["profile_id"] == "personal", context
+    assert not context["shares_global_context"], context
+    assert context["restore_on_startup"] == 1, context
+    assert Path(context["cache_path"]) == data_root / "Soulu" / "User Data" / "Profiles" / "personal", context
+
+
+def run(data_root):
     if len(sys.argv) != 2:
         raise SystemExit("usage: test-cef-storage.py <Soulu.exe>")
     executable = os.path.abspath(sys.argv[1])
@@ -136,9 +234,10 @@ def main():
     threading.Thread(target=server.serve_forever, daemon=True).start()
     origin = f"http://127.0.0.1:{site_port}"
 
-    first = launch(executable)
+    first = launch(executable, data_root)
     try:
         ws = page_socket()
+        verify_content_context(data_root)
         navigate(ws, origin + "/seed")
         evaluate(ws, f"localStorage.setItem('soulu-test', {json.dumps(STORAGE_VALUE)})")
         evaluate(ws, """new Promise((resolve, reject) => {
@@ -168,13 +267,18 @@ def main():
         assert any(item["name"] == "soulu_auth" and item["value"] == COOKIE_VALUE for item in cookies)
         ws.close()
         close_normally(first)
+        verify_profile_cookies(data_root)
+        verify_content_context(data_root)
     finally:
         if first.poll() is None:
             first.kill()
+            first.wait(timeout=30)
 
-    second = launch(executable)
+    second = launch(executable, data_root)
     try:
         ws = page_socket()
+        verify_content_context(data_root)
+        command(ws, "Network.enable")
         navigate(ws, origin + "/verify")
         local_value = evaluate(ws, "localStorage.getItem('soulu-test')")
         cookies = command(ws, "Network.getAllCookies").get("cookies", [])
@@ -191,7 +295,6 @@ def main():
             "storageKey": storage_key,
             "databaseName": "soulu-test-db",
             "objectStoreName": "values",
-            "indexName": "",
             "skipCount": 0,
             "pageSize": 10,
         }).get("objectStoreDataEntries", [])
@@ -202,7 +305,10 @@ def main():
         ), None)
         cookie_value = next((item["value"] for item in cookies if item["name"] == "soulu_auth"), None)
         assert cookie_value == COOKIE_VALUE, f"session cookie missing after restart: {cookie_value!r}"
-        assert f"soulu_auth={COOKIE_VALUE}" in received_cookie, received_cookie
+        assert any(item["name"] == "soulu_persistent" and item["value"] == COOKIE_VALUE for item in cookies), cookies
+        verify_cookie = received_cookies.get("/verify", "")
+        assert f"soulu_auth={COOKIE_VALUE}" in verify_cookie, received_cookies
+        assert f"soulu_persistent={COOKIE_VALUE}" in verify_cookie, received_cookies
         assert local_value == STORAGE_VALUE, local_value
         assert indexed_value == IDB_VALUE, indexed_value
         print(json.dumps({
@@ -211,14 +317,23 @@ def main():
             "localStorage": "preserved",
             "IndexedDB": "preserved",
             "clean_restart": True,
+            "content_profile_cookie_database": "verified",
+            "persistent_cookie": "preserved",
         }))
         ws.close()
         close_normally(second)
     finally:
+        print(f"Restarted Soulu exit status before cleanup: {second.poll()}", flush=True)
         if second.poll() is None:
-            second.kill()
+            try:
+                close_normally(second)
+            except Exception as error:
+                print(f"Cleanup failed: {error}", flush=True)
+                second.kill()
+                second.wait(timeout=30)
         server.shutdown()
 
 
 if __name__ == "__main__":
-    main()
+    with tempfile.TemporaryDirectory(prefix="soulu-auth-regression-") as directory:
+        run(Path(directory))
