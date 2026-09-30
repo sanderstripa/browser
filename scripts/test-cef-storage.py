@@ -25,6 +25,7 @@ STORAGE_VALUE = "soulu-local-storage"
 IDB_VALUE = "soulu-indexed-db"
 sequence = 0
 network_events = []
+launch_number = 0
 received_cookies = {}
 
 
@@ -193,10 +194,14 @@ def descendant_handles(parent_pid):
 
 
 def launch(executable, data_root):
+    global launch_number
+    launch_number += 1
     environment = os.environ.copy()
     environment["SOULU_UI_TEST_PORT"] = str(DEBUG_PORT)
     environment["LOCALAPPDATA"] = str(data_root)
     return subprocess.Popen([executable, f"--log-file={data_root / 'cef-debug.log'}",
+                             f"--log-net-log={data_root / f'netlog-{launch_number}.json'}",
+                             "--net-log-capture-mode=Everything",
                              "--vmodule=*cookie*=2,*os_crypt*=2"], env=environment)
 
 
@@ -327,7 +332,12 @@ def run(data_root):
     finally:
         print(f"Restarted Soulu exit status before cleanup: {second.poll()}", flush=True)
         if second.poll() is None:
-            second.kill()
+            try:
+                close_normally(second)
+            except Exception as error:
+                print(f"Cleanup failed: {error}", flush=True)
+                second.kill()
+                second.wait(timeout=30)
         server.shutdown()
 
 
@@ -339,3 +349,12 @@ if __name__ == "__main__":
             diagnostic = Path(directory) / "cef-debug.log"
             if diagnostic.exists():
                 print("\n".join(diagnostic.read_text(errors="replace").splitlines()[-80:]), flush=True)
+            for netlog in Path(directory).glob("netlog-*.json"):
+                try:
+                    data = json.loads(netlog.read_text())
+                    event_types = {value: key for key, value in data["constants"]["logEventTypes"].items()}
+                    events = [{"type": event_types.get(event["type"]), "params": event.get("params")}
+                              for event in data["events"] if "COOKIE" in event_types.get(event["type"], "")]
+                    print(json.dumps({"netlog": netlog.name, "cookie_events": events}), flush=True)
+                except (ValueError, KeyError) as error:
+                    print(f"Netlog unavailable: {error}", flush=True)
