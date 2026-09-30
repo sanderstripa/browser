@@ -152,6 +152,18 @@ def main():
             tx.onerror = () => reject(tx.error);
           };
         })""")
+        indexed_seed = evaluate(ws, """new Promise((resolve, reject) => {
+          const request = indexedDB.open('soulu-test-db', 1);
+          request.onerror = () => reject(request.error);
+          request.onsuccess = () => {
+            const db = request.result;
+            const get = db.transaction('values').objectStore('values').get('auth');
+            get.onsuccess = () => { db.close(); resolve(get.result); };
+            get.onerror = () => reject(get.error);
+          };
+        })""")
+        assert indexed_seed == IDB_VALUE, indexed_seed
+        time.sleep(2)
         cookies = command(ws, "Network.getAllCookies").get("cookies", [])
         assert any(item["name"] == "soulu_auth" and item["value"] == COOKIE_VALUE for item in cookies)
         ws.close()
