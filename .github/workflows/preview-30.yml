@@ -52,6 +52,11 @@ jobs:
         with:
           path: cef-project/third_party/cef
           key: soulu-cef154-8037-58-win64-download-v1
+      - uses: actions/cache/restore@v4
+        id: compiled-cache
+        with:
+          path: cef-build
+          key: soulu-preview30-cef154-win2025-${{ hashFiles('browser/cef/**') }}
       - name: Configure and build Soulu
         shell: pwsh
         run: |
@@ -71,6 +76,11 @@ jobs:
           "build_dir=$dir" >> $env:GITHUB_OUTPUT
           New-Item -ItemType Directory -Force browser/artifacts | Out-Null
           "CEF $cef`nSource $env:GITHUB_SHA`nSoulu Preview 30" | Set-Content browser/artifacts/build-info.txt -Encoding utf8
+      - uses: actions/cache/save@v4
+        if: steps.compiled-cache.outputs.cache-hit != 'true'
+        with:
+          path: cef-build
+          key: soulu-preview30-cef154-win2025-${{ hashFiles('browser/cef/**') }}
       - name: Verify persistent cookies and storage
         shell: pwsh
         run: |
