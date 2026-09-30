@@ -57,6 +57,7 @@ jobs:
         with:
           path: cef-build
           key: soulu-preview30-cef154-win2025-${{ hashFiles('browser/cef/**') }}
+          restore-keys: soulu-preview30-cef154-win2025-
       - name: Configure and build Soulu
         shell: pwsh
         run: |
