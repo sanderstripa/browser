@@ -9,7 +9,11 @@ class ShellSurface final : public CefRenderHandler {
   explicit ShellSurface(HWND parent);
   void Attach(CefRefPtr<CefBrowser> browser);
   void Detach();
-  void Resize(int x, int y, int width, int height);
+  // Layout owns HWND geometry. Prepare the OSR viewport before positioning
+  // the children, then notify CEF only after the whole layout is committed.
+  void PrepareResize(int width, int height, float scale);
+  void CommitResize();
+  static constexpr UINT kFirstFrame = WM_APP + 73;
   void Focus();
   void Cursor(HCURSOR cursor);
   HWND hwnd() const { return hwnd_; }
@@ -39,6 +43,8 @@ class ShellSurface final : public CefRenderHandler {
   int width_ = 1, height_ = 48;
   float scale_ = 1;
   bool tracking_ = false;
+  bool resize_pending_ = false, screen_pending_ = false;
+  bool first_frame_ = false;
   int paint_error_ = 0;
   int paint_count_ = 0, toolbar_alpha_ = 255;
   IMPLEMENT_REFCOUNTING(ShellSurface);

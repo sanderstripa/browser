@@ -75,6 +75,13 @@ class BrowserWindow final : public CefBaseRefCounted {
   void Navigate(const std::string& value);
   void FocusAddress();
   void Layout();
+  struct Geometry {
+    int width, height, toolbar, shell_height, sidebar, panel;
+    float scale;
+    CefRect content;
+  };
+  Geometry CurrentGeometry() const;
+  void ShowWhenReady();
   void CloseAll();
   Tab* ActiveTab();
   Tab* FindTab(int id);
@@ -97,6 +104,7 @@ class BrowserWindow final : public CefBaseRefCounted {
   HWND hwnd_ = nullptr;
   HWND resize_border_ = nullptr;
   bool native_blur_ = false;
+  bool shell_frame_ready_ = false;
   CefRefPtr<CefBrowser> shell_;
   CefRefPtr<ShellSurface> surface_;
   std::vector<Tab> tabs_;

@@ -27,14 +27,16 @@ void ShellSurface::ReleaseBitmap() {
 }
 void ShellSurface::Attach(CefRefPtr<CefBrowser> browser) { browser_ = browser; browser_->GetHost()->WasResized(); }
 void ShellSurface::Detach() { browser_ = nullptr; }
-void ShellSurface::Resize(int x, int y, int width, int height) {
-  const float scale = std::max(1.0f, GetDpiForWindow(parent_) / 96.0f);
-  const bool changed = width != width_ || height != height_ || scale != scale_;
+void ShellSurface::PrepareResize(int width, int height, float scale) {
+  screen_pending_ |= scale != scale_;
+  resize_pending_ |= width != width_ || height != height_ || screen_pending_;
   width_ = std::max(1, width); height_ = std::max(1, height); scale_ = scale;
-  SetWindowPos(hwnd_, HWND_TOP, x, y, width_, height_, SWP_NOACTIVATE | SWP_SHOWWINDOW);
-  if (changed && browser_) {
-    browser_->GetHost()->NotifyScreenInfoChanged();
+}
+void ShellSurface::CommitResize() {
+  if (browser_ && resize_pending_) {
+    if (screen_pending_) browser_->GetHost()->NotifyScreenInfoChanged();
     browser_->GetHost()->WasResized();
+    resize_pending_ = screen_pending_ = false;
   }
 }
 void ShellSurface::Focus() { SetFocus(hwnd_); if (browser_) browser_->GetHost()->SetFocus(true); }
@@ -60,6 +62,13 @@ bool ShellSurface::GetScreenInfo(CefRefPtr<CefBrowser>, CefScreenInfo& info) {
 void ShellSurface::OnPaint(CefRefPtr<CefBrowser>, PaintElementType type, const RectList&,
                             const void* buffer, int width, int height) {
   if (type != PET_VIEW || !IsWindow(hwnd_) || width <= 0 || height <= 0) return;
+  // OSR frames arrive asynchronously, in physical pixels. A frame must never
+  // become a second source of HWND geometry. Allow only DIP rounding padding.
+  const int max_width = static_cast<int>(std::ceil(std::ceil(width_ / scale_) * scale_));
+  const int max_height = static_cast<int>(std::ceil(std::ceil(height_ / scale_) * scale_));
+  if (width < width_ || height < height_ || width > max_width || height > max_height) return;
+  const int stride = width;
+  width = width_; height = height_;
   if (!bitmap_ || width != bitmap_width_ || height != bitmap_height_) {
     ReleaseBitmap();
     BITMAPINFO info = {}; info.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
@@ -71,12 +80,22 @@ void ShellSurface::OnPaint(CefRefPtr<CefBrowser>, PaintElementType type, const R
     original_ = SelectObject(memory_, bitmap_); bitmap_width_ = width; bitmap_height_ = height;
   }
   // CEF delivers premultiplied BGRA: preserve its alpha through Win32 composition.
-  memcpy(pixels_, buffer, static_cast<size_t>(width) * height * 4);
+  for (int row = 0; row < height; ++row)
+    memcpy(static_cast<unsigned char*>(pixels_) + static_cast<size_t>(row) * width * 4,
+           static_cast<const unsigned char*>(buffer) + static_cast<size_t>(row) * stride * 4,
+           static_cast<size_t>(width) * 4);
   ++paint_count_;
-  if (width > 120 && height > 5) toolbar_alpha_ = static_cast<const unsigned char*>(buffer)[(4 * width + 110) * 4 + 3];
+  if (width > 120 && height > 5) toolbar_alpha_ = static_cast<const unsigned char*>(buffer)[(4 * stride + 110) * 4 + 3];
   SIZE size = {width, height}; POINT source = {0, 0};
   BLENDFUNCTION blend = {AC_SRC_OVER, 0, 255, AC_SRC_ALPHA};
-  paint_error_ = UpdateLayeredWindow(hwnd_, nullptr, nullptr, &size, memory_, &source, 0, &blend, ULW_ALPHA) ? 0 : static_cast<int>(GetLastError());
+  UPDATELAYEREDWINDOWINFO update = {sizeof(update)};
+  update.psize = &size; update.hdcSrc = memory_; update.pptSrc = &source;
+  update.pblend = &blend; update.dwFlags = ULW_ALPHA | ULW_EX_NORESIZE;
+  paint_error_ = UpdateLayeredWindowIndirect(hwnd_, &update) ? 0 : static_cast<int>(GetLastError());
+  if (!paint_error_ && !first_frame_ && toolbar_alpha_ > 0) {
+    first_frame_ = true;
+    PostMessageW(parent_, kFirstFrame, 0, 0);
+  }
 }
 uint32_t ShellSurface::Modifiers() {
   uint32_t flags = 0;
