@@ -49,6 +49,10 @@ bool BrowserClient::OnProcessMessageReceived(CefRefPtr<CefBrowser> browser,
 
 void BrowserClient::OnAfterCreated(CefRefPtr<CefBrowser> browser) {
   CEF_REQUIRE_UI_THREAD();
+  if (popup_opener_) {
+    popup_opener_->pending_popups_.erase(opener_popup_id_);
+    popup_opener_ = nullptr;
+  }
   // Every browser gets a router. BridgeHandler itself strictly limits access
   // to Soulu's trusted local UI pages. Settings is intentionally opened as a
   // content tab, so excluding kContent made every settings control a no-op.
@@ -60,6 +64,52 @@ void BrowserClient::OnAfterCreated(CefRefPtr<CefBrowser> browser) {
   else owner_->AttachContent(tab_id_, browser);
 }
 
+bool BrowserClient::OnOpenURLFromTab(CefRefPtr<CefBrowser> browser,
+    CefRefPtr<CefFrame>, const CefString& url, WindowOpenDisposition disposition,
+    bool) {
+  CEF_REQUIRE_UI_THREAD();
+  if (role_ == BrowserRole::kShell) return false;
+  switch (disposition) {
+    case CEF_WOD_NEW_FOREGROUND_TAB:
+    case CEF_WOD_NEW_BACKGROUND_TAB:
+    case CEF_WOD_NEW_WINDOW:
+    case CEF_WOD_NEW_POPUP:
+      owner_->OpenTabFrom(tab_id_, browser, url,
+                         disposition == CEF_WOD_NEW_BACKGROUND_TAB);
+      return true;
+    default:
+      return false;
+  }
+}
+
+bool BrowserClient::OnBeforePopup(CefRefPtr<CefBrowser>, CefRefPtr<CefFrame>,
+    int popup_id, const CefString& url, const CefString&,
+    WindowOpenDisposition disposition, bool, const CefPopupFeatures&,
+    CefWindowInfo& info, CefRefPtr<CefClient>& client, CefBrowserSettings&,
+    CefRefPtr<CefDictionaryValue>&, bool*) {
+  CEF_REQUIRE_UI_THREAD();
+  if (role_ == BrowserRole::kShell) return true;
+  const int id = owner_->PreparePopup(tab_id_, url,
+      disposition == CEF_WOD_NEW_BACKGROUND_TAB, info);
+  if (!id) return true;
+  CefRefPtr<BrowserClient> popup_client =
+      new BrowserClient(owner_, BrowserRole::kContent, id);
+  popup_client->popup_opener_ = this;
+  popup_client->opener_popup_id_ = popup_id;
+  client = popup_client;
+  pending_popups_[popup_id] = id;
+  // Let CEF create the real popup, retaining its opener and request context.
+  return false;
+}
+
+void BrowserClient::OnBeforePopupAborted(CefRefPtr<CefBrowser>, int popup_id) {
+  CEF_REQUIRE_UI_THREAD();
+  auto it = pending_popups_.find(popup_id);
+  if (it == pending_popups_.end()) return;
+  owner_->AbortPopup(it->second);
+  pending_popups_.erase(it);
+}
+
 bool BrowserClient::DoClose(CefRefPtr<CefBrowser>) { return false; }
 
 void BrowserClient::OnBeforeClose(CefRefPtr<CefBrowser> browser) {
@@ -69,6 +119,8 @@ void BrowserClient::OnBeforeClose(CefRefPtr<CefBrowser> browser) {
     bridge_.reset();
     router_ = nullptr;
   }
+  for (const auto& popup : pending_popups_) owner_->AbortPopup(popup.second);
+  pending_popups_.clear();
   owner_->BrowserClosed(browser, tab_id_, role_ == BrowserRole::kShell);
 }
 

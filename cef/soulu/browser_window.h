@@ -31,6 +31,11 @@ class BrowserWindow final : public CefBaseRefCounted {
   HWND hwnd() const { return hwnd_; }
   CefRefPtr<ShellSurface> surface() const { return surface_; }
   void ApplyContentTheme();
+  int PreparePopup(int source_id, const std::string& url, bool background,
+                   CefWindowInfo& info);
+  void AbortPopup(int tab_id);
+  void OpenTabFrom(int source_id, CefRefPtr<CefBrowser> source,
+                   const std::string& url, bool background);
 
  private:
   struct Tab {
@@ -41,6 +46,7 @@ class BrowserWindow final : public CefBaseRefCounted {
     std::string favicon;
     std::string profile_id = "personal";
     bool incognito = false;
+    bool activate_on_attach = false;
     bool loading = false;
     bool can_go_back = false;
   };
@@ -69,7 +75,9 @@ class BrowserWindow final : public CefBaseRefCounted {
   void ApplyWindowAppearance();
   CefRefPtr<CefDictionaryValue> SendVpnHelper(
       CefRefPtr<CefDictionaryValue> request) const;
-  void NewTab(const std::string& url = "about:blank", bool incognito = false);
+  void NewTab(const std::string& url = "about:blank", bool incognito = false,
+              bool foreground = true, CefRefPtr<CefRequestContext> context = nullptr,
+              const std::string& profile_id = "");
   void CloseTab(int id);
   void SwitchTab(int id);
   void Navigate(const std::string& value);

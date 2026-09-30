@@ -1,0 +1,136 @@
+name: Build and release Soulu Preview 30
+
+on:
+  push:
+    branches: [soulu-preview-30]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: soulu-preview-30
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    runs-on: windows-2025
+    timeout-minutes: 90
+    env:
+      CEF_VERSION: 154.0.32+g682c378+chromium-154.0.8037.58
+      SOULU_UI_TEST_PORT: 9223
+      PYTHONUTF8: 1
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: browser
+      - uses: actions/checkout@v4
+        with:
+          repository: chromiumembedded/cef-project
+          ref: 3aec7049cf63a36876d7a6ef538842d6af314482
+          path: cef-project
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Prepare pinned CEF and Soulu
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check six websocket-client
+          $config = Join-Path $PWD 'cef-project/CMakeLists.txt'
+          $text = Get-Content $config -Raw
+          $text = [regex]::Replace($text, 'set\(CEF_VERSION "[^"]+"\)', ('set(CEF_VERSION "' + $env:CEF_VERSION + '")'))
+          if (-not $text.Contains('set(CEF_VERSION "' + $env:CEF_VERSION + '")')) { throw 'CEF version pin failed' }
+          Set-Content $config $text -Encoding utf8
+          Copy-Item -Recurse browser/cef/soulu cef-project/examples/soulu
+          New-Item -ItemType Directory -Force cef-project/examples/soulu/assets/ui,cef-project/examples/soulu/assets/vpn | Out-Null
+          Copy-Item -Recurse browser/ui/* cef-project/examples/soulu/assets/ui/
+          Copy-Item -Recurse browser/vpn/* cef-project/examples/soulu/assets/vpn/
+          Add-Content cef-project/examples/CMakeLists.txt "`nadd_subdirectory(soulu)`n"
+      - uses: actions/cache@v4
+        with:
+          path: cef-project/third_party/cef
+          key: soulu-cef154-8037-58-win64-download-v1
+      - name: Configure and build Soulu
+        shell: pwsh
+        run: |
+          cmake -S cef-project -B cef-build -A x64 -DUSE_SANDBOX=OFF
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cmake --build cef-build --config Release --target soulu --parallel 2
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify packaged CEF version
+        id: binary
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem cef-build -Recurse -Filter Soulu.exe | Where-Object { $_.FullName -match 'Release' } | Select-Object -First 1
+          if (-not $exe) { throw 'Soulu.exe was not built' }
+          $dir = $exe.Directory.FullName
+          $cef = (Get-Item (Join-Path $dir 'libcef.dll')).VersionInfo.ProductVersion
+          if ($cef -ne $env:CEF_VERSION) { throw "Unexpected CEF binary: $cef" }
+          "build_dir=$dir" >> $env:GITHUB_OUTPUT
+          New-Item -ItemType Directory -Force browser/artifacts | Out-Null
+          "CEF $cef`nSource $env:GITHUB_SHA`nSoulu Preview 30" | Set-Content browser/artifacts/build-info.txt -Encoding utf8
+      - name: Verify persistent cookies and storage
+        shell: pwsh
+        run: |
+          python browser/scripts/test-cef-storage.py '${{ steps.binary.outputs.build_dir }}/Soulu.exe'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify popup and background tabs
+        shell: pwsh
+        run: |
+          python browser/scripts/test-cef-navigation.py '${{ steps.binary.outputs.build_dir }}/Soulu.exe'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Package ZIP and installer
+        shell: pwsh
+        run: |
+          $dir = '${{ steps.binary.outputs.build_dir }}'
+          Compress-Archive -Path "$dir/*" -DestinationPath browser/artifacts/Soulu-Preview-30-x64.zip
+          choco install nsis -y --no-progress
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $out = Join-Path $PWD 'browser/artifacts/Soulu-Preview-30-x64.exe'
+          ./browser/installer/build.ps1 -BuildDir $dir -OutFile $out
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not (Test-Path $out)) { throw 'Installer was not produced' }
+      - name: Smoke-test installer payload and installed browser
+        shell: pwsh
+        run: |
+          $dir = Join-Path $PWD 'installed-preview-30'
+          $setup = Start-Process (Join-Path $PWD 'browser/installer/payload.exe') -ArgumentList @('/S', "/D=$dir") -WindowStyle Hidden -Wait -PassThru
+          if ($setup.ExitCode -ne 0) { throw "Installer failed: $($setup.ExitCode)" }
+          if ((Get-Item "$dir/libcef.dll").VersionInfo.ProductVersion -ne $env:CEF_VERSION) { throw 'Installed CEF version mismatch' }
+          python browser/scripts/test-cef-navigation.py "$dir/Soulu.exe"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Record checksums
+        shell: pwsh
+        run: |
+          Get-ChildItem browser/artifacts -File | Where-Object { $_.Extension -in '.zip','.exe' } | ForEach-Object {
+            $hash = Get-FileHash $_.FullName -Algorithm SHA256
+            "$($hash.Hash.ToLower())  $($_.Name)"
+          } | Set-Content browser/artifacts/SHA256SUMS.txt -Encoding ascii
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Soulu-Preview-30-x64
+          path: browser/artifacts/*
+          if-no-files-found: error
+      - name: Publish Soulu Preview 30
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: preview-30
+          target_commitish: ${{ github.sha }}
+          name: Soulu Preview 30
+          prerelease: false
+          make_latest: true
+          body: |
+            Soulu Preview 30 for Windows x64.
+
+            CEF 154.0.32 / Chromium 154.0.8037.58. Versions verified against the packaged libcef.dll.
+
+            Popup and new-window navigation is hosted in Soulu tabs. Background tab navigation preserves the active tab. Closing a popup no longer removes its opener's tab or replaces it with the start page.
+
+            Automated checks: persistent cookies/localStorage/IndexedDB after clean restart, popup/window.open and background tabs, installed-browser launch.
+
+            Website network failures remain dependent on the connection; this release does not claim to resolve YouTube/Facebook connection resets or sanderstripa.com timeouts. Google/Ozon account sign-in after restart still requires manual confirmation.
+          files: |
+            browser/artifacts/Soulu-Preview-30-x64.zip
+            browser/artifacts/Soulu-Preview-30-x64.exe
+            browser/artifacts/SHA256SUMS.txt
+            browser/artifacts/build-info.txt

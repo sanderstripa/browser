@@ -517,36 +517,85 @@ void BrowserWindow::OpenSettingsTab() {
   } else NewTab(url);
 }
 
-void BrowserWindow::NewTab(const std::string& url, bool incognito) {
+void BrowserWindow::OpenTabFrom(int source_id, CefRefPtr<CefBrowser> source,
+                                 const std::string& url, bool background) {
+  auto* tab = FindTab(source_id);
+  if (!tab || !tab->browser || !tab->browser->IsSame(source) || closing_) return;
+  const bool incognito = tab->incognito;
+  const std::string profile_id = tab->profile_id;
+  NewTab(url, incognito, !background, source->GetHost()->GetRequestContext(), profile_id);
+}
+
+int BrowserWindow::PreparePopup(int source_id, const std::string& url,
+                                bool background, CefWindowInfo& info) {
+  auto* source = FindTab(source_id);
+  if (!source || closing_) return 0;
+  Tab tab;
+  tab.id = next_tab_id_++;
+  tab.url = url.empty() ? "about:blank" : url;
+  tab.incognito = source->incognito;
+  tab.profile_id = source->profile_id;
+  tab.activate_on_attach = !background;
+  tabs_.push_back(tab);
+  RECT rect = {};
+  GetClientRect(hwnd_, &rect);
+  info.SetAsChild(hwnd_, CefRect(0, 48, rect.right,
+                                std::max(1L, rect.bottom - 48L)));
+  // Keep the child hidden until AttachContent applies the selected tab's layout.
+  info.style &= ~WS_VISIBLE;
+  EmitState();
+  return tab.id;
+}
+
+void BrowserWindow::AbortPopup(int tab_id) {
+  auto* tab = FindTab(tab_id);
+  if (!tab || tab->browser) return;
+  tabs_.erase(std::remove_if(tabs_.begin(), tabs_.end(),
+      [tab_id](const Tab& item) { return item.id == tab_id; }), tabs_.end());
+  EmitState();
+}
+
+void BrowserWindow::NewTab(const std::string& url, bool incognito,
+                          bool foreground, CefRefPtr<CefRequestContext> context,
+                          const std::string& profile_id) {
   InitializeProfiles();
   const int id = next_tab_id_++;
   Tab tab;
   tab.id = id;
   tab.url = url;
   tab.incognito = incognito;
-  tab.profile_id = incognito ? "__incognito__" : active_profile_id_;
+  tab.profile_id = profile_id.empty() ? (incognito ? "__incognito__" : active_profile_id_) : profile_id;
   if (url.find("/ui/settings.html") != std::string::npos)
     tab.title = settings_->GetString("language") == "en" ? "Settings" : "Настройки";
   tabs_.push_back(tab);
-  active_tab_id_ = id;
+  const int previous_active = active_tab_id_;
+  if (foreground) active_tab_id_ = id;
 
   RECT rect = {};
   GetClientRect(hwnd_, &rect);
   CefWindowInfo info;
   info.SetAsChild(hwnd_, CefRect(0, 48, rect.right,
                                 std::max(1L, rect.bottom - 48L)));
+  if (!foreground) info.style &= ~WS_VISIBLE;
   CefBrowserSettings browser_settings;
   const bool dark = settings_->GetString("theme") == "dark" || (settings_->GetString("theme") == "system" && IsWindowsDarkMode());
   browser_settings.background_color = dark ? CefColorSetARGB(255,8,9,11) : CefColorSetARGB(255,250,250,250);
   const BrowserRole role =
       url.find("/ui/settings.html") != std::string::npos
           ? BrowserRole::kSettings : BrowserRole::kContent;
-  CefBrowserHost::CreateBrowser(
+  const bool created = CefBrowserHost::CreateBrowser(
       info, new BrowserClient(this, role, id),
       url == "about:blank" ? FileUrl(std::filesystem::u8path(ExecutableDirectory()) / "ui" / "start.html") : url, browser_settings,
-      nullptr, ContextForNewTab(incognito));
+      nullptr, context ? context : ContextForNewTab(incognito));
+  if (!created) {
+    AbortPopup(id);
+    active_tab_id_ = previous_active;
+    Layout();
+    EmitState();
+    return;
+  }
   EmitState();
-  if (url == "about:blank") FocusAddress();
+  if (foreground && url == "about:blank") FocusAddress();
 }
 
 void BrowserWindow::AttachShell(CefRefPtr<CefBrowser> browser) {
@@ -563,7 +612,16 @@ void BrowserWindow::AttachShell(CefRefPtr<CefBrowser> browser) {
 }
 
 void BrowserWindow::AttachContent(int tab_id, CefRefPtr<CefBrowser> browser) {
-  if (auto* tab = FindTab(tab_id)) tab->browser = browser;
+  auto* tab = FindTab(tab_id);
+  if (!tab || (tab->browser && !tab->browser->IsSame(browser))) {
+    browser->GetHost()->CloseBrowser(true);
+    return;
+  }
+  tab->browser = browser;
+  if (tab->activate_on_attach) {
+    active_tab_id_ = tab_id;
+    tab->activate_on_attach = false;
+  }
   Layout();
   EmitState();
 }
@@ -618,6 +676,9 @@ void BrowserWindow::BrowserClosed(CefRefPtr<CefBrowser> browser, int tab_id,
                                   bool shell) {
   if (shell) { if (surface_) surface_->Detach(); shell_ = nullptr; }
   else {
+    auto* tab = FindTab(tab_id);
+    // A popup/DevTools browser must never remove its opener's tab.
+    if (!tab || !tab->browser || !tab->browser->IsSame(browser)) return;
     tabs_.erase(std::remove_if(tabs_.begin(), tabs_.end(),
                                [tab_id](const Tab& tab) { return tab.id == tab_id; }),
                 tabs_.end());
@@ -831,10 +892,10 @@ CefRefPtr<CefDictionaryValue> BrowserWindow::State() const {
   }
   state->SetList("profiles", profiles);
   auto update = CefDictionaryValue::Create();
-  update->SetString("soulu", "0.9.0-cef-preview.18");
-  update->SetString("recommended", "0.9.0-cef-preview.18");
-  update->SetString("cef", "144.0.6");
-  update->SetString("chromium", "144");
+  update->SetString("soulu", "0.9.0-cef-preview.30");
+  update->SetString("recommended", "0.9.0-cef-preview.30");
+  update->SetString("cef", "154.0.32");
+  update->SetString("chromium", "154.0.8037.58");
   update->SetBool("available", false);
   update->SetBool("security", false);
   state->SetDictionary("update", update);
@@ -949,10 +1010,10 @@ void BrowserWindow::HandleBridge(const std::string& request,
   }
   else if (action == "browser.update.check") {
     auto update = CefDictionaryValue::Create();
-    update->SetString("soulu", "0.9.0-cef-preview.18");
-    update->SetString("recommended", "0.9.0-cef-preview.18");
-    update->SetString("cef", "144.0.6");
-    update->SetString("chromium", "144");
+    update->SetString("soulu", "0.9.0-cef-preview.30");
+    update->SetString("recommended", "0.9.0-cef-preview.30");
+    update->SetString("cef", "154.0.32");
+    update->SetString("chromium", "154.0.8037.58");
     update->SetBool("available", false);
     update->SetBool("security", false);
     return Reply(callback, update);
@@ -1220,3 +1281,4 @@ LRESULT CALLBACK BrowserWindow::WindowProc(HWND hwnd, UINT message, WPARAM wpara
   return DefWindowProc(hwnd, message, wparam, lparam);
 }
 }
+

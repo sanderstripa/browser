@@ -1,5 +1,7 @@
 #pragma once
 
+#include <map>
+
 #include "include/cef_client.h"
 #include "include/wrapper/cef_message_router.h"
 
@@ -12,7 +14,8 @@ class BrowserClient final : public CefClient,
                             public CefDisplayHandler,
                             public CefDownloadHandler,
                             public CefLifeSpanHandler,
-                            public CefLoadHandler {
+                            public CefLoadHandler,
+                            public CefRequestHandler {
  public:
   BrowserClient(CefRefPtr<BrowserWindow> owner, BrowserRole role, int tab_id = 0);
 
@@ -20,6 +23,16 @@ class BrowserClient final : public CefClient,
   CefRefPtr<CefDownloadHandler> GetDownloadHandler() override { return this; }
   CefRefPtr<CefLifeSpanHandler> GetLifeSpanHandler() override { return this; }
   CefRefPtr<CefLoadHandler> GetLoadHandler() override { return this; }
+  CefRefPtr<CefRequestHandler> GetRequestHandler() override { return this; }
+  using WindowOpenDisposition = cef_window_open_disposition_t;
+  bool OnOpenURLFromTab(CefRefPtr<CefBrowser>, CefRefPtr<CefFrame>,
+                       const CefString&, WindowOpenDisposition, bool) override;
+  bool OnBeforePopup(CefRefPtr<CefBrowser>, CefRefPtr<CefFrame>, int,
+                     const CefString&, const CefString&, WindowOpenDisposition,
+                     bool, const CefPopupFeatures&, CefWindowInfo&,
+                     CefRefPtr<CefClient>&, CefBrowserSettings&,
+                     CefRefPtr<CefDictionaryValue>&, bool*) override;
+  void OnBeforePopupAborted(CefRefPtr<CefBrowser>, int) override;
   CefRefPtr<CefRenderHandler> GetRenderHandler() override;
   bool OnCursorChange(CefRefPtr<CefBrowser>, CefCursorHandle cursor, cef_cursor_type_t, const CefCursorInfo&) override;
 
@@ -51,6 +64,9 @@ class BrowserClient final : public CefClient,
   const int tab_id_;
   CefRefPtr<CefMessageRouterBrowserSide> router_;
   std::unique_ptr<CefMessageRouterBrowserSide::Handler> bridge_;
+  std::map<int, int> pending_popups_;
+  CefRefPtr<BrowserClient> popup_opener_;
+  int opener_popup_id_ = -1;
   IMPLEMENT_REFCOUNTING(BrowserClient);
 };
 }
