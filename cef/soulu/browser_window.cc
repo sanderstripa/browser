@@ -115,6 +115,7 @@ LRESULT CALLBACK ResizeProc(HWND window,UINT message,WPARAM wp,LPARAM lp){
   return DefWindowProcW(window,message,wp,lp);
 }
 constexpr wchar_t kWindowClass[] = L"SouluBrowserWindow";
+constexpr UINT kFinishClose = WM_APP + 1;
 
 std::string ExecutableDirectory() {
   wchar_t path[MAX_PATH] = {};
@@ -665,9 +666,10 @@ void BrowserWindow::BrowserClosed(CefRefPtr<CefBrowser> browser, int tab_id,
     // Drop application-owned contexts before CefShutdown tears down profiles.
     for (auto& profile : profiles_) profile.context = nullptr;
     incognito_context_ = nullptr;
-    DestroyWindow(hwnd_);
+    // Let CEF finish OnBeforeClose before destroying its native parent.
+    PostMessageW(hwnd_, kFinishClose, 0, 0);
   }
-  else { Layout(); EmitState(); }
+  else if (!closing_) { Layout(); EmitState(); }
 }
 
 void BrowserWindow::FocusAddress() {
@@ -1203,7 +1205,7 @@ void BrowserWindow::CloseAll() {
 void BrowserWindow::CloseBrowsers() {
   for (auto& tab : tabs_) if (tab.browser) tab.browser->GetHost()->CloseBrowser(true);
   if (shell_) shell_->GetHost()->CloseBrowser(true);
-  if (!shell_ && tabs_.empty()) DestroyWindow(hwnd_);
+  if (!shell_ && tabs_.empty()) PostMessageW(hwnd_, kFinishClose, 0, 0);
 }
 
 LRESULT CALLBACK BrowserWindow::WindowProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam) {
@@ -1254,6 +1256,7 @@ LRESULT CALLBACK BrowserWindow::WindowProc(HWND hwnd, UINT message, WPARAM wpara
     case WM_DWMCOMPOSITIONCHANGED: self->ApplyWindowAppearance(); return 0;
     case WM_SETTINGCHANGE: self->ApplyWindowAppearance(); self->ApplyContentTheme(); break;
     case WM_CLOSE: self->CloseAll(); return 0;
+    case kFinishClose: DestroyWindow(hwnd); return 0;
     case WM_DESTROY: ReleaseFrostedBackdrop(hwnd); CefQuitMessageLoop(); return 0;
     case WM_NCDESTROY:
       SetWindowLongPtr(hwnd, GWLP_USERDATA, 0); self->hwnd_ = nullptr; self->Release(); break;
