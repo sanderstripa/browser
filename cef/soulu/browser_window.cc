@@ -14,6 +14,7 @@
 #include <sstream>
 
 #include "examples/soulu/browser_client.h"
+#include "examples/soulu/engine_version.h"
 #include "examples/soulu/frosted_backdrop.h"
 #include "examples/soulu/resource.h"
 #include "include/cef_app.h"
@@ -833,8 +834,8 @@ CefRefPtr<CefDictionaryValue> BrowserWindow::State() const {
   auto update = CefDictionaryValue::Create();
   update->SetString("soulu", "0.9.0-cef-preview.18");
   update->SetString("recommended", "0.9.0-cef-preview.18");
-  update->SetString("cef", "144.0.6");
-  update->SetString("chromium", "144");
+  update->SetString("cef", EngineVersion(0, 3));
+  update->SetString("chromium", EngineVersion(4, 4));
   update->SetBool("available", false);
   update->SetBool("security", false);
   state->SetDictionary("update", update);
@@ -951,8 +952,8 @@ void BrowserWindow::HandleBridge(const std::string& request,
     auto update = CefDictionaryValue::Create();
     update->SetString("soulu", "0.9.0-cef-preview.18");
     update->SetString("recommended", "0.9.0-cef-preview.18");
-    update->SetString("cef", "144.0.6");
-    update->SetString("chromium", "144");
+    update->SetString("cef", EngineVersion(0, 3));
+    update->SetString("chromium", EngineVersion(4, 4));
     update->SetBool("available", false);
     update->SetBool("security", false);
     return Reply(callback, update);

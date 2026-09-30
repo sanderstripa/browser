@@ -1,5 +1,6 @@
 param([Parameter(Mandatory=$true)][string]$BuildDir,[Parameter(Mandatory=$true)][string]$OutFile)
 $ErrorActionPreference='Stop'
+& (Join-Path $PSScriptRoot '../scripts/verify-cef-engine.ps1') -BuildDir $BuildDir
 $payload=Join-Path $PSScriptRoot 'payload.exe'
 & "${env:ProgramFiles(x86)}\NSIS\makensis.exe" /INPUTCHARSET UTF8 "/DBUILD_DIR=$BuildDir" "/DOUT_FILE=$payload" "$PSScriptRoot/payload.nsi"
 if($LASTEXITCODE -ne 0){throw 'Payload compilation failed'}

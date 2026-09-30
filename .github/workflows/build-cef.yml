@@ -13,24 +13,27 @@ on:
     paths:
       - "cef/**"
       - "installer/**"
-      - "scripts/test-cef-ui.py"
-      - "scripts/test-cef-storage.py"
+      - "scripts/**"
       - "ui/**"
       - "vpn/**"
       - ".github/workflows/build-cef.yml"
 
 permissions:
   contents: write
+  actions: write
 
-# Packaging remains available when cloud UI probes are flaky.
+# Only fresh source builds can package or publish.
+concurrency:
+  group: soulu-cef-main
+  cancel-in-progress: true
 
 jobs:
   windows-cef:
     runs-on: windows-2025
     timeout-minutes: 90
     env:
-      PREVIEW_VERSION: 0.9.0-cef-preview.25
-      PREVIEW_NUMBER: 25
+      PREVIEW_VERSION: 0.9.0-cef-preview.29
+      PREVIEW_NUMBER: 29
     steps:
       - name: Checkout Soulu
         uses: actions/checkout@v4
@@ -41,16 +44,29 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: chromiumembedded/cef-project
+          ref: 3aec7049cf63a36876d7a6ef538842d6af314482
           path: cef-project
 
-      - name: Cache CEF download and build
-        uses: actions/cache/restore@v4
-        with:
-          path: |
-            cef-project/third_party/cef
-            cef-build
-          key: soulu-cef-win64-144-win2025-v2
-          restore-keys: soulu-cef-win64-144-v1
+      - name: Pin the approved CEF distribution on a clean path
+        shell: pwsh
+        run: |
+          if ((Test-Path cef-project/third_party/cef) -or (Test-Path cef-build)) {
+            throw 'Clean build required: CEF distribution or build directory already exists'
+          }
+          $index = Invoke-RestMethod 'https://cef-builds.spotifycdn.com/index.json'
+          $versions = @($index.windows64.versions | Where-Object {
+            $_.cef_version -match '^154\.0\.32\+g[0-9a-f]+\+chromium-154\.0\.8037\.58$' -and
+            $_.chromium_version -eq '154.0.8037.58'
+          })
+          if ($versions.Count -ne 1) { throw 'Exactly one approved CEF distribution must exist; no fallback allowed' }
+          $version = $versions[0].cef_version
+          $cmakeFile = 'cef-project/CMakeLists.txt'
+          $cmake = Get-Content $cmakeFile -Raw
+          $pattern = 'set\(CEF_VERSION "[^"]+"\)'
+          if ([regex]::Matches($cmake, $pattern).Count -ne 1) { throw 'CEF project version declaration changed' }
+          $cmake = [regex]::Replace($cmake, $pattern, ('set(CEF_VERSION "' + $version + '")'))
+          Set-Content $cmakeFile $cmake -Encoding utf8
+          Write-Host "Pinned CEF distribution: $version"
 
       - name: Add Soulu target and assets
         shell: pwsh
@@ -74,26 +90,14 @@ jobs:
       - name: Configure CEF
         shell: pwsh
         run: |
-          if (Test-Path cef-build/CMakeCache.txt) {
-            $cacheText = Get-Content cef-build/CMakeCache.txt -Raw
-            if ($cacheText -match 'CMAKE_GENERATOR_INSTANCE:INTERNAL=([^\r\n]+)' -and -not (Test-Path $Matches[1])) {
-              Remove-Item cef-build/CMakeCache.txt -Force
-              Remove-Item cef-build/CMakeFiles -Recurse -Force -ErrorAction SilentlyContinue
-            }
-          }
           cmake -S cef-project -B cef-build -A x64 -DUSE_SANDBOX=OFF
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Build Soulu
         shell: pwsh
-        run: cmake --build cef-build --config Release --target soulu --parallel 2
-
-      - name: Retain compiled CEF for visual-test retries
-        uses: actions/cache/save@v4
-        with:
-          path: |
-            cef-project/third_party/cef
-            cef-build
-          key: soulu-cef-win64-144-win2025-v2
+        run: |
+          cmake --build cef-build --config Release --target soulu --parallel 2
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Locate output and package ZIP
         id: package
@@ -102,6 +106,7 @@ jobs:
           $exe = Get-ChildItem cef-build -Recurse -Filter Soulu.exe | Where-Object { $_.FullName -match "Release" } | Select-Object -First 1
           if (-not $exe) { throw "Soulu.exe was not produced" }
           $buildDir = $exe.Directory.FullName
+          & ./browser/scripts/verify-cef-engine.ps1 -BuildDir $buildDir -ReportPath (Join-Path $buildDir "engine-version.json")
           New-Item -ItemType Directory -Force browser/artifacts | Out-Null
           $zip = Join-Path $PWD "browser/artifacts/Soulu-Preview-$env:PREVIEW_NUMBER-x64.zip"
           Compress-Archive -Path "$buildDir/*" -DestinationPath $zip -Force
@@ -388,31 +393,61 @@ jobs:
           path: browser/artifacts/*.png
           if-no-files-found: ignore
 
+      - name: Verify ZIP and installer payload before upload or release
+        id: verified
+        shell: pwsh
+        run: |
+          $zip = Join-Path $PWD "browser/artifacts/Soulu-Preview-$env:PREVIEW_NUMBER-x64.zip"
+          $checkDir = Join-Path $env:RUNNER_TEMP ("soulu-zip-" + $env:GITHUB_RUN_ID)
+          Expand-Archive -LiteralPath $zip -DestinationPath $checkDir
+          & ./browser/scripts/verify-cef-engine.ps1 -BuildDir $checkDir -ReportPath browser/artifacts/engine-version.json
+          $payloadDir = Join-Path $env:RUNNER_TEMP ("soulu-payload-" + $env:GITHUB_RUN_ID)
+          $payload = Join-Path $PWD "browser/installer/payload.exe"
+          $install = Start-Process $payload -ArgumentList @("/S", "/D=$payloadDir") -WindowStyle Hidden -PassThru -Wait
+          if ($install.ExitCode -ne 0) { throw "Installer payload extraction failed" }
+          & ./browser/scripts/verify-cef-engine.ps1 -BuildDir $payloadDir
+          $version = Get-Content browser/artifacts/engine-version.json -Raw | ConvertFrom-Json
+          "Soulu Preview $env:PREVIEW_NUMBER. Verified CEF $($version.cef) / Chromium $($version.chromium). Source: $env:GITHUB_SHA. Clean build: $env:GITHUB_RUN_ID." | Set-Content browser/artifacts/release-notes.md -Encoding utf8
+          "passed=true" >> $env:GITHUB_OUTPUT
+
+      - name: Verify ZIP and installer payload before upload or release
+        id: verified
+        shell: pwsh
+        run: |
+          $zip = Join-Path $PWD "browser/artifacts/Soulu-Preview-$env:PREVIEW_NUMBER-x64.zip"
+          $checkDir = Join-Path $env:RUNNER_TEMP ("soulu-zip-" + $env:GITHUB_RUN_ID)
+          Expand-Archive -LiteralPath $zip -DestinationPath $checkDir
+          & ./browser/scripts/verify-cef-engine.ps1 -BuildDir $checkDir -ReportPath browser/artifacts/engine-version.json
+          $payloadDir = Join-Path $env:RUNNER_TEMP ("soulu-payload-" + $env:GITHUB_RUN_ID)
+          $payload = Join-Path $PWD "browser/installer/payload.exe"
+          $install = Start-Process $payload -ArgumentList @("/S", "/D=$payloadDir") -WindowStyle Hidden -PassThru -Wait
+          if ($install.ExitCode -ne 0) { throw "Installer payload extraction failed" }
+          & ./browser/scripts/verify-cef-engine.ps1 -BuildDir $payloadDir
+          $version = Get-Content browser/artifacts/engine-version.json -Raw | ConvertFrom-Json
+          "Soulu Preview $env:PREVIEW_NUMBER. Verified CEF $($version.cef) / Chromium $($version.chromium). Source: $env:GITHUB_SHA. Clean build: $env:GITHUB_RUN_ID." | Set-Content browser/artifacts/release-notes.md -Encoding utf8
+          "passed=true" >> $env:GITHUB_OUTPUT
+
       - name: Upload preview artifacts
-        if: always()
-        continue-on-error: true
+        if: success() && steps.verified.outputs.passed == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: Soulu-Preview-${{ env.PREVIEW_NUMBER }}-x64
           path: |
             browser/artifacts/Soulu-Preview-${{ env.PREVIEW_NUMBER }}-x64.zip
             browser/artifacts/Soulu-Preview-${{ env.PREVIEW_NUMBER }}-x64.exe
+            browser/artifacts/engine-version.json
           if-no-files-found: error
 
       - name: Publish Soulu release
-        if: github.event_name == 'push' || inputs.publish
+        if: success() && github.ref == 'refs/heads/main' && inputs.publish && steps.verified.outputs.passed == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: preview-${{ env.PREVIEW_NUMBER }}
           name: Soulu Preview ${{ env.PREVIEW_NUMBER }}
+          target_commitish: ${{ github.sha }}
           prerelease: false
-          generate_release_notes: true
-          body: |
-            Soulu Preview 25.
-
-            - Добавлена настройка: после закрытия последней вкладки можно открыть назначенную стартовую страницу.
-            - Исправлено постоянное хранение CEF-профиля и cookies, чтобы авторизация на сайтах сохранялась между перезапусками Soulu.
-            - В релиз включены установщик и ZIP-сборка для Windows x64.
+          body_path: browser/artifacts/release-notes.md
           files: |
             browser/artifacts/Soulu-Preview-${{ env.PREVIEW_NUMBER }}-x64.exe
             browser/artifacts/Soulu-Preview-${{ env.PREVIEW_NUMBER }}-x64.zip
+            browser/artifacts/engine-version.json

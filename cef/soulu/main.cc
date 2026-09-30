@@ -2,6 +2,8 @@
 
 #include <filesystem>
 #include <cstdlib>
+#include <fstream>
+#include "examples/soulu/engine_version.h"
 
 #include "examples/soulu/app_factory.h"
 #include "include/cef_command_line.h"
@@ -23,6 +25,17 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, wchar_t*, int) {
   CefMainArgs main_args(instance);
   auto command_line = CefCommandLine::CreateCommandLine();
   command_line->InitFromString(GetCommandLineW());
+  // CI probes the linked libcef before profile initialization or message loops.
+  if (command_line->HasSwitch("engine-version-file")) {
+    const std::filesystem::path output(
+        command_line->GetSwitchValue("engine-version-file").ToWString());
+    std::ofstream report(output);
+    report << "{\"cef\":\"" << soulu::EngineVersion(0, 3)
+           << "\",\"chromium\":\"" << soulu::EngineVersion(4, 4) << "\"}";
+    report.close();
+    return report && soulu::ApprovedEngine() ? 0 : 2;
+  }
+  if (!soulu::ApprovedEngine()) return 2;
   const auto process_type = command_line->GetSwitchValue("type");
 
   CefRefPtr<CefApp> app;
