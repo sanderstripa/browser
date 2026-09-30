@@ -40,6 +40,8 @@ jobs:
           $text = Get-Content $config -Raw
           $text = [regex]::Replace($text, 'set\(CEF_VERSION "[^"]+"\)', ('set(CEF_VERSION "' + $env:CEF_VERSION + '")'))
           if (-not $text.Contains('set(CEF_VERSION "' + $env:CEF_VERSION + '")')) { throw 'CEF version pin failed' }
+          # The upstream ceftests target requires a gmock target missing in this cef-project revision.
+          $text = $text.Replace('add_subdirectory(${CEF_ROOT}/tests/ceftests)', '')
           Set-Content $config $text -Encoding utf8
           Copy-Item -Recurse browser/cef/soulu cef-project/examples/soulu
           New-Item -ItemType Directory -Force cef-project/examples/soulu/assets/ui,cef-project/examples/soulu/assets/vpn | Out-Null
