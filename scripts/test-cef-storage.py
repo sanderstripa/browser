@@ -222,6 +222,9 @@ def verify_profile_cookies(data_root):
 
 
 def profile_diagnostics(data_root):
+    for cookie_path in data_root.rglob("Cookies"):
+        with sqlite3.connect(f"{cookie_path.as_uri()}?mode=ro", uri=True) as connection:
+            print(json.dumps({"all_cookie_paths": str(cookie_path), "hosts": connection.execute("SELECT host_key,name FROM cookies").fetchall()}), flush=True)
     database = data_root / "Soulu" / "User Data" / "Profiles" / "personal" / "Network" / "Cookies"
     if database.exists():
         with sqlite3.connect(f"{database.as_uri()}?mode=ro", uri=True) as connection:
@@ -276,6 +279,8 @@ def run(data_root):
     first = launch(executable, data_root)
     try:
         ws = page_socket()
+        navigate(ws, "chrome://version/")
+        print(json.dumps({"first_chrome_profile": evaluate(ws, "document.body.innerText")}), flush=True)
         navigate(ws, origin + "/seed")
         evaluate(ws, f"localStorage.setItem('soulu-test', {json.dumps(STORAGE_VALUE)})")
         evaluate(ws, """new Promise((resolve, reject) => {
@@ -314,6 +319,8 @@ def run(data_root):
     second = launch(executable, data_root)
     try:
         ws = page_socket()
+        navigate(ws, "chrome://version/")
+        print(json.dumps({"second_chrome_profile": evaluate(ws, "document.body.innerText")}), flush=True)
         profile_diagnostics(data_root)
         command(ws, "Network.enable")
         navigate(ws, origin + "/verify")
