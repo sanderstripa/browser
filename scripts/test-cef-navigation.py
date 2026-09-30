@@ -1,10 +1,12 @@
 """Small release smoke check for native CEF popup ownership and tab activation."""
 import importlib.util
 import ctypes
+import http.server
 import json
 import pathlib
 import sys
 import time
+import threading
 
 spec = importlib.util.spec_from_file_location('storage', pathlib.Path(__file__).with_name('test-cef-storage.py'))
 s = importlib.util.module_from_spec(spec)
@@ -41,6 +43,9 @@ def native_windows(process):
     return sorted(windows)
 
 
+server = http.server.ThreadingHTTPServer(('127.0.0.1', s.free_port()), s.SiteHandler)
+threading.Thread(target=server.serve_forever, daemon=True).start()
+origin = f'http://127.0.0.1:{server.server_port}'
 process = s.launch(sys.argv[1])
 try:
     shell_target = next(t for t in s.targets() if '/ui/index.html' in t.get('url', ''))
@@ -56,10 +61,13 @@ try:
     main_windows = native_windows(process)
     assert len(main_windows) == 1, {'initial_native_windows': main_windows}
     opener_id = initial['activeTabId']
-    s.navigate(content, 'data:text/html,<title>Soulu navigation opener</title><a id="link" href="about:blank" target="_blank">popup</a>')
+    s.navigate(content, origin + '/before')
+    s.navigate(content, origin + '/opener')
+    s.evaluate(content, f"document.body.innerHTML = '<a id=\"link\" href=\"{origin}/popup\" target=\"_blank\">popup</a>'")
     initial_url = s.evaluate(content, 'location.href')
+    initial_history = s.command(content, 'Page.getNavigationHistory')
     assert s.command(content, 'Runtime.evaluate', {
-        'expression': "window.open('about:blank', '_blank') !== null",
+        'expression': f"window.open('{origin}/popup', '_blank') !== null",
         'userGesture': True, 'returnByValue': True
     })['result']['value'] is True
     popup_state = wait_for(lambda: (v if len(v['tabs']) == 2 and v['activeTabId'] != opener_id else None)
@@ -67,13 +75,14 @@ try:
     popup_id = popup_state['activeTabId']
     assert native_windows(process) == main_windows, 'window.open created another native window'
     assert any(t['id'] == opener_id for t in popup_state['tabs']), popup_state
-    popup_target = next(t for t in s.targets() if t.get('type') == 'page' and t.get('url') == 'about:blank')
+    popup_target = wait_for(lambda: next((t for t in s.targets() if t.get('type') == 'page' and t.get('url') == origin + '/popup'), None))
     popup = s.websocket.create_connection(popup_target['webSocketDebuggerUrl'], timeout=30, origin=s.BASE)
     assert s.evaluate(popup, 'window.opener !== null') is True
     s.command(popup, 'Runtime.evaluate', {'expression': 'window.close()', 'userGesture': True})
     closed = wait_for(lambda: (v if len(v['tabs']) == 1 and v['activeTabId'] == opener_id else None)
                      if (v := state()) else None)
     assert s.evaluate(content, 'location.href') == initial_url
+    assert s.command(content, 'Page.getNavigationHistory') == initial_history, 'popup changed opener history'
 
     # An ordinary target=_blank click must use the same ownership path.
     s.command(content, 'Runtime.evaluate', {'expression': "document.getElementById('link').click()", 'userGesture': True})
@@ -92,9 +101,11 @@ try:
             'button': 'left', 'clickCount': 1, 'modifiers': 2
         })
     background = wait_for(lambda: (v if len(v['tabs']) == 2 else None) if (v := state()) else None)
+    wait_for(lambda: any(t.get('url') == origin + '/popup' for t in s.targets()))
     assert background['activeTabId'] == opener_id, background
     assert native_windows(process) == main_windows, 'background tab created another native window'
     assert s.evaluate(content, 'location.href') == initial_url
+    assert s.command(content, 'Page.getNavigationHistory') == initial_history, 'background tab changed opener history'
     assert not any(t.get('url', '').startswith('chrome://omnibox-popup') for t in s.targets())
     print(json.dumps({'window_open': 'internal tab', 'opener': 'preserved',
                       'popup_close': 'opener retained', 'background_tab': 'active tab retained',
@@ -105,3 +116,4 @@ try:
 finally:
     if process.poll() is None:
         process.kill()
+    server.shutdown()

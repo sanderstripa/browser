@@ -23,6 +23,23 @@
 
 namespace soulu {
 namespace {
+class ProfileContextHandler final : public CefRequestContextHandler {
+ public:
+  ProfileContextHandler(CefRefPtr<BrowserWindow> owner, bool persistent)
+      : owner_(owner), persistent_(persistent) {}
+  void OnRequestContextInitialized(CefRefPtr<CefRequestContext> context) override {
+    CEF_REQUIRE_UI_THREAD();
+    // Release the one-shot owner reference to avoid a profile/context cycle.
+    auto owner = owner_;
+    owner_ = nullptr;
+    if (owner) owner->RequestContextInitialized(context, persistent_);
+  }
+ private:
+  CefRefPtr<BrowserWindow> owner_;
+  const bool persistent_;
+  IMPLEMENT_REFCOUNTING(ProfileContextHandler);
+};
+
 class CookieFlushCompletion final : public CefCompletionCallback {
  public:
   explicit CookieFlushCompletion(CefRefPtr<BrowserWindow> owner) : owner_(owner) {}
@@ -330,8 +347,8 @@ void BrowserWindow::CreateProfile(const std::string& name,
   Profile profile;
   profile.id = id;
   profile.name = name.empty() ? "Профиль" : name;
-  profile.context = CefRequestContext::CreateContext(context_settings, nullptr);
-  ApplyProxy(profile.context);
+  profile.context = CefRequestContext::CreateContext(
+      context_settings, new ProfileContextHandler(this, true));
   profiles_.push_back(profile);
   SaveProfiles();
 }
@@ -361,8 +378,8 @@ CefRefPtr<CefRequestContext> BrowserWindow::ContextForNewTab(bool incognito) {
   if (incognito) {
     if (!incognito_context_) {
       CefRequestContextSettings context_settings;
-      incognito_context_ = CefRequestContext::CreateContext(context_settings, nullptr);
-      ApplyProxy(incognito_context_);
+      incognito_context_ = CefRequestContext::CreateContext(
+          context_settings, new ProfileContextHandler(this, false));
     }
     return incognito_context_;
   }
@@ -384,6 +401,23 @@ void BrowserWindow::ApplyProxy(CefRefPtr<CefRequestContext> context) {
   value->SetDictionary(proxy);
   CefString error;
   context->SetPreference("proxy", value, error);
+}
+
+void BrowserWindow::RequestContextInitialized(CefRefPtr<CefRequestContext> context,
+                                             bool persistent) {
+  CEF_REQUIRE_UI_THREAD();
+  if (persistent && !context->GetCachePath().empty()) {
+    // CEF 154 writes session cookies but our disk profiles still start with
+    // Chrome's default restore policy. Configure the standard profile policy
+    // after initialization so the next CookieStore load restores those cookies.
+    // This preserves the existing profile/storage; it never reads or injects cookies.
+    auto restore = CefValue::Create();
+    restore->SetInt(1);  // SessionStartupPref::kPrefValueLast.
+    CefString error;
+    if (!context->SetPreference("session.restore_on_startup", restore, error))
+      OutputDebugStringW((L"Soulu profile restore policy: " + error.ToWString()).c_str());
+  }
+  ApplyProxy(context);
 }
 
 void BrowserWindow::ApplyWindowAppearance() {
