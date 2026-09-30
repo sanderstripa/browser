@@ -1,5 +1,6 @@
 """Regression test for persistent CEF profile cookies and site storage."""
 import ctypes
+import contextlib
 import base64
 from ctypes import wintypes
 import http.server
@@ -214,7 +215,7 @@ def verify_profile_cookies(data_root):
     profile = data_root / "Soulu" / "User Data" / "Profiles" / "personal"
     database = profile / "Network" / "Cookies"
     assert database.is_file(), f"Content profile cookie database missing: {database}"
-    with sqlite3.connect(f"{database.as_uri()}?mode=ro", uri=True) as connection:
+    with contextlib.closing(sqlite3.connect(f"{database.as_uri()}?mode=ro", uri=True)) as connection:
         rows = dict(connection.execute(
             "SELECT name, is_persistent FROM cookies WHERE host_key = ?",
             ("auth.soulu.test",)))
@@ -224,11 +225,11 @@ def verify_profile_cookies(data_root):
 
 def profile_diagnostics(data_root):
     for cookie_path in data_root.rglob("Cookies"):
-        with sqlite3.connect(f"{cookie_path.as_uri()}?mode=ro", uri=True) as connection:
+        with contextlib.closing(sqlite3.connect(f"{cookie_path.as_uri()}?mode=ro", uri=True)) as connection:
             print(json.dumps({"all_cookie_paths": str(cookie_path), "hosts": connection.execute("SELECT host_key,name FROM cookies").fetchall()}), flush=True)
     database = data_root / "Soulu" / "User Data" / "Profiles" / "personal" / "Network" / "Cookies"
     if database.exists():
-        with sqlite3.connect(f"{database.as_uri()}?mode=ro", uri=True) as connection:
+        with contextlib.closing(sqlite3.connect(f"{database.as_uri()}?mode=ro", uri=True)) as connection:
             print(json.dumps({"cookie_database_rows": connection.execute(
                 "SELECT name, is_persistent, has_expires, length(value), length(encrypted_value), hex(substr(encrypted_value,1,3)) FROM cookies"
             ).fetchall(), "cookie_database_meta": connection.execute("SELECT * FROM meta").fetchall()}), flush=True)
@@ -251,7 +252,7 @@ def profile_diagnostics(data_root):
             original, decrypted = Blob(len(protected), buffer), Blob()
             if ctypes.windll.crypt32.CryptUnprotectData(ctypes.byref(original), None, None, None, None, 0, ctypes.byref(decrypted)):
                 key = ctypes.string_at(decrypted.data, decrypted.size)
-                with sqlite3.connect(f"{database.as_uri()}?mode=ro", uri=True) as connection:
+                with contextlib.closing(sqlite3.connect(f"{database.as_uri()}?mode=ro", uri=True)) as connection:
                     for name, host, encrypted in connection.execute("SELECT name,host_key,encrypted_value FROM cookies"):
                         try:
                             value = AESGCM(key).decrypt(encrypted[3:15], encrypted[15:], None)
