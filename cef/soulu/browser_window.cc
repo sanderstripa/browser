@@ -1396,7 +1396,7 @@ LRESULT CALLBACK BrowserWindow::WindowProc(HWND hwnd, UINT message, WPARAM wpara
           (theme == "system" && IsWindowsDarkMode());
       RECT client = {};
       GetClientRect(hwnd, &client);
-      HBRUSH background = CreateSolidBrush(dark ? RGB(8, 9, 11) : RGB(245, 246, 248));
+      HBRUSH background = CreateSolidBrush(dark ? RGB(8, 9, 11) : RGB(255, 255, 255));
       FillRect(reinterpret_cast<HDC>(wparam), &client,
           self->settings_->GetBool("mattePanel") ? static_cast<HBRUSH>(GetStockObject(BLACK_BRUSH)) : background);
       DeleteObject(background);

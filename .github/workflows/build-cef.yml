@@ -10,7 +10,7 @@ on:
         type: boolean
   push:
     branches: [main]
-    tags: [preview-35]
+    tags: [preview-36]
     paths:
       - "cef/**"
       - "installer/**"
@@ -33,8 +33,8 @@ jobs:
     runs-on: windows-2025
     timeout-minutes: 90
     env:
-      PREVIEW_VERSION: 0.9.0-cef-preview.35
-      PREVIEW_NUMBER: 35
+      PREVIEW_VERSION: 0.9.0-cef-preview.36
+      PREVIEW_NUMBER: 36
       PYTHONUTF8: 1
       PYTHONDONTWRITEBYTECODE: 1
     steps:
@@ -187,7 +187,7 @@ jobs:
       - name: Test persistent CEF cookies and site storage
         shell: pwsh
         run: |
-          $env:LOCALAPPDATA = Join-Path $env:RUNNER_TEMP 'soulu-preview35-storage'
+          $env:LOCALAPPDATA = Join-Path $env:RUNNER_TEMP 'soulu-preview36-storage'
           $env:SOULU_UI_TEST_PORT = "9223"
           $installedExe = Join-Path "${{ steps.package.outputs.build_dir }}" "Soulu.exe"
           python browser/scripts/test-cef-storage.py $installedExe
@@ -198,17 +198,17 @@ jobs:
         run: |
           $env:SOULU_UI_TEST_PORT = '9223'
           $installedExe = Join-Path '${{ steps.package.outputs.build_dir }}' 'Soulu.exe'
-          $env:LOCALAPPDATA = Join-Path $env:RUNNER_TEMP 'soulu-preview35-navigation'
+          $env:LOCALAPPDATA = Join-Path $env:RUNNER_TEMP 'soulu-preview36-navigation'
           python browser/scripts/test-cef-navigation.py $installedExe
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $env:LOCALAPPDATA = Join-Path $env:RUNNER_TEMP 'soulu-preview35-menu'
+          $env:LOCALAPPDATA = Join-Path $env:RUNNER_TEMP 'soulu-preview36-menu'
           python browser/scripts/test-cef-link-menu.py $installedExe
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Verify retained layout and native resize
         shell: pwsh
         run: |
-          $env:LOCALAPPDATA = Join-Path $env:RUNNER_TEMP 'soulu-preview35-layout'
+          $env:LOCALAPPDATA = Join-Path $env:RUNNER_TEMP 'soulu-preview36-layout'
           python browser/scripts/test-cef-layout.py '${{ steps.package.outputs.build_dir }}/Soulu.exe' browser/artifacts/layout-evidence
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
@@ -462,7 +462,7 @@ jobs:
           if-no-files-found: error
 
       - name: Publish Soulu release
-        if: success() && (github.ref == 'refs/tags/preview-35' || (github.ref == 'refs/heads/main' && inputs.publish)) && steps.verified.outputs.passed == 'true'
+        if: success() && (github.ref == 'refs/tags/preview-36' || (github.ref == 'refs/heads/main' && inputs.publish)) && steps.verified.outputs.passed == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: preview-${{ env.PREVIEW_NUMBER }}

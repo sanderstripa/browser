@@ -136,7 +136,7 @@ html.cef-runtime body[data-incognito="true"] .compact-window-button {
 /* Preview 6: deterministic live appearance for the CEF toolbar. */
 html.cef-runtime body[data-theme="light"][data-matte="false"] .browser-toolbar,
 html.cef-runtime body[data-theme="system"][data-matte="false"] .browser-toolbar {
-  background: #f6f6f8 !important;
+  background: #fff !important;
   color: #292a2e;
 }
 html.cef-runtime body[data-theme="dark"][data-matte="false"] .browser-toolbar {
@@ -194,7 +194,7 @@ html.cef-runtime body[data-matte="true"] .browser-toolbar {
 html.cef-runtime body .browser-toolbar{background-image:none!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
 html.cef-runtime body[data-matte="true"] .browser-toolbar{background:rgba(250,250,251,.14)!important}
 html.cef-runtime body[data-theme="dark"][data-matte="true"] .browser-toolbar{background:rgba(0,0,0,.30)!important}
-html.cef-runtime body[data-matte="false"] .browser-toolbar{background:#f7f7f8!important}
+html.cef-runtime body[data-matte="false"] .browser-toolbar{background:#fff!important}
 html.cef-runtime body[data-theme="dark"][data-matte="false"] .browser-toolbar{background:#08090b!important}
 html.cef-runtime .compact-toolbar-surface{backdrop-filter:none!important;background:transparent!important}
 html.cef-runtime body[data-theme="dark"] .compact-tab-flow,html.cef-runtime body[data-theme="dark"] .classic-address-pill{background:rgba(17,18,21,.90);box-shadow:inset 0 0 0 1px #ffffff14}

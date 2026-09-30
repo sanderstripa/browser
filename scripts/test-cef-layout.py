@@ -137,11 +137,13 @@ def check(label, sidebar=False, screenshot=False):
         host = ch['CefBrowserWindow'] if 'CefBrowserWindow' in ch else ch['Chrome_WidgetWin_1']
         content = child_rect(host)
         left = round(276 * scale) if sidebar else 0
-        top = round(48 * scale)
+        layout = evaluate(shell, 'document.body.dataset.layout')
+        toolbar_height = 82 if layout == 'classic' else 48
+        top = round(toolbar_height * scale)
         assert content == [left, top, width - left, height - top], (label, content, width, height)
         assert toolbar == [0, 0, width, height if sidebar else top], (label, toolbar)
-        dom = evaluate(shell, '({w:innerWidth,h:innerHeight,dpr:devicePixelRatio,toolbar:document.querySelector(".browser-toolbar").getBoundingClientRect().height})')
-        assert abs(dom['toolbar'] - 48) <= 1, (label, dom)
+        dom = evaluate(shell, '({w:innerWidth,h:innerHeight,dpr:devicePixelRatio,toolbar:document.querySelector(document.body.dataset.layout==="classic"?".classic-toolbar":".compact-toolbar").getBoundingClientRect().height})')
+        assert abs(dom['toolbar'] - toolbar_height) <= 1, (label, dom)
         viewport = evaluate(page, '({w:innerWidth,h:innerHeight,dpr:devicePixelRatio})')
         assert abs(viewport['w'] * viewport['dpr'] - content[2]) <= 2, (label, viewport, content)
         assert abs(viewport['h'] * viewport['dpr'] - content[3]) <= 2, (label, viewport, content)
@@ -161,7 +163,7 @@ def check(label, sidebar=False, screenshot=False):
         row['presentationWaitMs'] = round((time.monotonic() - frame_start) * 1000)
         r = W.RECT()
         u.GetWindowRect(window, C.byref(r))
-        ImageGrab.grab(bbox=(r.left, r.top, r.right, r.bottom)).save(out / (label + '.png'))
+        ImageGrab.grab(include_layered_windows=True, bbox=(r.left, r.top, r.right, r.bottom)).save(out / (label + '.png'))
     checks.append(row)
     print(json.dumps(row), flush=True)
 
@@ -249,6 +251,76 @@ with tempfile.TemporaryDirectory(prefix='soulu-layout-', ignore_cleanup_errors=T
         page.close()
         page = first_page
         check('switch-tab')
+        # Real native settings changes: both layouts, themes and alpha modes.
+        for layout in ('classic', 'compact'):
+            for theme in ('light', 'dark'):
+                for matte in (False, True):
+                    settings = {'layout': layout, 'theme': theme, 'mattePanel': matte}
+                    evaluate(shell, f'window.browserShell.setSettings({json.dumps(settings)})')
+                    wait(lambda: evaluate(shell, f'document.body.dataset.layout==={json.dumps(layout)} && document.body.dataset.theme==={json.dumps(theme)} && document.body.dataset.matte==={json.dumps(str(matte).lower())}'))
+                    label = f'{layout}-{theme}-matte-{matte}'
+                    check(label, screenshot=True)
+                    style = evaluate(shell, '''(() => {
+                        const t=document.querySelector(document.body.dataset.layout==='classic'?'.classic-toolbar':'.compact-toolbar'),s=getComputedStyle(t);
+                        return {background:s.backgroundColor,image:s.backgroundImage,blur:s.backdropFilter};
+                    })()''')
+                    expected = 'rgb(255, 255, 255)' if theme == 'light' else 'rgb(8, 9, 11)'
+                    if not matte:
+                        assert style == {'background':expected,'image':'none','blur':'none'}, (label, style)
+                        def opaque_surface():
+                            v = evaluate(shell, 'new Promise((resolve,reject)=>cefQuery({request:JSON.stringify({action:"browser.surfaceDiagnostics"}),onSuccess:r=>resolve(JSON.parse(r)),onFailure:(_,m)=>reject(m)}))')
+                            return v if v['toolbarAlpha'] == 255 and not v['nativeBlur'] else None
+                        wait(opaque_surface)
+                    else:
+                        assert style['background'].startswith('rgba('), (label, style)
+                    if layout == 'classic':
+                        structure = evaluate(shell, '''(() => {
+                            const r=s=>document.querySelector(s).getBoundingClientRect();
+                            const a=r('.classic-address-pill'),n=r('.classic-main-row'),t=r('.classic-toolbar .tabs-zone'),p=r('.classic-tab');
+                            return {nav:n.height,tabs:t.height,addressBottom:a.bottom,tabsTop:t.top,tabBottom:p.bottom,tabsBottom:t.bottom,center:a.x+a.width/2,width:innerWidth,tabsBackground:getComputedStyle(document.querySelector('.classic-toolbar .tabs-zone')).backgroundColor};
+                        })()''')
+                        assert structure['nav'] == 48 and structure['tabs'] == 34, structure
+                        assert structure['addressBottom'] <= structure['tabsTop'], structure
+                        assert structure['tabBottom'] <= structure['tabsBottom'], structure
+                        assert abs(structure['center'] - structure['width']/2) <= 1, structure
+                        assert structure['tabsBackground'] == 'rgba(0, 0, 0, 0)', structure
+                        resize(640, 480)
+                        check(label+'-narrow')
+                        u.ShowWindow(window, 3)
+                        check(label+'-maximize')
+                        u.ShowWindow(window, 9)
+                        check(label+'-restore')
+                        resize(980, 650)
+        evaluate(shell, 'window.browserShell.setSettings({layout:"classic",theme:"light",mattePanel:false})')
+        wait(lambda: evaluate(shell, 'document.body.dataset.layout==="classic"'))
+        for _ in range(12):
+            evaluate(shell, 'window.browserShell.newTab()')
+        wait(lambda: evaluate(shell, 'document.querySelectorAll(".classic-tab").length===14'))
+        resize(640, 480)
+        def overflow_sample():
+            return evaluate(shell, '''(() => {
+                const strip=document.querySelector('#tabStrip'),s=strip.getBoundingClientRect(),a=strip.querySelector('.active').getBoundingClientRect(),b=document.querySelector('#newTabButton').getBoundingClientRect();
+                return {overflow:strip.scrollWidth>strip.clientWidth,visible:a.left>=s.left-1&&a.right<=s.right+1,buttonFits:b.left>=s.right&&b.right<=innerWidth,widths:[...strip.children].map(t=>t.getBoundingClientRect().width)};
+            })()''')
+        wait(lambda: (v if v['visible'] else None) if (v:=overflow_sample()) else None)
+        overflow = overflow_sample()
+        assert overflow['overflow'] and overflow['buttonFits'], overflow
+        assert all(112 <= w <= 220 for w in overflow['widths']), overflow
+        evaluate(shell, f'window.browserShell.switchTab({first_id})')
+        wait(lambda: overflow_sample()['visible'])
+        check('classic-many-tabs', screenshot=True)
+        evaluate(shell, 'window.browserShell.toggleSidebar()')
+        check('classic-sidebar', sidebar=True)
+        evaluate(shell, 'window.browserShell.toggleSidebar()')
+        modal_drag('classic-horizontal', 220, 0, .04)
+        modal_drag('classic-vertical', 0, 100, .04)
+        # System follows Chromium's effective OS color scheme.
+        evaluate(shell, 'window.browserShell.setSettings({theme:"system",mattePanel:false})')
+        wait(lambda: evaluate(shell, 'document.body.dataset.theme==="system"'))
+        assert evaluate(shell, 'getComputedStyle(document.querySelector(".classic-toolbar")).backgroundColor === (matchMedia("(prefers-color-scheme:dark)").matches?"rgb(8, 9, 11)":"rgb(255, 255, 255)")')
+        evaluate(shell, 'window.browserShell.setSettings({layout:"compact",theme:"light",mattePanel:true})')
+        wait(lambda: evaluate(shell, 'document.body.dataset.layout==="compact"'))
+        check('compact-return')
         # Websites are evidence, separate from deterministic native regressions.
         for name, url in [('google', 'https://www.google.com/'), ('apple', 'https://www.apple.com/'), ('youtube', 'https://www.youtube.com/')]:
             evaluate(shell, f'window.browserShell.navigate({json.dumps(url)})')

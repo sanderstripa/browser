@@ -58,7 +58,7 @@ try:
 
     wait_for(lambda: s.evaluate(shell, 'typeof window.browserShell !== "undefined"'))
     initial = state()
-    main_windows = native_windows(process)
+    main_windows = wait_for(lambda: native_windows(process))
     assert len(main_windows) == 1, {'initial_native_windows': main_windows}
     opener_id = initial['activeTabId']
     s.navigate(content, origin + '/before')

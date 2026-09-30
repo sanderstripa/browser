@@ -32,24 +32,6 @@ body[data-layout=compact] .sidebar,body[data-layout=compact] .side-panel,body[da
 
 
 body[data-layout=classic] .compact-toolbar{display:none}
-body[data-layout=classic] .toolbar{grid-template-columns:auto minmax(270px,1fr) auto auto;grid-template-rows:46px 38px;height:84px;gap:0 7px;padding-left:9px;background:var(--toolbar-bg)}
-body[data-layout=classic] .left-controls{grid-column:1;grid-row:1;gap:2px}
-body[data-layout=classic] .classic-address-wrap{display:block;grid-column:2;grid-row:1}
-body[data-layout=classic] .classic-address-pill{width:min(790px,100%);height:32px;background:var(--field);border-color:color-mix(in srgb,var(--text) 9%,transparent);border-radius:14px;box-shadow:inset 0 1px 0 #ffffff38,0 1px 2px #00000008}
-body[data-layout=classic] .right-controls{grid-column:3;grid-row:1;align-self:center;gap:0}
-body[data-layout=classic] .window-controls{grid-column:4;grid-row:1;height:46px;border-left:1px solid var(--soft)}
-body[data-layout=classic] .window-controls button{height:46px}
-body[data-layout=classic] .tabs-zone{grid-column:1/5;grid-row:2;height:38px;margin-left:-9px;padding:0 8px;gap:4px;background:color-mix(in srgb,var(--text) 2.5%,transparent);border-top:1px solid color-mix(in srgb,var(--text) 5%,transparent)}
-body[data-layout=classic] .tab-strip{height:37px;padding:3px 0;gap:3px}
-body[data-layout=classic] .classic-tab{height:30px;min-width:112px;max-width:220px;padding-right:5px;border-radius:12px;transition:background .14s ease,color .14s ease,box-shadow .14s ease}
-body[data-layout=classic] .classic-tab:hover{background:color-mix(in srgb,var(--text) 5%,transparent)}
-body[data-layout=classic] .classic-tab.active{background:var(--field);box-shadow:0 1px 3px #0000000e}
-body[data-layout=classic] .classic-tab button{width:18px;height:18px;border-radius:7px;font-size:14px;font-weight:300;opacity:.62}
-body[data-layout=classic] .classic-tab button:hover{opacity:1;background:color-mix(in srgb,var(--text) 7%,transparent)}
-body[data-layout=classic] .tabs-new-button{flex:0 0 30px;width:30px;height:30px;margin-left:1px}
-body[data-layout=classic] .sidebar,body[data-layout=classic] .side-panel,body[data-layout=classic] .vpn-panel,body[data-layout=classic] .settings-panel{top:84px}
-
-
 body[data-matte=true]{--toolbar-bg:linear-gradient(112deg,color-mix(in srgb,var(--surface) 84%,#fff 16%),color-mix(in srgb,var(--surface) 70%,#a9c9e8 30%))}
 body[data-matte=true] .toolbar,body[data-matte=true] .compact-toolbar-surface{backdrop-filter:saturate(145%) blur(22px)}
 .suggestions{max-height:376px;overflow-y:auto;background:var(--panel);border-color:var(--line);box-shadow:0 16px 44px var(--shadow)}
@@ -94,14 +76,25 @@ body[data-address-position=left] .compact-tab-flow{justify-content:flex-start}
 
 /* Classic: address row above a dedicated tab row. */
 .classic-toolbar{height:82px;padding:0}
-.classic-main-row{display:flex;align-items:center;width:100%;height:45px;gap:4px;padding-left:9px;-webkit-app-region:no-drag}
-.classic-main-row .left-controls{display:flex;gap:2px}.classic-extension-slot{height:34px}.classic-address-wrap{display:flex;justify-content:center;flex:1 1 auto;min-width:220px}
+.classic-main-row{display:grid;grid-template-columns:minmax(210px,1fr) minmax(0,760px) minmax(210px,1fr);align-items:center;width:100%;height:48px;gap:6px;-webkit-app-region:no-drag}
+.classic-navigation-left,.classic-navigation-right{display:flex;align-items:center;gap:4px;min-width:0;height:100%}.classic-navigation-left{padding-left:8px}.classic-navigation-right{justify-content:flex-end}.classic-main-row .left-controls{display:flex;gap:2px}.classic-extension-slot{height:34px}.classic-address-wrap{display:flex;justify-content:center;min-width:0}
+body[data-address-position=left] .classic-main-row{grid-template-columns:auto minmax(0,1fr) auto}
 body[data-address-position=left] .classic-address-wrap{justify-content:flex-start}
 .classic-address-pill{position:relative;display:flex;align-items:center;gap:4px;width:min(760px,100%);height:32px;margin:0;padding:0 5px;background:var(--field);border:1px solid color-mix(in srgb,var(--text) 9%,transparent);border-radius:16px;box-shadow:inset 0 1px 0 #ffffff61,0 1px 4px #0000000b}
 .classic-address-pill input{flex:1;min-width:0;height:30px;padding:0 6px;color:var(--text);background:transparent;border:0;outline:0;text-align:center}.classic-address-pill input:focus{text-align:left}.classic-address-pill .address-favorite svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.45}.classic-address-pill .close-action svg{width:16px;height:16px;stroke-width:1.7}
 .address-menu-button{display:grid;place-items:center;flex:0 0 23px;width:23px;height:23px;padding:0;color:var(--muted);background:transparent;border-radius:50%}.address-menu-button:hover{color:var(--text);background:color-mix(in srgb,var(--text) 7%,transparent)}.address-menu-button svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.45;stroke-linecap:round}
-.classic-main-row>.downloads-control{margin-left:2px}.window-controls{display:flex;align-items:center;height:45px;margin-left:3px;border-left:1px solid var(--soft)}.window-controls button{display:grid;place-items:center;width:46px;height:45px;padding:0;background:transparent}.window-controls button:hover{background:#00000013}.window-controls .window-close:hover{color:#fff;background:#e81123}.window-controls svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1}
-.tabs-zone{display:flex;align-items:center;width:100%;height:37px;gap:4px;padding:0 8px;background:color-mix(in srgb,var(--text) 2.5%,transparent);border-top:1px solid color-mix(in srgb,var(--text) 5%,transparent);-webkit-app-region:no-drag}.tabs-zone .tab-strip{height:36px;padding:3px 0}.classic-tabs-drag{flex:1 1 40px;height:100%;-webkit-app-region:no-drag}.tabs-new-button{flex:0 0 30px;width:30px;height:30px}
+.classic-navigation-right>.downloads-control{margin-left:2px}.window-controls{display:flex;flex:none;align-items:center;height:48px;margin-left:3px;border-left:1px solid var(--soft)}.window-controls button{display:grid;place-items:center;width:42px;height:48px;padding:0;background:transparent}.window-controls button:hover{background:#00000013}.window-controls .window-close:hover{color:#fff;background:#e81123}.window-controls svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1}
+/* 48px navigation + 34px tabs retain the existing native 82px content inset. */
+.classic-toolbar .tabs-zone{display:flex;align-items:center;width:100%;height:34px;gap:4px;padding:2px 8px 3px;background:transparent;border-top:1px solid color-mix(in srgb,var(--text) 5%,transparent);-webkit-app-region:no-drag}
+.classic-toolbar .tab-strip{flex:0 1 auto;min-width:0;height:28px;padding:0;gap:4px;overflow-x:auto;overscroll-behavior-x:contain}
+.classic-tabs-drag{flex:1 0 16px;height:100%;-webkit-app-region:no-drag}.tabs-new-button{flex:0 0 28px;width:28px;height:28px;border-radius:8px}
+.classic-toolbar .classic-tab{flex:1 1 180px;min-width:112px;max-width:220px;height:28px;gap:6px;padding:0 6px 0 8px;border:1px solid transparent;border-radius:8px;background:color-mix(in srgb,var(--text) 3%,transparent);color:var(--muted)}
+.classic-toolbar .classic-tab:hover{background:color-mix(in srgb,var(--text) 7%,transparent);color:var(--text)}
+.classic-toolbar .classic-tab.active{background:var(--field);border-color:color-mix(in srgb,var(--text) 15%,transparent);color:var(--text);box-shadow:0 1px 2px #0000000a}
+.classic-toolbar .classic-tab strong{font-weight:400}.classic-toolbar .classic-tab.active strong{font-weight:550}
+.classic-toolbar .classic-tab .favicon{width:16px;height:16px}.classic-toolbar .classic-tab button{flex:0 0 20px;visibility:visible;opacity:.55}.classic-toolbar .classic-tab:hover button,.classic-toolbar .classic-tab.active button,.classic-toolbar .classic-tab:focus-within button{opacity:1}
+.classic-toolbar .classic-tab button:hover{background:color-mix(in srgb,var(--text) 10%,transparent);color:var(--text)}
+.classic-toolbar .classic-tab:focus-visible{outline:2px solid var(--blue);outline-offset:-2px}
 .classic-suggestions{top:42px}
 
 

@@ -40,7 +40,35 @@ function bindAddress(form,input,box){
 }
 
 function activeTab(x){const hasFavicon=Boolean(x.favicon),display=x.url?x.label:"";return`<form class="compact-active-tab${hasFavicon?"":" no-favicon"}" data-compact-rendered data-active-tab="${x.id}"><button class="tab-action page-action" type="button" data-page-menu title="${tr("pageMenu")}"><svg viewBox="0 0 20 20"><path d="M4 5.5h12M4 10h12M4 14.5h7"/></svg></button>${fav(x)}<input id="compactAddress" class="active-address" value="${esc(display)}" placeholder="${tr("addressPlaceholder")}" autocomplete="off" spellcheck="false"><button class="tab-action address-favorite" type="button" data-favorites title="${tr("favorites")}"><svg viewBox="0 0 24 24"><path d="m12 3 2.75 5.57 6.15.9-4.45 4.33 1.05 6.12L12 17.03l-5.5 2.89 1.05-6.12L3.1 9.47l6.15-.9L12 3Z"/></svg></button><button class="tab-action reload-action${x.loading?" loading":""}" type="button" data-reload title="${x.loading?tr("stop"):tr("reload")}"><svg class="reload-svg" viewBox="0 0 20 20"><path d="M15.4 7A6 6 0 1 0 16 12M15.5 4v3.5H12"/></svg><svg class="stop-svg" viewBox="0 0 20 20"><rect x="4.5" y="4.5" width="11" height="11" rx="2"/></svg></button><button class="tab-action close-action" type="button" data-close-active title="${tr("close")}"><svg viewBox="0 0 20 20"><path d="M5.5 5.5l9 9m0-9-9 9"/></svg></button><div class="suggestions active-suggestions" id="compactSuggestions"></div></form>`;}
-function renderClassicTabs(){tabStrip.innerHTML=state.tabs.map((x)=>`<div class="classic-tab${x.active?" active":""}" data-tab-id="${x.id}">${fav(x)}<strong>${esc(x.title||x.label)}</strong><button data-close-tab="${x.id}">×</button></div>`).join("");fallbacks(tabStrip);tabStrip.querySelectorAll("[data-tab-id]").forEach((e)=>e.onclick=(v)=>{if(!v.target.closest("[data-close-tab]"))window.browserShell.switchTab(+e.dataset.tabId);});tabStrip.querySelectorAll("[data-close-tab]").forEach((b)=>b.onclick=(e)=>{e.stopPropagation();window.browserShell.closeTab(+b.dataset.closeTab);});const input=$("#classicAddress");if(document.activeElement!==input)input.value=state.page?.url?state.page.label:"";$(".classic-reload").classList.toggle("loading",!!state.page?.loading);}
+let classicVisibleTabId=null;
+function revealClassicTab(){
+  if(document.body.dataset.layout!=="classic")return;
+  const active=tabStrip.querySelector(".active");
+  if(!active)return;
+  const left=active.offsetLeft-tabStrip.offsetLeft,right=left+active.offsetWidth;
+  if(left<tabStrip.scrollLeft)tabStrip.scrollLeft=left;
+  else if(right>tabStrip.scrollLeft+tabStrip.clientWidth)tabStrip.scrollLeft=right-tabStrip.clientWidth;
+}
+function renderClassicTabs(){
+  tabStrip.innerHTML=state.tabs.map((x)=>`<div class="classic-tab${x.active?" active":""}" role="tab" aria-selected="${!!x.active}" tabindex="0" data-tooltip="${esc(x.title||x.label)}" data-tab-id="${x.id}">${fav(x)}<strong>${esc(x.title||x.label)}</strong><button title="${tr("close")}" aria-label="${tr("close")}" data-close-tab="${x.id}">×</button></div>`).join("");
+  fallbacks(tabStrip);
+  tabStrip.querySelectorAll("[data-tab-id]").forEach((e)=>{
+    e.onclick=(v)=>{if(!v.target.closest("[data-close-tab]"))window.browserShell.switchTab(+e.dataset.tabId);};
+    e.onkeydown=(v)=>{if(v.target===e&&(v.key==="Enter"||v.key===" ")){v.preventDefault();window.browserShell.switchTab(+e.dataset.tabId);}};
+  });
+  tabStrip.querySelectorAll("[data-close-tab]").forEach((b)=>b.onclick=(e)=>{e.stopPropagation();window.browserShell.closeTab(+b.dataset.closeTab);});
+  const active=state.tabs.find(x=>x.active)?.id;
+  // Only reveal on a switch; background title/loading updates must not undo
+  // the user's scrolling to other tabs.
+  if(active!==classicVisibleTabId){classicVisibleTabId=active;requestAnimationFrame(revealClassicTab);}
+  const input=$("#classicAddress");if(document.activeElement!==input)input.value=state.page?.url?state.page.label:"";
+  $(".classic-reload").classList.toggle("loading",!!state.page?.loading);
+}
+new ResizeObserver(revealClassicTab).observe(tabStrip);
+tabStrip.addEventListener("wheel",e=>{
+  if(tabStrip.scrollWidth<=tabStrip.clientWidth||e.ctrlKey||Math.abs(e.deltaX)>=Math.abs(e.deltaY))return;
+  e.preventDefault();tabStrip.scrollLeft+=e.deltaY*(e.deltaMode===1?28:e.deltaMode===2?tabStrip.clientWidth:1);
+},{passive:false});
 function renderCompactTabs(){
   const wanted = state.tabs.filter(x=>x.active||x.url||x.favicon);
   const keys=new Set(wanted.map(x=>String(x.id)));

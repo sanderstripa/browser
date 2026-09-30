@@ -59,7 +59,7 @@ try:
     wait(lambda:s.evaluate(shell,'typeof window.browserShell !== "undefined"'))
     def state(): return s.evaluate(shell,'window.browserShell.getState()')
     opener=state()['activeTabId']
-    main=windows()
+    main=wait(lambda:windows())
     assert len(main)==1,main
     s.navigate(content,origin+'/opener')
     s.evaluate(content,f"document.body.innerHTML='<a id=link href={origin}/link>test link</a>'")
