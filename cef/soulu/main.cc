@@ -11,7 +11,10 @@ std::filesystem::path SouluDataRoot() {
   wchar_t buffer[MAX_PATH] = {};
   DWORD size = GetEnvironmentVariableW(L"LOCALAPPDATA", buffer, MAX_PATH);
   std::filesystem::path root = size ? buffer : L".";
-  return root / L"Soulu";
+  // Chrome-style CEF requires disk profiles to be immediate children of
+  // root_cache_path. BrowserWindow already stores them in Soulu/Profiles/<id>.
+  // Keep those paths unchanged and align the CEF root with their parent.
+  return root / L"Soulu" / L"Profiles";
 }
 
 std::wstring LocalDataPath() {
