@@ -219,6 +219,17 @@ def verify_profile_cookies(data_root):
 
 
 def profile_diagnostics(data_root):
+    database = data_root / "Soulu" / "User Data" / "Profiles" / "personal" / "Network" / "Cookies"
+    if database.exists():
+        with sqlite3.connect(f"{database.as_uri()}?mode=ro", uri=True) as connection:
+            print(json.dumps({"cookie_database_rows": connection.execute(
+                "SELECT name, is_persistent, has_expires, length(value), length(encrypted_value), hex(substr(encrypted_value,1,3)) FROM cookies"
+            ).fetchall(), "cookie_database_meta": connection.execute("SELECT * FROM meta").fetchall()}), flush=True)
+    prefs_path = database.parent.parent / "Preferences"
+    if prefs_path.exists():
+        prefs = json.loads(prefs_path.read_text(encoding="utf-8"))
+        print(json.dumps({"session_prefs": prefs.get("session"), "profile_prefs": prefs.get("profile", {}).get("exit_type"),
+                          "cookie_policy": prefs.get("profile", {}).get("default_content_setting_values")}), flush=True)
     for state_path in data_root.rglob("Local State"):
         state = json.loads(state_path.read_text(encoding="utf-8"))
         print(json.dumps({"local_state": str(state_path),
@@ -353,7 +364,7 @@ if __name__ == "__main__":
                 try:
                     data = json.loads(netlog.read_text())
                     event_types = {value: key for key, value in data["constants"]["logEventTypes"].items()}
-                    events = [{"type": event_types.get(event["type"]), "params": event.get("params")}
+                    events = [{"type": event_types.get(event["type"]), "params": event.get("params"), "source": event["source"], "phase": event["phase"]}
                               for event in data["events"] if "COOKIE" in event_types.get(event["type"], "")]
                     print(json.dumps({"netlog": netlog.name, "cookie_events": events}), flush=True)
                 except (ValueError, KeyError) as error:
