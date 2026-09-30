@@ -208,9 +208,12 @@ def assert_disk_storage(profile_path: pathlib.Path):
     files = [path for path in profile_path.rglob("*") if path.is_file()]
     if not any(path.name == "Cookies" for path in files):
         listing = [str(path.relative_to(profile_path)) for path in files]
+        data_root = profile_path.parents[3]
+        all_files = [str(path.relative_to(data_root)) for path in data_root.rglob("*") if path.is_file()]
         raise AssertionError(
             f"CEF cookie database was not persisted under {profile_path}; "
-            f"profile exists={profile_path.exists()}, files={listing}"
+            f"profile exists={profile_path.exists()}, files={listing}, "
+            f"LOCALAPPDATA files={all_files}"
         )
     if not any("Local Storage" in path.parts for path in files):
         raise AssertionError("CEF localStorage was not persisted")
