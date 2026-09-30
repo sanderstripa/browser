@@ -22,13 +22,12 @@ COOKIE_VALUE = "soulu-session-cookie"
 STORAGE_VALUE = "soulu-local-storage"
 IDB_VALUE = "soulu-indexed-db"
 sequence = 0
-received_cookie = ""
+received_cookies = {}
 
 
 class SiteHandler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
-        global received_cookie
-        received_cookie = self.headers.get("Cookie", "")
+        received_cookies[self.path] = self.headers.get("Cookie", "")
         body = b"<!doctype html><meta charset=utf-8><title>Soulu storage test</title>"
         self.send_response(200)
         if self.path.startswith("/seed"):
@@ -234,8 +233,9 @@ def run(data_root):
         cookie_value = next((item["value"] for item in cookies if item["name"] == "soulu_auth"), None)
         assert cookie_value == COOKIE_VALUE, f"session cookie missing after restart: {cookie_value!r}"
         assert any(item["name"] == "soulu_persistent" and item["value"] == COOKIE_VALUE for item in cookies), cookies
-        assert f"soulu_auth={COOKIE_VALUE}" in received_cookie, received_cookie
-        assert f"soulu_persistent={COOKIE_VALUE}" in received_cookie, received_cookie
+        verify_cookie = received_cookies.get("/verify", "")
+        assert f"soulu_auth={COOKIE_VALUE}" in verify_cookie, received_cookies
+        assert f"soulu_persistent={COOKIE_VALUE}" in verify_cookie, received_cookies
         assert local_value == STORAGE_VALUE, local_value
         assert indexed_value == IDB_VALUE, indexed_value
         print(json.dumps({
