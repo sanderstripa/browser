@@ -164,16 +164,25 @@ def main():
         ws = page_socket()
         navigate(ws, origin + "/verify")
         local_value = evaluate(ws, "localStorage.getItem('soulu-test')")
-        indexed_value = evaluate(ws, """new Promise((resolve, reject) => {
-          const request = indexedDB.open('soulu-test-db', 1);
-          request.onerror = () => reject(request.error);
-          request.onsuccess = () => {
-            const tx = request.result.transaction('values', 'readonly');
-            const get = tx.objectStore('values').get('auth');
-            get.onsuccess = () => resolve(get.result); get.onerror = () => reject(get.error);
-          };
-        })""")
         cookies = command(ws, "Network.getAllCookies").get("cookies", [])
+        command(ws, "IndexedDB.enable")
+        databases = command(ws, "IndexedDB.requestDatabaseNames", {
+            "securityOrigin": origin
+        }).get("databaseNames", [])
+        assert "soulu-test-db" in databases, databases
+        entries = command(ws, "IndexedDB.requestData", {
+            "securityOrigin": origin,
+            "databaseName": "soulu-test-db",
+            "objectStoreName": "values",
+            "indexName": "",
+            "skipCount": 0,
+            "pageSize": 10,
+        }).get("objectStoreDataEntries", [])
+        indexed_value = next((
+            item.get("value", {}).get("value")
+            for item in entries
+            if item.get("key", {}).get("value") == "auth"
+        ), None)
         cookie_value = next((item["value"] for item in cookies if item["name"] == "soulu_auth"), None)
         assert cookie_value == COOKIE_VALUE, f"session cookie missing after restart: {cookie_value!r}"
         assert f"soulu_auth={COOKIE_VALUE}" in received_cookie, received_cookie
