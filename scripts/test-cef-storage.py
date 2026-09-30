@@ -22,6 +22,7 @@ COOKIE_VALUE = "soulu-session-cookie"
 STORAGE_VALUE = "soulu-local-storage"
 IDB_VALUE = "soulu-indexed-db"
 sequence = 0
+network_events = []
 received_cookies = {}
 
 
@@ -79,6 +80,8 @@ def command(ws, method, params=None):
     ws.send(json.dumps({"id": ident, "method": method, "params": params or {}}))
     while True:
         response = json.loads(ws.recv())
+        if response.get("method") == "Network.requestWillBeSentExtraInfo":
+            network_events.append(response["params"])
         if response.get("id") != ident:
             continue
         if "error" in response:
@@ -206,6 +209,7 @@ def run(data_root):
     second = launch(executable, data_root)
     try:
         ws = page_socket()
+        command(ws, "Network.enable")
         navigate(ws, origin + "/verify")
         local_value = evaluate(ws, "localStorage.getItem('soulu-test')")
         cookies = command(ws, "Network.getAllCookies").get("cookies", [])
@@ -234,6 +238,8 @@ def run(data_root):
         assert cookie_value == COOKIE_VALUE, f"session cookie missing after restart: {cookie_value!r}"
         assert any(item["name"] == "soulu_persistent" and item["value"] == COOKIE_VALUE for item in cookies), cookies
         verify_cookie = received_cookies.get("/verify", "")
+        if not verify_cookie:
+            print(json.dumps({"restored_cookies": cookies, "request_cookie_diagnostics": network_events}), flush=True)
         assert f"soulu_auth={COOKIE_VALUE}" in verify_cookie, received_cookies
         assert f"soulu_persistent={COOKIE_VALUE}" in verify_cookie, received_cookies
         assert local_value == STORAGE_VALUE, local_value
