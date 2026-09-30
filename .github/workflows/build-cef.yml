@@ -123,6 +123,44 @@ jobs:
           "SOULU_SCREENSHOT:browser-exe-icon="+[Convert]::ToBase64String([IO.File]::ReadAllBytes((Join-Path $PWD "browser/artifacts/browser-exe-icon.png")))
           "build_dir=$buildDir" >> $env:GITHUB_OUTPUT
 
+      - name: Build installer
+        shell: pwsh
+        run: |
+          choco install nsis -y --no-progress
+          $buildDir = "${{ steps.package.outputs.build_dir }}"
+          $out = Join-Path $PWD "browser/artifacts/Soulu-Preview-$env:PREVIEW_NUMBER-x64.exe"
+          & ./browser/installer/build.ps1 -BuildDir $buildDir -OutFile $out
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Add-Type -AssemblyName System.Drawing
+          $setupIcon=[System.Drawing.Icon]::ExtractAssociatedIcon($out)
+          $setupIcon.ToBitmap().Save((Join-Path $PWD "browser/artifacts/installer-exe-icon.png"))
+          "SOULU_SCREENSHOT:installer-exe-icon="+[Convert]::ToBase64String([IO.File]::ReadAllBytes((Join-Path $PWD "browser/artifacts/installer-exe-icon.png")))
+
+      - name: Verify ZIP and installer payload before upload or release
+        id: verified
+        shell: pwsh
+        run: |
+          $zip = Join-Path $PWD "browser/artifacts/Soulu-Preview-$env:PREVIEW_NUMBER-x64.zip"
+          $checkDir = Join-Path $env:RUNNER_TEMP ("soulu-zip-" + $env:GITHUB_RUN_ID)
+          Expand-Archive -LiteralPath $zip -DestinationPath $checkDir
+          & ./browser/scripts/verify-cef-engine.ps1 -BuildDir $checkDir -ReportPath browser/artifacts/engine-version.json
+          $payloadDir = Join-Path $env:RUNNER_TEMP ("soulu-payload-" + $env:GITHUB_RUN_ID)
+          $payload = Join-Path $PWD "browser/installer/payload.exe"
+          $install = Start-Process $payload -ArgumentList @("/S", "/D=$payloadDir") -WindowStyle Hidden -PassThru -Wait
+          if ($install.ExitCode -ne 0) { throw "Installer payload extraction failed" }
+          & ./browser/scripts/verify-cef-engine.ps1 -BuildDir $payloadDir
+          $version = Get-Content browser/artifacts/engine-version.json -Raw | ConvertFrom-Json
+          "Soulu Preview $env:PREVIEW_NUMBER. Verified CEF $($version.cef) / Chromium $($version.chromium). Source: $env:GITHUB_SHA. Clean build: $env:GITHUB_RUN_ID." | Set-Content browser/artifacts/release-notes.md -Encoding utf8
+          "passed=true" >> $env:GITHUB_OUTPUT
+
+      - name: Upload verified engine evidence
+        if: success() && steps.verified.outputs.passed == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Soulu-engine-verification-${{ github.run_id }}
+          path: browser/artifacts/engine-version.json
+          if-no-files-found: error
+
       - name: Test live CEF settings and toolbar on Windows
         # Cloud visual probes are diagnostic and must not block packaging.
         continue-on-error: true
@@ -150,19 +188,6 @@ jobs:
           $installedExe = Join-Path "${{ steps.package.outputs.build_dir }}" "Soulu.exe"
           python browser/scripts/test-cef-storage.py $installedExe
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-      - name: Build installer
-        shell: pwsh
-        run: |
-          choco install nsis -y --no-progress
-          $buildDir = "${{ steps.package.outputs.build_dir }}"
-          $out = Join-Path $PWD "browser/artifacts/Soulu-Preview-$env:PREVIEW_NUMBER-x64.exe"
-          & ./browser/installer/build.ps1 -BuildDir $buildDir -OutFile $out
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          Add-Type -AssemblyName System.Drawing
-          $setupIcon=[System.Drawing.Icon]::ExtractAssociatedIcon($out)
-          $setupIcon.ToBitmap().Save((Join-Path $PWD "browser/artifacts/installer-exe-icon.png"))
-          "SOULU_SCREENSHOT:installer-exe-icon="+[Convert]::ToBase64String([IO.File]::ReadAllBytes((Join-Path $PWD "browser/artifacts/installer-exe-icon.png")))
 
       - name: Smoke-test visible installer controls with mouse on Windows
         continue-on-error: ${{ contains(github.event.head_commit.message, '[publish-as-is]') }}
@@ -399,23 +424,6 @@ jobs:
           name: Soulu-visual-checks
           path: browser/artifacts/*.png
           if-no-files-found: ignore
-
-      - name: Verify ZIP and installer payload before upload or release
-        id: verified
-        shell: pwsh
-        run: |
-          $zip = Join-Path $PWD "browser/artifacts/Soulu-Preview-$env:PREVIEW_NUMBER-x64.zip"
-          $checkDir = Join-Path $env:RUNNER_TEMP ("soulu-zip-" + $env:GITHUB_RUN_ID)
-          Expand-Archive -LiteralPath $zip -DestinationPath $checkDir
-          & ./browser/scripts/verify-cef-engine.ps1 -BuildDir $checkDir -ReportPath browser/artifacts/engine-version.json
-          $payloadDir = Join-Path $env:RUNNER_TEMP ("soulu-payload-" + $env:GITHUB_RUN_ID)
-          $payload = Join-Path $PWD "browser/installer/payload.exe"
-          $install = Start-Process $payload -ArgumentList @("/S", "/D=$payloadDir") -WindowStyle Hidden -PassThru -Wait
-          if ($install.ExitCode -ne 0) { throw "Installer payload extraction failed" }
-          & ./browser/scripts/verify-cef-engine.ps1 -BuildDir $payloadDir
-          $version = Get-Content browser/artifacts/engine-version.json -Raw | ConvertFrom-Json
-          "Soulu Preview $env:PREVIEW_NUMBER. Verified CEF $($version.cef) / Chromium $($version.chromium). Source: $env:GITHUB_SHA. Clean build: $env:GITHUB_RUN_ID." | Set-Content browser/artifacts/release-notes.md -Encoding utf8
-          "passed=true" >> $env:GITHUB_OUTPUT
 
       - name: Upload preview artifacts
         if: success() && steps.verified.outputs.passed == 'true'
