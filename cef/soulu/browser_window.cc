@@ -333,7 +333,7 @@ void BrowserWindow::CreateProfile(const std::string& name,
       : requested_id;
   CefRequestContextSettings context_settings;
   const auto profile_path = UserDataDirectory() /
-      std::filesystem::u8path("Profiles/" + id);
+      L"Profiles" / std::filesystem::u8path(id);
   std::filesystem::create_directories(profile_path);
   CefString(&context_settings.cache_path) = profile_path.wstring();
   context_settings.persist_session_cookies = 1;

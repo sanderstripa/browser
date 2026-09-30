@@ -11,6 +11,9 @@ class BrowserApp final : public CefApp, public CefBrowserProcessHandler {
   void OnBeforeCommandLineProcessing(const CefString& process_type,
                                      CefRefPtr<CefCommandLine> command_line) override {
     if (process_type.empty()) {
+      // Keep the global/shell profile separate from content request contexts
+      // even when Chromium records a content profile as the last-used profile.
+      command_line->AppendSwitchWithValue("profile-directory", "Default");
       wchar_t test_port[12] = {};
       if (GetEnvironmentVariableW(L"SOULU_UI_TEST_PORT", test_port, 12) > 0)
         command_line->AppendSwitchWithValue("remote-allow-origins", "*");
