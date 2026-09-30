@@ -17,6 +17,10 @@ u.SendMessageW.restype = ctypes.c_ssize_t
 u.GetMenuItemCount.argtypes = [ctypes.c_void_p]
 u.GetMenuStringW.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_wchar_p, ctypes.c_int, ctypes.c_uint]
 u.SetForegroundWindow.argtypes = [ctypes.c_void_p]
+u.PostMessageW.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_size_t, ctypes.c_ssize_t]
+class Rect(ctypes.Structure):
+    _fields_=[('left',ctypes.c_long),('top',ctypes.c_long),('right',ctypes.c_long),('bottom',ctypes.c_long)]
+u.GetMenuItemRect.argtypes=[ctypes.c_void_p,ctypes.c_void_p,ctypes.c_uint,ctypes.POINTER(Rect)]
 server = http.server.ThreadingHTTPServer(('127.0.0.1',s.free_port()),s.SiteHandler)
 threading.Thread(target=server.serve_forever,daemon=True).start()
 origin = f'http://127.0.0.1:{server.server_port}'
@@ -63,11 +67,22 @@ try:
     history=s.command(content,'Page.getNavigationHistory')
     def choose(index):
         u.SetForegroundWindow(main[0])
+        s.command(content, 'Page.bringToFront')
         box=s.evaluate(content,"(()=>{const r=document.getElementById('link').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()")
-        for kind in ['mousePressed','mouseReleased']:
-            s.sequence+=1
-            content.send(json.dumps({'id':s.sequence,'method':'Input.dispatchMouseEvent','params':{
-                'type':kind,'x':box['x'],'y':box['y'],'button':'right','clickCount':1}}))
+        renderers=[]
+        @ctypes.WINFUNCTYPE(ctypes.c_bool,ctypes.c_void_p,ctypes.c_void_p)
+        def child(hwnd,_):
+            cls=ctypes.create_unicode_buffer(80)
+            u.GetClassNameW(ctypes.c_void_p(hwnd),cls,80)
+            if cls.value=='Chrome_RenderWidgetHostHWND' and u.IsWindowVisible(ctypes.c_void_p(hwnd)):
+                renderers.append(hwnd)
+            return True
+        u.EnumChildWindows(ctypes.c_void_p(main[0]),child,0)
+        assert len(renderers)==1,renderers
+        point=(int(box['y'])<<16)|int(box['x'])
+        # Native mouse delivery also exercises the Windows context-menu path.
+        u.PostMessageW(renderers[0],0x0204,2,point) # WM_RBUTTONDOWN
+        u.PostMessageW(renderers[0],0x0205,0,point) # WM_RBUTTONUP
         hwnd=wait(lambda:next(iter(windows(True)),None))
         menu=u.SendMessageW(hwnd,0x01E1,0,0) # MN_GETHMENU
         labels=[]
@@ -77,11 +92,14 @@ try:
             labels.append(buf.value)
         assert len(labels)==5,labels
         # Drive the actual Windows menu, rather than invoke a bridge action.
-        for key in [0x24]+[0x28]*index+[0x0D]:
-            u.keybd_event(key,0,0,0)
-            u.keybd_event(key,0,2,0)
-            time.sleep(.1)
+        rect=Rect()
+        assert u.GetMenuItemRect(None,menu,index,ctypes.byref(rect))
+        u.SetCursorPos((rect.left+rect.right)//2,(rect.top+rect.bottom)//2)
+        time.sleep(.1)
+        u.mouse_event(0x0002,0,0,0,0)
+        u.mouse_event(0x0004,0,0,0,0)
         wait(lambda:not windows(True))
+        print(json.dumps({'selected_menu_index':index,'labels':labels},ensure_ascii=False),flush=True)
         return labels
     labels=choose(0)
     fg=wait(lambda:(v if len(v['tabs'])==2 and v['activeTabId']!=opener else None) if (v:=state()) else None)
