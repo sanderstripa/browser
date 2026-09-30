@@ -549,6 +549,14 @@ void BrowserWindow::OpenSettingsTab() {
   } else NewTab(url);
 }
 
+void BrowserWindow::OpenIncognitoLink(int source_id, CefRefPtr<CefBrowser> source,
+                                       const std::string& url) {
+  auto* tab = FindTab(source_id);
+  if (!tab || !tab->browser || !tab->browser->IsSame(source) || closing_) return;
+  // Reuse the existing memory-only incognito context and the same tab manager.
+  NewTab(url, true);
+}
+
 void BrowserWindow::OpenTabFrom(int source_id, CefRefPtr<CefBrowser> source,
                                  const std::string& url, bool background) {
   auto* tab = FindTab(source_id);

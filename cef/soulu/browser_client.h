@@ -15,7 +15,8 @@ class BrowserClient final : public CefClient,
                             public CefDownloadHandler,
                             public CefLifeSpanHandler,
                             public CefLoadHandler,
-                            public CefRequestHandler {
+                            public CefRequestHandler,
+                            public CefContextMenuHandler {
  public:
   BrowserClient(CefRefPtr<BrowserWindow> owner, BrowserRole role, int tab_id = 0);
 
@@ -24,6 +25,14 @@ class BrowserClient final : public CefClient,
   CefRefPtr<CefLifeSpanHandler> GetLifeSpanHandler() override { return this; }
   CefRefPtr<CefLoadHandler> GetLoadHandler() override { return this; }
   CefRefPtr<CefRequestHandler> GetRequestHandler() override { return this; }
+  CefRefPtr<CefContextMenuHandler> GetContextMenuHandler() override { return this; }
+  void OnBeforeContextMenu(CefRefPtr<CefBrowser>, CefRefPtr<CefFrame>,
+      CefRefPtr<CefContextMenuParams>, CefRefPtr<CefMenuModel>) override;
+  bool RunContextMenu(CefRefPtr<CefBrowser>, CefRefPtr<CefFrame>,
+      CefRefPtr<CefContextMenuParams>, CefRefPtr<CefMenuModel>,
+      CefRefPtr<CefRunContextMenuCallback>) override;
+  bool OnContextMenuCommand(CefRefPtr<CefBrowser>, CefRefPtr<CefFrame>,
+      CefRefPtr<CefContextMenuParams>, int, EventFlags) override;
   using WindowOpenDisposition = cef_window_open_disposition_t;
   bool OnOpenURLFromTab(CefRefPtr<CefBrowser>, CefRefPtr<CefFrame>,
                        const CefString&, WindowOpenDisposition, bool) override;

@@ -31,6 +31,8 @@ class BrowserWindow final : public CefBaseRefCounted {
   HWND hwnd() const { return hwnd_; }
   CefRefPtr<ShellSurface> surface() const { return surface_; }
   void ApplyContentTheme();
+  void OpenIncognitoLink(int source_id, CefRefPtr<CefBrowser> source,
+                         const std::string& url);
   int PreparePopup(int source_id, const std::string& url, bool background,
                    CefWindowInfo& info);
   void AbortPopup(int tab_id);

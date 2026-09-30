@@ -1,12 +1,25 @@
 #include "examples/soulu/browser_client.h"
 
 #include <string>
+#include <cstring>
 
 #include "examples/soulu/browser_window.h"
 #include "include/wrapper/cef_helpers.h"
 
 namespace soulu {
 namespace {
+enum LinkCommand {
+  kLinkForeground = MENU_ID_USER_FIRST,
+  kLinkBackground,
+  kLinkIncognito,
+  kLinkSave,
+  kLinkCopy,
+};
+
+bool DownloadableLink(const std::string& url) {
+  return url.rfind("https://", 0) == 0 || url.rfind("http://", 0) == 0;
+}
+
 class BridgeHandler final : public CefMessageRouterBrowserSide::Handler {
  public:
   explicit BridgeHandler(CefRefPtr<BrowserWindow> owner) : owner_(owner) {}
@@ -30,6 +43,83 @@ class BridgeHandler final : public CefMessageRouterBrowserSide::Handler {
 
 BrowserClient::BrowserClient(CefRefPtr<BrowserWindow> owner, BrowserRole role, int tab_id)
     : owner_(owner), role_(role), tab_id_(tab_id) {}
+
+void BrowserClient::OnBeforeContextMenu(CefRefPtr<CefBrowser>, CefRefPtr<CefFrame>,
+    CefRefPtr<CefContextMenuParams> params, CefRefPtr<CefMenuModel> model) {
+  CEF_REQUIRE_UI_THREAD();
+  if (role_ != BrowserRole::kContent || params->GetLinkUrl().empty()) return;
+  model->Clear();
+  model->AddItem(kLinkForeground, "Открыть ссылку в новой вкладке");
+  model->AddItem(kLinkBackground, "Открыть ссылку в фоновой вкладке");
+  model->AddItem(kLinkIncognito, "Открыть ссылку в режиме инкогнито");
+  const bool web_link = DownloadableLink(params->GetLinkUrl());
+  model->SetEnabled(kLinkForeground, web_link);
+  model->SetEnabled(kLinkBackground, web_link);
+  model->SetEnabled(kLinkIncognito, web_link);
+  if (DownloadableLink(params->GetLinkUrl()))
+    model->AddItem(kLinkSave, "Сохранить ссылку как…");
+  model->AddItem(kLinkCopy, "Копировать адрес ссылки");
+}
+
+bool BrowserClient::RunContextMenu(CefRefPtr<CefBrowser> browser,
+    CefRefPtr<CefFrame>, CefRefPtr<CefContextMenuParams> params,
+    CefRefPtr<CefMenuModel> model, CefRefPtr<CefRunContextMenuCallback> callback) {
+  CEF_REQUIRE_UI_THREAD();
+  if (role_ != BrowserRole::kContent || params->GetLinkUrl().empty()) return false;
+  HMENU menu = CreatePopupMenu();
+  if (!menu) { callback->Cancel(); return true; }
+  for (size_t i = 0; i < model->GetCount(); ++i) {
+    const auto label = model->GetLabelAt(i).ToWString();
+    AppendMenuW(menu, MF_STRING | (model->IsEnabledAt(i) ? 0 : MF_GRAYED),
+                model->GetCommandIdAt(i), label.c_str());
+  }
+  POINT point = {params->GetXCoord(), params->GetYCoord()};
+  ClientToScreen(browser->GetHost()->GetWindowHandle(), &point);
+  const int command = TrackPopupMenu(menu, TPM_RETURNCMD | TPM_RIGHTBUTTON,
+      point.x, point.y, 0, owner_->hwnd(), nullptr);
+  DestroyMenu(menu);
+  if (command) callback->Continue(command, EVENTFLAG_NONE);
+  else callback->Cancel();
+  return true;
+}
+
+bool BrowserClient::OnContextMenuCommand(CefRefPtr<CefBrowser> browser,
+    CefRefPtr<CefFrame>, CefRefPtr<CefContextMenuParams> params,
+    int command, EventFlags) {
+  CEF_REQUIRE_UI_THREAD();
+  if (role_ != BrowserRole::kContent || params->GetLinkUrl().empty()) return false;
+  const std::string url = params->GetLinkUrl();
+  switch (command) {
+    case kLinkForeground:
+    case kLinkBackground:
+      if (DownloadableLink(url))
+        owner_->OpenTabFrom(tab_id_, browser, url, command == kLinkBackground);
+      return true;
+    case kLinkIncognito:
+      if (DownloadableLink(url)) owner_->OpenIncognitoLink(tab_id_, browser, url);
+      return true;
+    case kLinkSave:
+      if (DownloadableLink(url)) browser->GetHost()->StartDownload(url);
+      return true;
+    case kLinkCopy: {
+      const std::wstring wide = params->GetLinkUrl().ToWString();
+      HGLOBAL memory = GlobalAlloc(GMEM_MOVEABLE, (wide.size() + 1) * sizeof(wchar_t));
+      if (!memory) return true;
+      void* buffer = GlobalLock(memory);
+      if (!buffer) { GlobalFree(memory); return true; }
+      memcpy(buffer, wide.c_str(), (wide.size() + 1) * sizeof(wchar_t));
+      GlobalUnlock(memory);
+      if (OpenClipboard(owner_->hwnd())) {
+        EmptyClipboard();
+        if (SetClipboardData(CF_UNICODETEXT, memory)) memory = nullptr;
+        CloseClipboard();
+      }
+      if (memory) GlobalFree(memory);
+      return true;
+    }
+    default: return false;
+  }
+}
 
 CefRefPtr<CefRenderHandler> BrowserClient::GetRenderHandler() {
   return role_ == BrowserRole::kShell ? owner_->surface() : nullptr;
