@@ -11,17 +11,30 @@
 #include <dwmapi.h>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <sstream>
 
 #include "examples/soulu/browser_client.h"
 #include "examples/soulu/frosted_backdrop.h"
 #include "examples/soulu/resource.h"
 #include "include/cef_app.h"
+#include "include/cef_cookie.h"
 #include "include/cef_parser.h"
+#include "include/wrapper/cef_closure_task.h"
 #include "include/wrapper/cef_helpers.h"
 
 namespace soulu {
 namespace {
+class CookieFlushComplete final : public CefCompletionCallback {
+ public:
+  explicit CookieFlushComplete(std::function<void()> done) : done_(std::move(done)) {}
+  void OnComplete() override {
+    CefPostTask(TID_UI, CefCreateClosureTask(std::move(done_)));
+  }
+ private:
+  std::function<void()> done_;
+  IMPLEMENT_REFCOUNTING(CookieFlushComplete);
+};
 class SuggestClient final : public CefURLRequestClient {
  public:
   SuggestClient(CefRefPtr<CefListValue> local, CefRefPtr<CefMessageRouterBrowserSide::Callback> reply)
@@ -641,7 +654,12 @@ void BrowserWindow::BrowserClosed(CefRefPtr<CefBrowser> browser, int tab_id,
       }
     }
   }
-  if (closing_ && !shell_ && tabs_.empty()) DestroyWindow(hwnd_);
+  if (closing_ && !shell_ && tabs_.empty()) {
+    // Drop application-owned contexts before CefShutdown tears down profiles.
+    for (auto& profile : profiles_) profile.context = nullptr;
+    incognito_context_ = nullptr;
+    DestroyWindow(hwnd_);
+  }
   else { Layout(); EmitState(); }
 }
 
@@ -1160,6 +1178,22 @@ void BrowserWindow::HandleBridge(const std::string& request,
 void BrowserWindow::CloseAll() {
   if (closing_) return;
   closing_ = true;
+  // Keep the content contexts and message loop alive until their cookie stores
+  // are on disk. FlushStore completes on the IO thread, then returns to UI.
+  pending_cookie_flushes_ = static_cast<int>(profiles_.size());
+  if (!pending_cookie_flushes_) { CloseBrowsers(); return; }
+  CefRefPtr<BrowserWindow> self = this;
+  for (auto& profile : profiles_) {
+    auto manager = profile.context->GetCookieManager(nullptr);
+    auto done = [self]() {
+      if (--self->pending_cookie_flushes_ == 0) self->CloseBrowsers();
+    };
+    if (!manager || !manager->FlushStore(new CookieFlushComplete(done)))
+      CefPostTask(TID_UI, CefCreateClosureTask(std::move(done)));
+  }
+}
+
+void BrowserWindow::CloseBrowsers() {
   for (auto& tab : tabs_) if (tab.browser) tab.browser->GetHost()->CloseBrowser(true);
   if (shell_) shell_->GetHost()->CloseBrowser(true);
   if (!shell_ && tabs_.empty()) DestroyWindow(hwnd_);
