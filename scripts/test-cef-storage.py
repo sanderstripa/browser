@@ -203,6 +203,7 @@ def launch(executable, data_root):
     environment["LOCALAPPDATA"] = str(data_root)
     environment["SOULU_AUTH_TEST_TOKEN"] = f"launch-{launch_number}"
     return subprocess.Popen([executable, f"--log-file={data_root / 'cef-debug.log'}",
+                             "--host-resolver-rules=MAP auth.soulu.test 127.0.0.1",
                              f"--log-net-log={data_root / f'netlog-{launch_number}.json'}",
                              "--net-log-capture-mode=Everything",
                              "--vmodule=*cookie*=2,*os_crypt*=2"], env=environment)
@@ -216,7 +217,7 @@ def verify_profile_cookies(data_root):
     with sqlite3.connect(f"{database.as_uri()}?mode=ro", uri=True) as connection:
         rows = dict(connection.execute(
             "SELECT name, is_persistent FROM cookies WHERE host_key = ?",
-            ("127.0.0.1",)))
+            ("auth.soulu.test",)))
     assert rows.get("soulu_auth") == 0, rows
     assert rows.get("soulu_persistent") == 1, rows
 
@@ -274,7 +275,7 @@ def run(data_root):
     site_port = free_port()
     server = http.server.ThreadingHTTPServer(("127.0.0.1", site_port), SiteHandler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
-    origin = f"http://127.0.0.1:{site_port}"
+    origin = f"http://auth.soulu.test:{site_port}"
 
     first = launch(executable, data_root)
     try:
