@@ -94,7 +94,7 @@ def navigate(ws, url):
     command(ws, "Page.navigate", {"url": url})
     deadline = time.monotonic() + 20
     while time.monotonic() < deadline:
-        if evaluate(ws, "document.readyState") == "complete":
+        if evaluate(ws, "location.href") == url and evaluate(ws, "document.readyState") == "complete":
             return
         time.sleep(0.2)
     raise AssertionError(f"Page did not load: {url}")
@@ -178,28 +178,22 @@ def main():
         navigate(ws, origin + "/verify")
         local_value = evaluate(ws, "localStorage.getItem('soulu-test')")
         cookies = command(ws, "Network.getAllCookies").get("cookies", [])
-        command(ws, "IndexedDB.enable")
-        frame_id = command(ws, "Page.getFrameTree")["frameTree"]["frame"]["id"]
-        storage_key = command(ws, "Storage.getStorageKeyForFrame", {
-            "frameId": frame_id
-        })["storageKey"]
-        databases = command(ws, "IndexedDB.requestDatabaseNames", {
-            "storageKey": storage_key
-        }).get("databaseNames", [])
-        assert "soulu-test-db" in databases, databases
-        entries = command(ws, "IndexedDB.requestData", {
-            "storageKey": storage_key,
-            "databaseName": "soulu-test-db",
-            "objectStoreName": "values",
-            "indexName": "",
-            "skipCount": 0,
-            "pageSize": 10,
-        }).get("objectStoreDataEntries", [])
-        indexed_value = next((
-            item.get("value", {}).get("value")
-            for item in entries
-            if item.get("key", {}).get("value") == "auth"
-        ), None)
+        # Read in the page's own storage context, exactly as a website would.
+        # Aborting an upgrade prevents a missing database from being recreated.
+        indexed_value = evaluate(ws, """new Promise((resolve, reject) => {
+          const request = indexedDB.open('soulu-test-db', 1);
+          request.onupgradeneeded = () => {
+            request.transaction.abort();
+            reject(new Error('IndexedDB database missing after restart'));
+          };
+          request.onerror = () => reject(request.error);
+          request.onsuccess = () => {
+            const db = request.result;
+            const get = db.transaction('values').objectStore('values').get('auth');
+            get.onsuccess = () => { db.close(); resolve(get.result); };
+            get.onerror = () => { db.close(); reject(get.error); };
+          };
+        })""")
         cookie_value = next((item["value"] for item in cookies if item["name"] == "soulu_auth"), None)
         assert cookie_value == COOKIE_VALUE, f"session cookie missing after restart: {cookie_value!r}"
         assert f"soulu_auth={COOKIE_VALUE}" in received_cookie, received_cookie
@@ -222,3 +216,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
