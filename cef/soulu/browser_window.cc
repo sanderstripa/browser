@@ -42,19 +42,6 @@ class CookieFlushComplete final : public CefCompletionCallback {
   std::function<void()> done_;
   IMPLEMENT_REFCOUNTING(CookieFlushComplete);
 };
-class CookieStoreReady final : public CefCookieVisitor {
- public:
-  explicit CookieStoreReady(std::function<void()> done) : done_(std::move(done)) {}
-  // CEF releases the visitor after GetAllCookies completes, including an empty
-  // store. Never change or delete cookies while waiting for the disk load.
-  ~CookieStoreReady() override {
-    CefPostTask(TID_UI, new CookieFlushTask(std::move(done_)));
-  }
-  bool Visit(const CefCookie&, int, int, bool&) override { return true; }
- private:
-  std::function<void()> done_;
-  IMPLEMENT_REFCOUNTING(CookieStoreReady);
-};
 class SuggestClient final : public CefURLRequestClient {
  public:
   SuggestClient(CefRefPtr<CefListValue> local, CefRefPtr<CefMessageRouterBrowserSide::Callback> reply)
@@ -581,28 +568,8 @@ void BrowserWindow::NewTab(const std::string& url, bool incognito) {
   wchar_t auth_test_token[32] = {};
   if (url == "about:blank" && GetEnvironmentVariableW(L"SOULU_AUTH_TEST_TOKEN", auth_test_token, 32) > 0)
     browser_url += "?soulu-auth-test=" + CefString(auth_test_token).ToString();
-  CefRefPtr<BrowserWindow> self = this;
-  auto create_browser = [self, info, role, id, browser_url, browser_settings, context]() {
-    if (self->closing_) { self->BrowserClosed(nullptr, id, false); return; }
-    CefBrowserHost::CreateBrowser(info, new BrowserClient(self, role, id),
-                                  browser_url, browser_settings, nullptr, context);
-  };
-  auto* profile = incognito ? nullptr : ActiveProfile();
-  if (profile && !profile->cookies_ready) {
-    profile->pending_browsers.push_back(std::move(create_browser));
-    if (profile->pending_browsers.size() == 1) {
-      const std::string profile_id = profile->id;
-      context->GetCookieManager(nullptr)->VisitAllCookies(new CookieStoreReady([self, profile_id]() {
-        for (auto& item : self->profiles_) {
-          if (item.id != profile_id) continue;
-          item.cookies_ready = true;
-          auto pending = std::move(item.pending_browsers);
-          for (auto& create : pending) create();
-          break;
-        }
-      }));
-    }
-  } else create_browser();
+  CefBrowserHost::CreateBrowser(info, new BrowserClient(this, role, id),
+                                browser_url, browser_settings, nullptr, context);
   EmitState();
   if (url == "about:blank") FocusAddress();
 }
@@ -1241,7 +1208,7 @@ void BrowserWindow::CloseAll() {
   if (closing_) return;
   closing_ = true;
   // Keep the content contexts and message loop alive until their cookie stores
-  // are on disk. FlushStore completes on the IO thread, then returns to UI.
+  // are on disk. Continue closing on a subsequent UI task after completion.
   pending_cookie_flushes_ = static_cast<int>(profiles_.size());
   if (!pending_cookie_flushes_) { CloseBrowsers(); return; }
   CefRefPtr<BrowserWindow> self = this;

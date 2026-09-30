@@ -134,7 +134,6 @@ jobs:
       - name: Test persistent CEF cookies and site storage
         shell: pwsh
         run: |
-          python -m pip install --disable-pip-version-check cryptography
           $env:SOULU_UI_TEST_PORT = "9223"
           $installedExe = Join-Path "${{ steps.package.outputs.build_dir }}" "Soulu.exe"
           python browser/scripts/test-cef-storage.py $installedExe

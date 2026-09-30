@@ -1,10 +1,8 @@
 """Regression test for persistent CEF profile cookies and site storage."""
 import ctypes
 import contextlib
-import base64
 from ctypes import wintypes
 import http.server
-import hashlib
 import json
 import os
 import socket
@@ -18,7 +16,6 @@ from pathlib import Path
 import urllib.request
 
 import websocket
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 
 DEBUG_PORT = int(os.environ.get("SOULU_UI_TEST_PORT", "9223"))
@@ -27,7 +24,6 @@ COOKIE_VALUE = "soulu-session-cookie"
 STORAGE_VALUE = "soulu-local-storage"
 IDB_VALUE = "soulu-indexed-db"
 sequence = 0
-network_events = []
 launch_number = 0
 received_cookies = {}
 
@@ -86,8 +82,6 @@ def command(ws, method, params=None):
     ws.send(json.dumps({"id": ident, "method": method, "params": params or {}}))
     while True:
         response = json.loads(ws.recv())
-        if response.get("method") == "Network.requestWillBeSentExtraInfo":
-            network_events.append(response["params"])
         if response.get("id") != ident:
             continue
         if "error" in response:
@@ -203,11 +197,7 @@ def launch(executable, data_root):
     environment["SOULU_UI_TEST_PORT"] = str(DEBUG_PORT)
     environment["LOCALAPPDATA"] = str(data_root)
     environment["SOULU_AUTH_TEST_TOKEN"] = f"launch-{launch_number}"
-    return subprocess.Popen([executable, f"--log-file={data_root / 'cef-debug.log'}",
-                             "--host-resolver-rules=MAP auth.soulu.test 127.0.0.1",
-                             f"--log-net-log={data_root / f'netlog-{launch_number}.json'}",
-                             "--net-log-capture-mode=Everything",
-                             "--vmodule=*cookie*=2,*os_crypt*=2"], env=environment)
+    return subprocess.Popen([executable], env=environment)
 
 
 def verify_profile_cookies(data_root):
@@ -215,57 +205,23 @@ def verify_profile_cookies(data_root):
     profile = data_root / "Soulu" / "User Data" / "Profiles" / "personal"
     database = profile / "Network" / "Cookies"
     assert database.is_file(), f"Content profile cookie database missing: {database}"
+    # sqlite3 connection context managers end transactions but do not close
+    # file handles. Chromium must have sole ownership when it restarts.
     with contextlib.closing(sqlite3.connect(f"{database.as_uri()}?mode=ro", uri=True)) as connection:
         rows = dict(connection.execute(
             "SELECT name, is_persistent FROM cookies WHERE host_key = ?",
-            ("auth.soulu.test",)))
+            ("127.0.0.1",)))
     assert rows.get("soulu_auth") == 0, rows
     assert rows.get("soulu_persistent") == 1, rows
 
 
-def profile_diagnostics(data_root):
-    for cookie_path in data_root.rglob("Cookies"):
-        with contextlib.closing(sqlite3.connect(f"{cookie_path.as_uri()}?mode=ro", uri=True)) as connection:
-            print(json.dumps({"all_cookie_paths": str(cookie_path), "hosts": connection.execute("SELECT host_key,name FROM cookies").fetchall()}), flush=True)
-    database = data_root / "Soulu" / "User Data" / "Profiles" / "personal" / "Network" / "Cookies"
-    if database.exists():
-        with contextlib.closing(sqlite3.connect(f"{database.as_uri()}?mode=ro", uri=True)) as connection:
-            print(json.dumps({"cookie_database_rows": connection.execute(
-                "SELECT name, is_persistent, has_expires, length(value), length(encrypted_value), hex(substr(encrypted_value,1,3)) FROM cookies"
-            ).fetchall(), "cookie_database_meta": connection.execute("SELECT * FROM meta").fetchall()}), flush=True)
-    prefs_path = database.parent.parent / "Preferences"
-    if prefs_path.exists():
-        prefs = json.loads(prefs_path.read_text(encoding="utf-8"))
-        print(json.dumps({"session_prefs": prefs.get("session"), "profile_prefs": prefs.get("profile", {}).get("exit_type"),
-                          "cookie_policy": prefs.get("profile", {}).get("default_content_setting_values")}), flush=True)
-    for state_path in data_root.rglob("Local State"):
-        state = json.loads(state_path.read_text(encoding="utf-8"))
-        print(json.dumps({"local_state": str(state_path),
-                          "os_crypt_fingerprints": {key: hashlib.sha256(str(value).encode()).hexdigest()
-                                                    for key, value in state.get("os_crypt", {}).items()}}), flush=True)
-        encoded_key = state.get("os_crypt", {}).get("encrypted_key")
-        if encoded_key and database.exists():
-            class Blob(ctypes.Structure):
-                _fields_ = [("size", wintypes.DWORD), ("data", ctypes.POINTER(ctypes.c_ubyte))]
-            protected = base64.b64decode(encoded_key)[5:]
-            buffer = (ctypes.c_ubyte * len(protected)).from_buffer_copy(protected)
-            original, decrypted = Blob(len(protected), buffer), Blob()
-            if ctypes.windll.crypt32.CryptUnprotectData(ctypes.byref(original), None, None, None, None, 0, ctypes.byref(decrypted)):
-                key = ctypes.string_at(decrypted.data, decrypted.size)
-                with contextlib.closing(sqlite3.connect(f"{database.as_uri()}?mode=ro", uri=True)) as connection:
-                    for name, host, encrypted in connection.execute("SELECT name,host_key,encrypted_value FROM cookies"):
-                        try:
-                            value = AESGCM(key).decrypt(encrypted[3:15], encrypted[15:], None)
-                            print(json.dumps({"synthetic_cookie_decryption": name, "host_hash_matches": value[:32] == hashlib.sha256(host.encode()).digest(),
-                                              "test_value_matches": value[32:].decode() == COOKIE_VALUE}), flush=True)
-                        except Exception as error:
-                            print(json.dumps({"synthetic_cookie_decryption": name, "error": type(error).__name__}), flush=True)
-            else:
-                print("Synthetic cookie key DPAPI decryption failed", flush=True)
+def verify_content_context(data_root):
     context_path = data_root / "Soulu" / "User Data" / "auth-context.json"
     context = json.loads(context_path.read_text())
     print(json.dumps({"actual_content_context": context}), flush=True)
     assert context["same_context"] and context["profile_id"] == "personal", context
+    assert not context["shares_global_context"], context
+    assert context["restore_on_startup"] == 1, context
     assert Path(context["cache_path"]) == data_root / "Soulu" / "User Data" / "Profiles" / "personal", context
 
 
@@ -276,13 +232,12 @@ def run(data_root):
     site_port = free_port()
     server = http.server.ThreadingHTTPServer(("127.0.0.1", site_port), SiteHandler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
-    origin = f"http://auth.soulu.test:{site_port}"
+    origin = f"http://127.0.0.1:{site_port}"
 
     first = launch(executable, data_root)
     try:
         ws = page_socket()
-        navigate(ws, "chrome://version/")
-        print(json.dumps({"first_chrome_profile": evaluate(ws, "document.body.innerText")}), flush=True)
+        verify_content_context(data_root)
         navigate(ws, origin + "/seed")
         evaluate(ws, f"localStorage.setItem('soulu-test', {json.dumps(STORAGE_VALUE)})")
         evaluate(ws, """new Promise((resolve, reject) => {
@@ -313,17 +268,16 @@ def run(data_root):
         ws.close()
         close_normally(first)
         verify_profile_cookies(data_root)
-        profile_diagnostics(data_root)
+        verify_content_context(data_root)
     finally:
         if first.poll() is None:
             first.kill()
+            first.wait(timeout=30)
 
     second = launch(executable, data_root)
     try:
         ws = page_socket()
-        navigate(ws, "chrome://version/")
-        print(json.dumps({"second_chrome_profile": evaluate(ws, "document.body.innerText")}), flush=True)
-        profile_diagnostics(data_root)
+        verify_content_context(data_root)
         command(ws, "Network.enable")
         navigate(ws, origin + "/verify")
         local_value = evaluate(ws, "localStorage.getItem('soulu-test')")
@@ -350,9 +304,6 @@ def run(data_root):
             if item.get("key", {}).get("value") == "auth"
         ), None)
         cookie_value = next((item["value"] for item in cookies if item["name"] == "soulu_auth"), None)
-        print(json.dumps({"restored_cookies": cookies, "request_cookie_diagnostics": network_events,
-                          "server_requests": received_cookies, "localStorage": local_value,
-                          "IndexedDB": indexed_value}), flush=True)
         assert cookie_value == COOKIE_VALUE, f"session cookie missing after restart: {cookie_value!r}"
         assert any(item["name"] == "soulu_persistent" and item["value"] == COOKIE_VALUE for item in cookies), cookies
         verify_cookie = received_cookies.get("/verify", "")
@@ -385,18 +336,4 @@ def run(data_root):
 
 if __name__ == "__main__":
     with tempfile.TemporaryDirectory(prefix="soulu-auth-regression-") as directory:
-        try:
-            run(Path(directory))
-        finally:
-            diagnostic = Path(directory) / "cef-debug.log"
-            if diagnostic.exists():
-                print("\n".join(diagnostic.read_text(errors="replace").splitlines()[-80:]), flush=True)
-            for netlog in Path(directory).glob("netlog-*.json"):
-                try:
-                    data = json.loads(netlog.read_text())
-                    event_types = {value: key for key, value in data["constants"]["logEventTypes"].items()}
-                    events = [{"type": event_types.get(event["type"]), "params": event.get("params"), "source": event["source"], "phase": event["phase"]}
-                              for event in data["events"] if "COOKIE" in event_types.get(event["type"], "")]
-                    print(json.dumps({"netlog": netlog.name, "cookie_events": events}), flush=True)
-                except (ValueError, KeyError) as error:
-                    print(f"Netlog unavailable: {error}", flush=True)
+        run(Path(directory))

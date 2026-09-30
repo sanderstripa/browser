@@ -3,7 +3,6 @@
 #include <windows.h>
 
 #include <string>
-#include <functional>
 #include <vector>
 
 #include "include/cef_browser.h"
@@ -50,8 +49,6 @@ class BrowserWindow final : public CefBaseRefCounted {
     std::string id;
     std::string name;
     CefRefPtr<CefRequestContext> context;
-    bool cookies_ready = false;
-    std::vector<std::function<void()>> pending_browsers;
   };
 
   BrowserWindow();
