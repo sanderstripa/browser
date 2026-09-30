@@ -65,7 +65,7 @@ def page_socket():
     deadline = time.monotonic() + 45
     while time.monotonic() < deadline:
         for target in targets(timeout=max(1, deadline - time.monotonic())):
-            if target.get("type") == "page" and "/ui/index.html" not in target.get("url", ""):
+            if target.get("type") == "page" and "/ui/start.html" in target.get("url", ""):
                 return websocket.create_connection(
                     target["webSocketDebuggerUrl"], timeout=30,
                     origin=f"http://127.0.0.1:{DEBUG_PORT}")
@@ -235,11 +235,12 @@ def run(data_root):
             if item.get("key", {}).get("value") == "auth"
         ), None)
         cookie_value = next((item["value"] for item in cookies if item["name"] == "soulu_auth"), None)
+        print(json.dumps({"restored_cookies": cookies, "request_cookie_diagnostics": network_events,
+                          "server_requests": received_cookies, "localStorage": local_value,
+                          "IndexedDB": indexed_value}), flush=True)
         assert cookie_value == COOKIE_VALUE, f"session cookie missing after restart: {cookie_value!r}"
         assert any(item["name"] == "soulu_persistent" and item["value"] == COOKIE_VALUE for item in cookies), cookies
         verify_cookie = received_cookies.get("/verify", "")
-        if not verify_cookie:
-            print(json.dumps({"restored_cookies": cookies, "request_cookie_diagnostics": network_events}), flush=True)
         assert f"soulu_auth={COOKIE_VALUE}" in verify_cookie, received_cookies
         assert f"soulu_persistent={COOKIE_VALUE}" in verify_cookie, received_cookies
         assert local_value == STORAGE_VALUE, local_value
