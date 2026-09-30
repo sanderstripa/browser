@@ -44,7 +44,6 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, wchar_t*, int) {
   CefString(&settings.cache_path) = LocalDataPath();
   CefString(&settings.root_cache_path) = SouluDataRoot().wstring();
   settings.persist_session_cookies = 1;
-  settings.persist_user_preferences = 1;
   CefString(&settings.locale) = "ru-RU";
   CefString(&settings.accept_language_list) = "ru-RU,ru,en-US,en";
   if (!CefInitialize(main_args, settings, app, nullptr)) return 1;
