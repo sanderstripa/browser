@@ -77,6 +77,15 @@ jobs:
           "build_dir=$dir" >> $env:GITHUB_OUTPUT
           New-Item -ItemType Directory -Force browser/artifacts | Out-Null
           "CEF $cef`nSource $env:GITHUB_SHA`nSoulu Preview 30" | Set-Content browser/artifacts/build-info.txt -Encoding utf8
+      - name: Save compiled candidate for verification
+        shell: pwsh
+        run: |
+          Compress-Archive -Path '${{ steps.binary.outputs.build_dir }}/*' -DestinationPath browser/artifacts/Soulu-Preview-30-candidate.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Soulu-Preview-30-candidate
+          path: browser/artifacts/Soulu-Preview-30-candidate.zip
+          retention-days: 1
       - uses: actions/cache/save@v4
         if: steps.compiled-cache.outputs.cache-hit != 'true'
         with:
