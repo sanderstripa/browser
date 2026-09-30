@@ -131,7 +131,11 @@ def check(label, sidebar=False, screenshot=False):
         scale = u.GetDpiForWindow(window) / 96
         ch = children()
         toolbar = child_rect(ch['SouluAlphaToolbar'])
-        content = child_rect(ch['Chrome_WidgetWin_1'])
+        # Alloy embeds a CefBrowserWindow; Chrome runtime used WidgetWin_1.
+        # Measure the actual content host in either runtime, retaining the
+        # same bounds, viewport and live modal-loop assertions below.
+        host = ch['CefBrowserWindow'] if 'CefBrowserWindow' in ch else ch['Chrome_WidgetWin_1']
+        content = child_rect(host)
         left = round(276 * scale) if sidebar else 0
         top = round(48 * scale)
         assert content == [left, top, width - left, height - top], (label, content, width, height)
