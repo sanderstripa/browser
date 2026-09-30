@@ -62,11 +62,14 @@ def targets(timeout=45):
 
 
 def page_socket():
-    for target in targets():
-        if target.get("type") == "page" and "/ui/index.html" not in target.get("url", ""):
-            return websocket.create_connection(
-                target["webSocketDebuggerUrl"], timeout=30,
-                origin=f"http://127.0.0.1:{DEBUG_PORT}")
+    deadline = time.monotonic() + 45
+    while time.monotonic() < deadline:
+        for target in targets(timeout=5):
+            if target.get("type") == "page" and "/ui/index.html" not in target.get("url", ""):
+                return websocket.create_connection(
+                    target["webSocketDebuggerUrl"], timeout=30,
+                    origin=f"http://127.0.0.1:{DEBUG_PORT}")
+        time.sleep(0.25)
     raise AssertionError("CEF content target did not appear")
 
 
@@ -106,6 +109,9 @@ def navigate(ws, url):
 
 def close_normally(process):
     user32 = ctypes.windll.user32
+    user32.GetWindowThreadProcessId.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_ulong)]
+    user32.IsWindowVisible.argtypes = [ctypes.c_void_p]
+    user32.PostMessageW.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_size_t, ctypes.c_ssize_t]
     handles = []
     callback_type = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
 
@@ -122,7 +128,7 @@ def close_normally(process):
     if not handles:
         raise AssertionError("Soulu top-level window was not found")
     user32.PostMessageW(handles[0], 0x0010, 0, 0)  # WM_CLOSE
-    process.wait(timeout=30)
+    assert process.wait(timeout=30) == 0, f"Soulu exited abnormally: {process.returncode}"
 
 
 def launch(executable, data_root):
