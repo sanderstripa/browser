@@ -36,6 +36,7 @@ class BrowserWindow final : public CefBaseRefCounted {
   void AbortPopup(int tab_id);
   void OpenTabFrom(int source_id, CefRefPtr<CefBrowser> source,
                    const std::string& url, bool background);
+  void CookieStoreFlushed();
 
  private:
   struct Tab {
@@ -84,6 +85,7 @@ class BrowserWindow final : public CefBaseRefCounted {
   void FocusAddress();
   void Layout();
   void CloseAll();
+  void FinishClose();
   Tab* ActiveTab();
   Tab* FindTab(int id);
   std::string VisibleProfileId() const;
@@ -122,6 +124,8 @@ class BrowserWindow final : public CefBaseRefCounted {
   bool sidebar_visible_ = false;
   bool vpn_enabled_ = false;
   bool closing_ = false;
+  bool flushing_cookies_ = false;
+  int pending_cookie_flushes_ = 0;
   IMPLEMENT_REFCOUNTING(BrowserWindow);
 };
 }

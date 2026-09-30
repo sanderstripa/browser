@@ -17,11 +17,21 @@
 #include "examples/soulu/frosted_backdrop.h"
 #include "examples/soulu/resource.h"
 #include "include/cef_app.h"
+#include "include/cef_cookie.h"
 #include "include/cef_parser.h"
 #include "include/wrapper/cef_helpers.h"
 
 namespace soulu {
 namespace {
+class CookieFlushCompletion final : public CefCompletionCallback {
+ public:
+  explicit CookieFlushCompletion(CefRefPtr<BrowserWindow> owner) : owner_(owner) {}
+  void OnComplete() override { owner_->CookieStoreFlushed(); }
+ private:
+  CefRefPtr<BrowserWindow> owner_;
+  IMPLEMENT_REFCOUNTING(CookieFlushCompletion);
+};
+
 class SuggestClient final : public CefURLRequestClient {
  public:
   SuggestClient(CefRefPtr<CefListValue> local, CefRefPtr<CefMessageRouterBrowserSide::Callback> reply)
@@ -702,7 +712,7 @@ void BrowserWindow::BrowserClosed(CefRefPtr<CefBrowser> browser, int tab_id,
       }
     }
   }
-  if (closing_ && !shell_ && tabs_.empty()) DestroyWindow(hwnd_);
+  if (closing_ && !shell_ && tabs_.empty()) FinishClose();
   else { Layout(); EmitState(); }
 }
 
@@ -1223,7 +1233,30 @@ void BrowserWindow::CloseAll() {
   closing_ = true;
   for (auto& tab : tabs_) if (tab.browser) tab.browser->GetHost()->CloseBrowser(true);
   if (shell_) shell_->GetHost()->CloseBrowser(true);
-  if (!shell_ && tabs_.empty()) DestroyWindow(hwnd_);
+  if (!shell_ && tabs_.empty()) FinishClose();
+}
+
+void BrowserWindow::CookieStoreFlushed() {
+  CEF_REQUIRE_UI_THREAD();
+  if (pending_cookie_flushes_ > 0) --pending_cookie_flushes_;
+  if (flushing_cookies_ && pending_cookie_flushes_ == 0 && hwnd_)
+    DestroyWindow(hwnd_);
+}
+
+void BrowserWindow::FinishClose() {
+  CEF_REQUIRE_UI_THREAD();
+  if (flushing_cookies_) return;
+  flushing_cookies_ = true;
+  std::vector<CefRefPtr<CefCookieManager>> managers;
+  managers.push_back(CefCookieManager::GetGlobalManager(nullptr));
+  for (const auto& profile : profiles_)
+    managers.push_back(profile.context->GetCookieManager(nullptr));
+  pending_cookie_flushes_ = static_cast<int>(managers.size());
+  // Keep CEF's message loop and contexts alive until their writes complete.
+  for (const auto& manager : managers) {
+    if (!manager || !manager->FlushStore(new CookieFlushCompletion(this)))
+      CookieStoreFlushed();
+  }
 }
 
 LRESULT CALLBACK BrowserWindow::WindowProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam) {
