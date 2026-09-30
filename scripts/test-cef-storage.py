@@ -58,11 +58,14 @@ def targets(timeout=45):
 
 
 def page_socket():
-    for target in targets():
-        if target.get("type") == "page" and "/ui/index.html" not in target.get("url", ""):
-            return websocket.create_connection(
-                target["webSocketDebuggerUrl"], timeout=30,
-                origin=f"http://127.0.0.1:{DEBUG_PORT}")
+    deadline = time.monotonic() + 30
+    while time.monotonic() < deadline:
+        for target in targets():
+            if target.get("type") == "page" and "/ui/index.html" not in target.get("url", ""):
+                return websocket.create_connection(
+                    target["webSocketDebuggerUrl"], timeout=30,
+                    origin=f"http://127.0.0.1:{DEBUG_PORT}")
+        time.sleep(.1)
     raise AssertionError("CEF content target did not appear")
 
 
