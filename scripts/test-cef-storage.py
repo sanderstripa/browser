@@ -148,7 +148,8 @@ def main():
           request.onsuccess = () => {
             const tx = request.result.transaction('values', 'readwrite');
             tx.objectStore('values').put('soulu-indexed-db', 'auth');
-            tx.oncomplete = () => resolve(true); tx.onerror = () => reject(tx.error);
+            tx.oncomplete = () => { request.result.close(); resolve(true); };
+            tx.onerror = () => reject(tx.error);
           };
         })""")
         cookies = command(ws, "Network.getAllCookies").get("cookies", [])
