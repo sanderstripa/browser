@@ -20,16 +20,23 @@
 #include "include/cef_app.h"
 #include "include/cef_cookie.h"
 #include "include/cef_parser.h"
-#include "include/wrapper/cef_closure_task.h"
 #include "include/wrapper/cef_helpers.h"
 
 namespace soulu {
 namespace {
+class CookieFlushTask final : public CefTask {
+ public:
+  explicit CookieFlushTask(std::function<void()> done) : done_(std::move(done)) {}
+  void Execute() override { done_(); }
+ private:
+  std::function<void()> done_;
+  IMPLEMENT_REFCOUNTING(CookieFlushTask);
+};
 class CookieFlushComplete final : public CefCompletionCallback {
  public:
   explicit CookieFlushComplete(std::function<void()> done) : done_(std::move(done)) {}
   void OnComplete() override {
-    CefPostTask(TID_UI, CefCreateClosureTask(std::move(done_)));
+    CefPostTask(TID_UI, new CookieFlushTask(std::move(done_)));
   }
  private:
   std::function<void()> done_;
@@ -1189,7 +1196,7 @@ void BrowserWindow::CloseAll() {
       if (--self->pending_cookie_flushes_ == 0) self->CloseBrowsers();
     };
     if (!manager || !manager->FlushStore(new CookieFlushComplete(done)))
-      CefPostTask(TID_UI, CefCreateClosureTask(std::move(done)));
+      CefPostTask(TID_UI, new CookieFlushTask(std::move(done)));
   }
 }
 
