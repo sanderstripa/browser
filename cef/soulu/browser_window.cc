@@ -576,8 +576,11 @@ void BrowserWindow::NewTab(const std::string& url, bool incognito) {
       url.find("/ui/settings.html") != std::string::npos
           ? BrowserRole::kSettings : BrowserRole::kContent;
   const auto context = ContextForNewTab(incognito);
-  const auto browser_url = url == "about:blank"
+  auto browser_url = url == "about:blank"
       ? FileUrl(std::filesystem::u8path(ExecutableDirectory()) / "ui" / "start.html") : url;
+  wchar_t auth_test_token[32] = {};
+  if (url == "about:blank" && GetEnvironmentVariableW(L"SOULU_AUTH_TEST_TOKEN", auth_test_token, 32) > 0)
+    browser_url += "?soulu-auth-test=" + CefString(auth_test_token).ToString();
   CefRefPtr<BrowserWindow> self = this;
   auto create_browser = [self, info, role, id, browser_url, browser_settings, context]() {
     if (self->closing_) { self->BrowserClosed(nullptr, id, false); return; }
@@ -624,6 +627,9 @@ void BrowserWindow::AttachContent(int tab_id, CefRefPtr<CefBrowser> browser) {
     const auto context = browser->GetHost()->GetRequestContext();
     auto diagnostic = CefDictionaryValue::Create();
     diagnostic->SetString("cache_path", context->GetCachePath());
+    diagnostic->SetBool("shares_global_context", context->IsSharingWith(CefRequestContext::GetGlobalContext()));
+    if (auto preference = context->GetPreference("session.restore_on_startup"))
+      diagnostic->SetValue("restore_on_startup", preference);
     if (auto* tab = FindTab(tab_id)) {
       diagnostic->SetString("profile_id", tab->profile_id);
       for (const auto& profile : profiles_)

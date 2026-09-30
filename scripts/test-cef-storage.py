@@ -70,7 +70,7 @@ def page_socket():
     deadline = time.monotonic() + 45
     while time.monotonic() < deadline:
         for target in targets(timeout=max(1, deadline - time.monotonic())):
-            if target.get("type") == "page" and "/ui/start.html" in target.get("url", ""):
+            if target.get("type") == "page" and f"/ui/start.html?soulu-auth-test=launch-{launch_number}" in target.get("url", ""):
                 return websocket.create_connection(
                     target["webSocketDebuggerUrl"], timeout=30,
                     origin=f"http://127.0.0.1:{DEBUG_PORT}")
@@ -201,6 +201,7 @@ def launch(executable, data_root):
     environment = os.environ.copy()
     environment["SOULU_UI_TEST_PORT"] = str(DEBUG_PORT)
     environment["LOCALAPPDATA"] = str(data_root)
+    environment["SOULU_AUTH_TEST_TOKEN"] = f"launch-{launch_number}"
     return subprocess.Popen([executable, f"--log-file={data_root / 'cef-debug.log'}",
                              f"--log-net-log={data_root / f'netlog-{launch_number}.json'}",
                              "--net-log-capture-mode=Everything",
