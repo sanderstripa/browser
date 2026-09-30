@@ -1,5 +1,6 @@
 """Regression test for persistent CEF profile cookies and site storage."""
 import ctypes
+import base64
 from ctypes import wintypes
 import http.server
 import hashlib
@@ -16,6 +17,7 @@ from pathlib import Path
 import urllib.request
 
 import websocket
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 
 DEBUG_PORT = int(os.environ.get("SOULU_UI_TEST_PORT", "9223"))
@@ -235,6 +237,25 @@ def profile_diagnostics(data_root):
         print(json.dumps({"local_state": str(state_path),
                           "os_crypt_fingerprints": {key: hashlib.sha256(str(value).encode()).hexdigest()
                                                     for key, value in state.get("os_crypt", {}).items()}}), flush=True)
+        encoded_key = state.get("os_crypt", {}).get("encrypted_key")
+        if encoded_key and database.exists():
+            class Blob(ctypes.Structure):
+                _fields_ = [("size", wintypes.DWORD), ("data", ctypes.POINTER(ctypes.c_ubyte))]
+            protected = base64.b64decode(encoded_key)[5:]
+            buffer = (ctypes.c_ubyte * len(protected)).from_buffer_copy(protected)
+            original, decrypted = Blob(len(protected), buffer), Blob()
+            if ctypes.windll.crypt32.CryptUnprotectData(ctypes.byref(original), None, None, None, None, 0, ctypes.byref(decrypted)):
+                key = ctypes.string_at(decrypted.data, decrypted.size)
+                with sqlite3.connect(f"{database.as_uri()}?mode=ro", uri=True) as connection:
+                    for name, host, encrypted in connection.execute("SELECT name,host_key,encrypted_value FROM cookies"):
+                        try:
+                            value = AESGCM(key).decrypt(encrypted[3:15], encrypted[15:], None)
+                            print(json.dumps({"synthetic_cookie_decryption": name, "host_hash_matches": value[:32] == hashlib.sha256(host.encode()).digest(),
+                                              "test_value_matches": value[32:].decode() == COOKIE_VALUE}), flush=True)
+                        except Exception as error:
+                            print(json.dumps({"synthetic_cookie_decryption": name, "error": type(error).__name__}), flush=True)
+            else:
+                print("Synthetic cookie key DPAPI decryption failed", flush=True)
     context_path = data_root / "Soulu" / "User Data" / "auth-context.json"
     context = json.loads(context_path.read_text())
     print(json.dumps({"actual_content_context": context}), flush=True)
