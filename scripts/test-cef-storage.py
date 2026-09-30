@@ -1,5 +1,6 @@
 """Regression test for persistent CEF profile cookies and site storage."""
 import ctypes
+from ctypes import wintypes
 import http.server
 import hashlib
 import json
@@ -130,6 +131,7 @@ def close_normally(process):
     user32.EnumWindows(callback, 0)
     if not handles:
         raise AssertionError("Soulu top-level window was not found")
+    child_handles = descendant_handles(process.pid)
     user32.PostMessageW(handles[0], 0x0010, 0, 0)  # WM_CLOSE
     exit_code = process.wait(timeout=30)
     if exit_code:
@@ -139,13 +141,63 @@ def close_normally(process):
         ], capture_output=True, text=True, errors="replace", timeout=20)
         print(diagnostic.stdout, flush=True)
     assert exit_code == 0, f"Soulu exited abnormally: {process.returncode}"
+    deadline = time.monotonic() + 30
+    kernel32 = ctypes.windll.kernel32
+    try:
+        for pid, handle in child_handles:
+            result = kernel32.WaitForSingleObject(handle, max(0, int((deadline - time.monotonic()) * 1000)))
+            assert result == 0, f"CEF child {pid} still running after normal shutdown"
+    finally:
+        for _, handle in child_handles:
+            kernel32.CloseHandle(handle)
+
+
+def descendant_handles(parent_pid):
+    class ProcessEntry(ctypes.Structure):
+        _fields_ = [("size", wintypes.DWORD), ("usage", wintypes.DWORD),
+                    ("pid", wintypes.DWORD), ("heap", ctypes.c_size_t),
+                    ("module", wintypes.DWORD), ("threads", wintypes.DWORD),
+                    ("parent", wintypes.DWORD), ("priority", wintypes.LONG),
+                    ("flags", wintypes.DWORD), ("exe", wintypes.WCHAR * 260)]
+    kernel32 = ctypes.windll.kernel32
+    kernel32.CreateToolhelp32Snapshot.restype = wintypes.HANDLE
+    kernel32.Process32FirstW.argtypes = [wintypes.HANDLE, ctypes.POINTER(ProcessEntry)]
+    kernel32.Process32NextW.argtypes = [wintypes.HANDLE, ctypes.POINTER(ProcessEntry)]
+    kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    kernel32.OpenProcess.restype = wintypes.HANDLE
+    kernel32.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+    snapshot = kernel32.CreateToolhelp32Snapshot(2, 0)
+    entry = ProcessEntry()
+    entry.size = ctypes.sizeof(entry)
+    parents = {}
+    try:
+        more = kernel32.Process32FirstW(snapshot, ctypes.byref(entry))
+        while more:
+            parents[entry.pid] = entry.parent
+            more = kernel32.Process32NextW(snapshot, ctypes.byref(entry))
+    finally:
+        kernel32.CloseHandle(snapshot)
+    descendants = {parent_pid}
+    while True:
+        expanded = descendants | {pid for pid, parent in parents.items() if parent in descendants}
+        if expanded == descendants:
+            break
+        descendants = expanded
+    result = []
+    for pid in descendants - {parent_pid}:
+        handle = kernel32.OpenProcess(0x00100000, False, pid)
+        if handle:
+            result.append((pid, handle))
+    return result
 
 
 def launch(executable, data_root):
     environment = os.environ.copy()
     environment["SOULU_UI_TEST_PORT"] = str(DEBUG_PORT)
     environment["LOCALAPPDATA"] = str(data_root)
-    return subprocess.Popen([executable, f"--log-file={data_root / 'cef-debug.log'}"], env=environment)
+    return subprocess.Popen([executable, f"--log-file={data_root / 'cef-debug.log'}",
+                             "--vmodule=*cookie*=2,*os_crypt*=2"], env=environment)
 
 
 def verify_profile_cookies(data_root):
