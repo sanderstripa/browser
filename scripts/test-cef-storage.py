@@ -1,5 +1,6 @@
 """Regression test for persistent CEF profile cookies and site storage."""
 import ctypes
+import contextlib
 import http.server
 import json
 import os
@@ -33,6 +34,7 @@ class SiteHandler(http.server.BaseHTTPRequestHandler):
         if self.path.startswith("/seed"):
             # Deliberately a session cookie: no Expires or Max-Age.
             self.send_header("Set-Cookie", f"soulu_auth={COOKIE_VALUE}; Path=/; HttpOnly; SameSite=Lax")
+            self.send_header("Set-Cookie", "soulu_persistent=control; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400")
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
@@ -178,13 +180,17 @@ def main():
         ws.close()
         close_normally(first)
         root = pathlib.Path(os.environ["LOCALAPPDATA"]) / "Soulu" / "User Data" / "Profiles"
-        for pref_file in root.rglob("Preferences"):
+        for pref_file in root.rglob("*Preferences"):
             prefs = json.loads(pref_file.read_text(encoding="utf-8"))
             print(json.dumps({"profile": str(pref_file.parent.relative_to(root)),
+                              "file": pref_file.name,
                               "session": prefs.get("session"),
                               "exit_type": prefs.get("profile", {}).get("exit_type")}), flush=True)
         for cookie_file in root.rglob("Cookies"):
-            with sqlite3.connect(f"file:{cookie_file.as_posix()}?mode=ro", uri=True) as db:
+            # sqlite's connection context manager ends a transaction but does
+            # not close the handle. CEF opens its CookieStore exclusively on
+            # restart, so the inspection handle must be released first.
+            with contextlib.closing(sqlite3.connect(f"file:{cookie_file.as_posix()}?mode=ro", uri=True)) as db:
                 rows = db.execute("SELECT host_key,name,is_persistent,has_expires,expires_utc FROM cookies WHERE name='soulu_auth'").fetchall()
                 print(json.dumps({"cookie_file": str(cookie_file.relative_to(root)), "test_cookie_rows": rows}), flush=True)
     finally:
@@ -214,10 +220,13 @@ def main():
           };
         })""")
         cookie_value = next((item["value"] for item in cookies if item["name"] == "soulu_auth"), None)
+        persistent_value = next((item['value'] for item in cookies if item['name'] == 'soulu_persistent'), None)
         print(json.dumps({"restored_session_cookie": cookie_value == COOKIE_VALUE,
+                          "restored_persistent_cookie": persistent_value == 'control',
                           "cookie_sent_to_server": f"soulu_auth={COOKIE_VALUE}" in received_cookie,
                           "localStorage": local_value, "IndexedDB": indexed_value}), flush=True)
         assert cookie_value == COOKIE_VALUE, f"session cookie missing after restart: {cookie_value!r}"
+        assert persistent_value == 'control', 'persistent cookie missing after restart'
         assert f"soulu_auth={COOKIE_VALUE}" in received_cookie, received_cookie
         assert local_value == STORAGE_VALUE, local_value
         assert indexed_value == IDB_VALUE, indexed_value

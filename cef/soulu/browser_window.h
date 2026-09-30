@@ -37,7 +37,7 @@ class BrowserWindow final : public CefBaseRefCounted {
   void OpenTabFrom(int source_id, CefRefPtr<CefBrowser> source,
                    const std::string& url, bool background);
   void CookieStoreFlushed();
-  void RequestContextInitialized(CefRefPtr<CefRequestContext> context, bool persistent);
+  void RequestContextInitialized(CefRefPtr<CefRequestContext> context);
 
  private:
   struct Tab {

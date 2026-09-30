@@ -94,7 +94,9 @@ try:
 
     # Chromium's modifier-click path exercises the background disposition.
     s.command(content, 'Runtime.evaluate', {'expression': "document.getElementById('link').removeAttribute('target')"})
+    s.command(content, 'Page.bringToFront')
     box = s.evaluate(content, "(()=>{const r=document.getElementById('link').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()")
+    s.command(content, 'Input.dispatchMouseEvent', {'type': 'mouseMoved', 'x': box['x'], 'y': box['y']})
     for event in ['mousePressed', 'mouseReleased']:
         s.command(content, 'Input.dispatchMouseEvent', {
             'type': event, 'x': box['x'], 'y': box['y'],

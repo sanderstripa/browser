@@ -25,18 +25,16 @@ namespace soulu {
 namespace {
 class ProfileContextHandler final : public CefRequestContextHandler {
  public:
-  ProfileContextHandler(CefRefPtr<BrowserWindow> owner, bool persistent)
-      : owner_(owner), persistent_(persistent) {}
+  explicit ProfileContextHandler(CefRefPtr<BrowserWindow> owner) : owner_(owner) {}
   void OnRequestContextInitialized(CefRefPtr<CefRequestContext> context) override {
     CEF_REQUIRE_UI_THREAD();
     // Release the one-shot owner reference to avoid a profile/context cycle.
     auto owner = owner_;
     owner_ = nullptr;
-    if (owner) owner->RequestContextInitialized(context, persistent_);
+    if (owner) owner->RequestContextInitialized(context);
   }
  private:
   CefRefPtr<BrowserWindow> owner_;
-  const bool persistent_;
   IMPLEMENT_REFCOUNTING(ProfileContextHandler);
 };
 
@@ -348,7 +346,7 @@ void BrowserWindow::CreateProfile(const std::string& name,
   profile.id = id;
   profile.name = name.empty() ? "Профиль" : name;
   profile.context = CefRequestContext::CreateContext(
-      context_settings, new ProfileContextHandler(this, true));
+      context_settings, new ProfileContextHandler(this));
   profiles_.push_back(profile);
   SaveProfiles();
 }
@@ -379,7 +377,7 @@ CefRefPtr<CefRequestContext> BrowserWindow::ContextForNewTab(bool incognito) {
     if (!incognito_context_) {
       CefRequestContextSettings context_settings;
       incognito_context_ = CefRequestContext::CreateContext(
-          context_settings, new ProfileContextHandler(this, false));
+          context_settings, new ProfileContextHandler(this));
     }
     return incognito_context_;
   }
@@ -403,20 +401,8 @@ void BrowserWindow::ApplyProxy(CefRefPtr<CefRequestContext> context) {
   context->SetPreference("proxy", value, error);
 }
 
-void BrowserWindow::RequestContextInitialized(CefRefPtr<CefRequestContext> context,
-                                             bool persistent) {
+void BrowserWindow::RequestContextInitialized(CefRefPtr<CefRequestContext> context) {
   CEF_REQUIRE_UI_THREAD();
-  if (persistent && !context->GetCachePath().empty()) {
-    // CEF 154 writes session cookies but our disk profiles still start with
-    // Chrome's default restore policy. Configure the standard profile policy
-    // after initialization so the next CookieStore load restores those cookies.
-    // This preserves the existing profile/storage; it never reads or injects cookies.
-    auto restore = CefValue::Create();
-    restore->SetInt(1);  // SessionStartupPref::kPrefValueLast.
-    CefString error;
-    if (!context->SetPreference("session.restore_on_startup", restore, error))
-      OutputDebugStringW((L"Soulu profile restore policy: " + error.ToWString()).c_str());
-  }
   ApplyProxy(context);
 }
 
@@ -601,6 +587,7 @@ void BrowserWindow::AbortPopup(int tab_id) {
   if (!tab || tab->browser) return;
   tabs_.erase(std::remove_if(tabs_.begin(), tabs_.end(),
       [tab_id](const Tab& item) { return item.id == tab_id; }), tabs_.end());
+  if (closing_ && !shell_ && tabs_.empty()) FinishClose();
   EmitState();
 }
 
@@ -668,6 +655,10 @@ void BrowserWindow::AttachContent(int tab_id, CefRefPtr<CefBrowser> browser) {
     return;
   }
   tab->browser = browser;
+  if (closing_) {
+    browser->GetHost()->CloseBrowser(true);
+    return;
+  }
   if (tab->activate_on_attach) {
     active_tab_id_ = tab_id;
     tab->activate_on_attach = false;
@@ -942,8 +933,8 @@ CefRefPtr<CefDictionaryValue> BrowserWindow::State() const {
   }
   state->SetList("profiles", profiles);
   auto update = CefDictionaryValue::Create();
-  update->SetString("soulu", "0.9.0-cef-preview.30");
-  update->SetString("recommended", "0.9.0-cef-preview.30");
+  update->SetString("soulu", "0.9.0-cef-preview.31");
+  update->SetString("recommended", "0.9.0-cef-preview.31");
   update->SetString("cef", "154.0.32");
   update->SetString("chromium", "154.0.8037.58");
   update->SetBool("available", false);
@@ -1060,8 +1051,8 @@ void BrowserWindow::HandleBridge(const std::string& request,
   }
   else if (action == "browser.update.check") {
     auto update = CefDictionaryValue::Create();
-    update->SetString("soulu", "0.9.0-cef-preview.30");
-    update->SetString("recommended", "0.9.0-cef-preview.30");
+    update->SetString("soulu", "0.9.0-cef-preview.31");
+    update->SetString("recommended", "0.9.0-cef-preview.31");
     update->SetString("cef", "154.0.32");
     update->SetString("chromium", "154.0.8037.58");
     update->SetBool("available", false);
@@ -1271,8 +1262,12 @@ void BrowserWindow::HandleBridge(const std::string& request,
 void BrowserWindow::CloseAll() {
   if (closing_) return;
   closing_ = true;
-  for (auto& tab : tabs_) if (tab.browser) tab.browser->GetHost()->CloseBrowser(true);
-  if (shell_) shell_->GetHost()->CloseBrowser(true);
+  // Destroying an Alloy child can synchronously call BrowserClosed and erase
+  // tabs_. Close a snapshot so no browser is skipped by iterator invalidation.
+  std::vector<CefRefPtr<CefBrowser>> browsers;
+  for (const auto& tab : tabs_) if (tab.browser) browsers.push_back(tab.browser);
+  if (shell_) browsers.push_back(shell_);
+  for (const auto& browser : browsers) browser->GetHost()->CloseBrowser(true);
   if (!shell_ && tabs_.empty()) FinishClose();
 }
 
