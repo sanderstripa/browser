@@ -1,0 +1,61 @@
+name: Build Soulu Installer From Artifact
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/build-installer-from-artifact.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  installer:
+    runs-on: windows-2025
+    timeout-minutes: 30
+    steps:
+      - name: Checkout Soulu
+        uses: actions/checkout@v4
+
+      - name: Download compiled Soulu artifact from run 127
+        uses: actions/download-artifact@v4
+        with:
+          name: Soulu-Preview-25-x64
+          path: source-artifact
+          github-token: ${{ github.token }}
+          repository: sanderstripa/browser
+          run-id: 36686809973
+
+      - name: Extract compiled Soulu
+        shell: pwsh
+        run: |
+          $zip = Join-Path $PWD "source-artifact/Soulu-Preview-25-x64.zip"
+          if (-not (Test-Path $zip)) { throw "Compiled Soulu ZIP was not downloaded" }
+          $buildDir = Join-Path $PWD "soulu-build"
+          New-Item -ItemType Directory -Force $buildDir | Out-Null
+          Expand-Archive -Path $zip -DestinationPath $buildDir -Force
+          if (-not (Test-Path (Join-Path $buildDir "Soulu.exe"))) { throw "Soulu.exe is missing from compiled artifact" }
+
+      - name: Install NSIS
+        shell: pwsh
+        run: choco install nsis -y --no-progress
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force artifacts | Out-Null
+          $buildDir = Join-Path $PWD "soulu-build"
+          $out = Join-Path $PWD "artifacts/Soulu-Preview-25-x64.exe"
+          ./installer/build.ps1 -BuildDir $buildDir -OutFile $out
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not (Test-Path $out)) { throw "Installer was not produced" }
+          Get-Item $out | Format-List FullName,Length,LastWriteTime
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: Soulu-Preview-25-installer
+          path: artifacts/Soulu-Preview-25-x64.exe
+          if-no-files-found: error
