@@ -64,7 +64,7 @@ def targets(timeout=45):
 def page_socket():
     deadline = time.monotonic() + 45
     while time.monotonic() < deadline:
-        for target in targets(timeout=5):
+        for target in targets(timeout=max(1, deadline - time.monotonic())):
             if target.get("type") == "page" and "/ui/index.html" not in target.get("url", ""):
                 return websocket.create_connection(
                     target["webSocketDebuggerUrl"], timeout=30,
