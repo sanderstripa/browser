@@ -1,7 +1,9 @@
-"""Real Win32 bounds + Chromium viewport regression, using a fresh test profile.
+"""Real Win32 modal sizing loop + Chromium viewport, with a fresh test profile.
 
-The modal drag check queries CDP while the mouse is still held: waiting until
-button-up would hide the Chromium nested-loop starvation this test targets.
+The check queries CDP while Windows is in its actual native sizing loop.
+Bounds are driven by SetWindowPos rather than desktop mouse injection, which
+does not work on service-hosted runners. Checking only after the loop exits
+would hide the Chromium nested-loop starvation this test targets.
 Visual quality/backdrop and startup flash still require human review.
 """
 import ctypes as C
@@ -35,6 +37,14 @@ u.MapWindowPoints.argtypes = [W.HWND, W.HWND, C.POINTER(W.POINT), W.UINT]
 CALLBACK = C.WINFUNCTYPE(W.BOOL, W.HWND, W.LPARAM)
 u.EnumChildWindows.argtypes = [W.HWND, CALLBACK, W.LPARAM]
 u.IsWindowVisible.argtypes = [W.HWND]
+u.GetWindowThreadProcessId.argtypes = [W.HWND, C.POINTER(W.DWORD)]
+u.GetWindowThreadProcessId.restype = W.DWORD
+class GUIINFO(C.Structure):
+    _fields_ = [('cbSize', W.DWORD), ('flags', W.DWORD),
+               ('hwndActive', W.HWND), ('hwndFocus', W.HWND),
+               ('hwndCapture', W.HWND), ('hwndMenuOwner', W.HWND),
+               ('hwndMoveSize', W.HWND), ('hwndCaret', W.HWND), ('rcCaret', W.RECT)]
+u.GetGUIThreadInfo.argtypes = [W.DWORD, C.POINTER(GUIINFO)]
 seq = 0
 checks = []
 out = Path(sys.argv[2] if len(sys.argv) > 2 else 'layout-evidence')
@@ -57,8 +67,8 @@ def targets():
     with urllib.request.urlopen(base + '/json/list', timeout=2) as r:
         return json.load(r)
 
-def connect(fragment):
-    target = wait(lambda: next((t for t in targets() if fragment in t.get('url', '') and t['type'] == 'page'), None))
+def connect(fragment, exclude=()):
+    target = wait(lambda: next((t for t in targets() if fragment in t.get('url', '') and t['type'] == 'page' and t['id'] not in exclude), None))
     return websocket.create_connection(target['webSocketDebuggerUrl'], timeout=4, origin=base)
 
 def evaluate(ws, expression):
@@ -130,25 +140,30 @@ def resize(width, height):
 def modal_drag(label, dx, dy, delay):
     resize(850, 580)
     check(label + '-before')
-    r = W.RECT()
-    u.GetWindowRect(window, C.byref(r))
-    x, y = r.right - 2, r.bottom - 2
-    u.SetForegroundWindow(window)
-    u.SetCursorPos(x, y)
-    u.mouse_event(0x0002, 0, 0, 0, 0)
+    thread = u.GetWindowThreadProcessId(window, None)
+    def in_size_loop():
+        info = GUIINFO()
+        info.cbSize = C.sizeof(info)
+        assert u.GetGUIThreadInfo(thread, C.byref(info))
+        return bool(info.flags & 2) and info.hwndMoveSize == window
+    # SC_SIZE | WMSZ_BOTTOMRIGHT enters DefWindowProc's native modal loop.
+    assert u.PostMessageW(window, 0x112, 0xF008, 0)
     try:
-        time.sleep(.12)
-        # Cursor drives a real native bottom-right sizing loop.
+        wait(in_size_loop, timeout=5)
         for step in range(1, 9):
-            u.SetCursorPos(x + dx * step // 8, y + dy * step // 8)
+            resize(850 + dx * step // 8, 580 + dy * step // 8)
             time.sleep(delay)
         before = client(window)
         assert before != [850, 580], ('native sizing did not start', before)
-        # This must finish before button-up, without the outer CEF loop.
-        check(label + '-button-held', screenshot=True)
+        assert in_size_loop(), 'native sizing loop exited before viewport check'
+        # This must finish before the native loop exits.
+        check(label + '-loop-active', screenshot=True)
         evaluate(shell, 'document.querySelector(".browser-toolbar").dataset.layoutProbe="held"')
+        assert in_size_loop(), 'native sizing loop exited during CDP query'
     finally:
-        u.mouse_event(0x0004, 0, 0, 0, 0)
+        u.PostMessageW(window, 0x100, 0x0D, 0)
+        u.PostMessageW(window, 0x101, 0x0D, 0)
+        wait(lambda: not in_size_loop(), timeout=5)
     check(label + '-after')
 
 with socket.socket() as s:
@@ -166,8 +181,9 @@ with tempfile.TemporaryDirectory(prefix='soulu-layout-') as profile:
         wait(lambda: evaluate(shell, 'Boolean(window.browserShell && document.querySelector(".browser-toolbar"))'))
         resize(850, 580)
         check('startup', screenshot=True)
-        for label, dx, dy, delay in [('horizontal-slow', 220, 0, .10), ('horizontal-fast', -180, 0, .01),
-                ('vertical-slow', 0, 100, .10), ('vertical-fast', 0, -100, .01), ('diagonal', 180, 90, .04)]:
+        for label, dx, dy, delay in [('horizontal-slow', 220, 0, .10), ('horizontal-slow-shrink', -180, 0, .10),
+                ('horizontal-fast', -180, 0, .01), ('vertical-slow', 0, 100, .10),
+                ('vertical-slow-shrink', 0, -100, .10), ('vertical-fast', 0, -100, .01), ('diagonal', 180, 90, .04)]:
             modal_drag(label, dx, dy, delay)
         for cycle in range(3):
             u.ShowWindow(window, 3)
@@ -183,14 +199,15 @@ with tempfile.TemporaryDirectory(prefix='soulu-layout-') as profile:
         evaluate(shell, 'window.browserShell.toggleSidebar()')
         check('sidebar-close')
         first_id = evaluate(shell, 'window.browserShell.getState().then(s=>s.activeTabId)')
+        old_targets = {t['id'] for t in targets()}
+        first_page = page
         evaluate(shell, 'window.browserShell.newTab()')
         wait(lambda: evaluate(shell, 'window.browserShell.getState().then(s=>s.tabs.length===2)'))
-        page.close()
-        page = connect('/ui/start.html')
+        page = connect('/ui/start.html', exclude=old_targets)
         check('new-tab')
         evaluate(shell, f'window.browserShell.switchTab({first_id})')
         page.close()
-        page = connect('/ui/start.html')
+        page = first_page
         check('switch-tab')
         # Websites are evidence, separate from deterministic native regressions.
         for name, url in [('google', 'https://www.google.com/'), ('apple', 'https://www.apple.com/'), ('youtube', 'https://www.youtube.com/')]:

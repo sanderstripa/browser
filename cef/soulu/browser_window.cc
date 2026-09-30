@@ -809,16 +809,16 @@ void BrowserWindow::Layout() {
         visible == ((p.flags & SWP_SHOWWINDOW) != 0);
   }), positions.end());
   if (!positions.empty()) {
-  HDWP batch = BeginDeferWindowPos(static_cast<int>(positions.size()));
-  for (const auto& p : positions) {
-    if (!batch) break;
-    batch = DeferWindowPos(batch, p.hwnd, p.after, p.x, p.y, p.width, p.height, p.flags);
-  }
-  if (!batch || !EndDeferWindowPos(batch)) {
-    // A failed deferred batch must not leave the hosts at previous bounds.
-    for (const auto& p : positions)
-      SetWindowPos(p.hwnd, p.after, p.x, p.y, p.width, p.height, p.flags);
-  }
+    HDWP batch = BeginDeferWindowPos(static_cast<int>(positions.size()));
+    for (const auto& p : positions) {
+      if (!batch) break;
+      batch = DeferWindowPos(batch, p.hwnd, p.after, p.x, p.y, p.width, p.height, p.flags);
+    }
+    if (!batch || !EndDeferWindowPos(batch)) {
+      // A failed deferred batch must not leave the hosts at previous bounds.
+      for (const auto& p : positions)
+        SetWindowPos(p.hwnd, p.after, p.x, p.y, p.width, p.height, p.flags);
+    }
   }
   ResizeFrostedBackdrop(hwnd_, g.width, std::min(g.height, g.toolbar));
   if (surface_) surface_->CommitResize();

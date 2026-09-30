@@ -92,7 +92,7 @@ void ShellSurface::OnPaint(CefRefPtr<CefBrowser>, PaintElementType type, const R
   update.psize = &size; update.hdcSrc = memory_; update.pptSrc = &source;
   update.pblend = &blend; update.dwFlags = ULW_ALPHA | ULW_EX_NORESIZE;
   paint_error_ = UpdateLayeredWindowIndirect(hwnd_, &update) ? 0 : static_cast<int>(GetLastError());
-  if (!paint_error_ && !first_frame_) {
+  if (!paint_error_ && !first_frame_ && toolbar_alpha_ > 0) {
     first_frame_ = true;
     PostMessageW(parent_, kFirstFrame, 0, 0);
   }
