@@ -79,10 +79,18 @@ try:
             return True
         u.EnumChildWindows(ctypes.c_void_p(main[0]),child,0)
         assert len(renderers)==1,renderers
-        point=(int(box['y'])<<16)|int(box['x'])
-        # Native mouse delivery also exercises the Windows context-menu path.
-        u.PostMessageW(renderers[0],0x0204,2,point) # WM_RBUTTONDOWN
-        u.PostMessageW(renderers[0],0x0205,0,point) # WM_RBUTTONUP
+        # Dispatch an actual renderer right-click. Posting raw Win32 messages
+        # depends on the runner's desktop focus and can miss Chromium's input
+        # routing. CEF still hit-tests the link and opens RunContextMenu's real
+        # Windows popup; no menu command or tab bridge is invoked here.
+        s.evaluate(content,'new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))')
+        for event in ['mouseMoved','mousePressed','mouseReleased']:
+            params={'type':event,'x':box['x'],'y':box['y']}
+            if event!='mouseMoved':params.update(button='right',clickCount=1)
+            # A synchronous native menu can hold the input acknowledgment
+            # until dismissed. Send the click without waiting for that reply.
+            s.sequence+=1
+            content.send(json.dumps({'id':s.sequence,'method':'Input.dispatchMouseEvent','params':params}))
         hwnd=wait(lambda:next(iter(windows(True)),None))
         menu=u.SendMessageW(hwnd,0x01E1,0,0) # MN_GETHMENU
         labels=[]
