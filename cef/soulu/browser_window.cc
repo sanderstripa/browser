@@ -911,7 +911,13 @@ bool BrowserWindow::BookmarksBarVisible() const {
   if(mode=="auto") return bookmarks_auto_visible_;
   if(mode!="newTab") return false;
   const auto* tab=const_cast<BrowserWindow*>(this)->ActiveTab();
-  return tab && (tab->url=="about:blank" || tab->url==settings_->GetString("startPageUrl").ToString());
+  if(!tab) return false;
+  if(tab->url=="about:blank") return true;
+  const std::string configured=settings_->GetString("startPageUrl");
+  if(settings_->GetString("startPageMode")!="custom" || configured.empty()) return false;
+  CefURLParts parts;
+  const std::string home=NormalizeAddress(configured);
+  return CefParseURL(home,parts) && tab->url==CefString(&parts.spec).ToString();
 }
 
 void BrowserWindow::StoreThumbnail(int id, const std::string& url, const std::string& data) {

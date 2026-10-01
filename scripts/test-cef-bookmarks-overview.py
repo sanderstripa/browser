@@ -1,11 +1,13 @@
 """Native bookmarks persistence, import, child-window overview and thumbnail smoke checks."""
 import ctypes
+import http.server
 import importlib.util
 import json
 import os
 from pathlib import Path
 import sys
 import tempfile
+import threading
 import time
 
 spec = importlib.util.spec_from_file_location('storage', Path(__file__).with_name('test-cef-storage.py'))
@@ -38,6 +40,9 @@ def shell_socket():
 
 with tempfile.TemporaryDirectory(prefix='soulu-navigation-', ignore_cleanup_errors=True) as isolated:
     os.environ['LOCALAPPDATA']=isolated
+    home=http.server.ThreadingHTTPServer(('127.0.0.1',s.free_port()),s.SiteHandler)
+    threading.Thread(target=home.serve_forever,daemon=True).start()
+    home_url=f'http://127.0.0.1:{home.server_port}'
     process=s.launch(sys.argv[1])
     try:
         shell=shell_socket()
@@ -50,6 +55,14 @@ with tempfile.TemporaryDirectory(prefix='soulu-navigation-', ignore_cleanup_erro
         assert json.loads(saved.read_text(encoding='utf-8'))[1]['parentId']==1
         assert s.evaluate(shell,"window.browserShell.replaceBookmarks([{id:3,type:'folder',parentId:3}]).then(()=>false,()=>true)") is True
         assert len(s.evaluate(shell,'window.browserShell.getBookmarks()'))==3
+        s.evaluate(shell,'window.browserShell.setSettings('+json.dumps({'startPageMode':'custom','startPageUrl':home_url,'bookmarksBarMode':'newTab'})+')')
+        content=s.page_socket()
+        s.navigate(content,home_url+'/')
+        wait(lambda:any(t['url']==home_url+'/' for t in s.evaluate(shell,'window.browserShell.getState()')['tabs']))
+        assert s.evaluate(shell,'window.browserShell.getState()')['bookmarksBarVisible'], 'Canonical home URL not recognised'
+        s.navigate(content,home_url+'/away')
+        wait(lambda:not s.evaluate(shell,'window.browserShell.getState()')['bookmarksBarVisible'])
+        content.close()
         for layout in ('classic','compact'):
             for position in ('above','below'):
                 s.evaluate(shell,'window.browserShell.setSettings('+json.dumps({'layout':layout,'bookmarksBarMode':'always','bookmarksBarPosition':position})+')')
@@ -106,3 +119,5 @@ with tempfile.TemporaryDirectory(prefix='soulu-navigation-', ignore_cleanup_erro
         print('PASS: bookmarks/folders persist; invalid tree rejected; repeated import deduplicated; compact/classic bar; grid close/switch; JPEG cache; no top-level HWND.')
     finally:
         if process.poll() is None: process.kill()
+        home.shutdown()
+        home.server_close()
