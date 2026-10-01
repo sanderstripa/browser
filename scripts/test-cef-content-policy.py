@@ -64,11 +64,23 @@ with tempfile.TemporaryDirectory(prefix='soulu-policy-',ignore_cleanup_errors=Tr
             assert state=='denied',f'{name} global deny did not reach Chromium'
             s.evaluate(shell,'window.browserShell.setSiteRule('+json.dumps({'domain':'127.0.0.1','permission':name,'value':0})+')')
             state=s.evaluate(content,"navigator.permissions.query({name:"+json.dumps(name)+"}).then(p=>p.state)")
-            assert state=='granted',f'{name} domain allow did not override default'
+            if name=='geolocation':
+                # Chromium additionally applies Windows location consent. An
+                # OS Ask/Denied must not be overridden by browser site Allow.
+                # Verify the actual Chromium origin setting after clean close.
+                geolocation_effective_state=state
+            else:
+                assert state=='granted',f'{name} domain allow did not override default'
         s.navigate(content,f'http://ads.doubleclick.net:{server.server_port}/document')
         assert s.evaluate(content,'document.title')=='Policy smoke','Top-level navigation was filtered'
         content.close();shell.close();s.close_normally(process)
+        preferences=json.loads((Path(root)/'Soulu'/'User Data'/'Profiles'/'personal'/'Preferences').read_text(encoding='utf-8'))
+        exceptions=preferences['profile']['content_settings']['exceptions']
+        assert exceptions['geolocation'][origin+',*']['setting']==1,'Native geolocation override was not applied'
+        geo=exceptions['geolocation_with_options'][origin+',*']['setting']
+        assert geo=={'approximate':1,'precise':1},'Native approximate/precise origin override was not applied'
         print(json.dumps({'native_permission_defaults_and_overrides':True,'request_filter_actual':True,
+                          'geolocation_site_allow':True,'geolocation_effective_state':geolocation_effective_state,
                           'global_per_site_blocking':True,'xhr_and_document_exemptions':True}))
     finally:
         if process.poll() is None:process.kill();process.wait()
