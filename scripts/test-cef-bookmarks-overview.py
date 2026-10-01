@@ -1,0 +1,95 @@
+"""Native bookmarks persistence, import, child-window overview and thumbnail smoke checks."""
+import ctypes
+import importlib.util
+import json
+import os
+from pathlib import Path
+import sys
+import tempfile
+import time
+
+spec = importlib.util.spec_from_file_location('storage', Path(__file__).with_name('test-cef-storage.py'))
+s = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(s)
+
+def wait(fn, timeout=20):
+    deadline=time.monotonic()+timeout
+    while time.monotonic()<deadline:
+        result=fn()
+        if result: return result
+        time.sleep(.1)
+    raise AssertionError('Navigation state timeout')
+
+def windows(pid):
+    result=[]
+    callback=ctypes.WINFUNCTYPE(ctypes.c_bool,ctypes.c_void_p,ctypes.c_void_p)
+    @callback
+    def visit(hwnd,_):
+        value=ctypes.c_ulong()
+        ctypes.windll.user32.GetWindowThreadProcessId(hwnd,ctypes.byref(value))
+        if value.value==pid: result.append(hwnd)
+        return True
+    ctypes.windll.user32.EnumWindows(visit,0)
+    return sorted(result)
+
+def shell_socket():
+    target=wait(lambda:next((t for t in s.targets() if '/ui/index.html' in t.get('url','')),None))
+    return s.websocket.create_connection(target['webSocketDebuggerUrl'],timeout=30,origin=s.BASE)
+
+with tempfile.TemporaryDirectory(prefix='soulu-navigation-') as isolated:
+    os.environ['LOCALAPPDATA']=isolated
+    process=s.launch(sys.argv[1])
+    try:
+        shell=shell_socket()
+        wait(lambda:s.evaluate(shell,"typeof window.browserShell !== 'undefined'"))
+        rows=[{'id':1,'type':'folder','title':'Work','parentId':0,'order':0},
+              {'id':2,'type':'url','title':'Example','url':'https://example.com','parentId':1,'order':0}]
+        assert len(s.evaluate(shell,'window.browserShell.replaceBookmarks('+json.dumps(rows)+')'))==2
+        saved=Path(isolated)/'Soulu'/'User Data'/'bookmarks.json'
+        assert json.loads(saved.read_text(encoding='utf-8'))[1]['parentId']==1
+        assert s.evaluate(shell,"window.browserShell.replaceBookmarks([{id:3,type:'folder',parentId:3}]).then(()=>false,()=>true)") is True
+        assert len(s.evaluate(shell,'window.browserShell.getBookmarks()'))==2
+        for layout in ('classic','compact'):
+            for position in ('above','below'):
+                s.evaluate(shell,'window.browserShell.setSettings('+json.dumps({'layout':layout,'bookmarksBarMode':'always','bookmarksBarPosition':position})+')')
+                wait(lambda:s.evaluate(shell,"document.body.dataset.bookmarksBar === 'true'"))
+                assert s.evaluate(shell,"document.querySelector('.bookmarks-bar').getBoundingClientRect().height")==28
+        s.evaluate(shell,'window.browserShell.newTab()')
+        wait(lambda:len(s.evaluate(shell,'window.browserShell.getState()')['tabs'])==2)
+        before=windows(process.pid)
+        s.evaluate(shell,'window.browserShell.setOverview(true)')
+        wait(lambda:s.evaluate(shell,"!document.querySelector('.tab-overview').hidden"))
+        assert s.evaluate(shell,"getComputedStyle(document.querySelector('.overview-grid')).display")=='grid'
+        assert s.evaluate(shell,"document.querySelectorAll('.overview-card').length")==2
+        assert windows(process.pid)==before, 'Overview created a top-level HWND'
+        wait(lambda:any(t.get('thumbnail','').startswith('data:image/jpeg;base64,') for t in s.evaluate(shell,'window.browserShell.getState()')['tabs']))
+        state=s.evaluate(shell,'window.browserShell.getState()')
+        s.evaluate(shell,'window.browserShell.closeTab('+str(state['tabs'][0]['id'])+')')
+        wait(lambda:len(s.evaluate(shell,'window.browserShell.getState()')['tabs'])==1)
+        assert s.evaluate(shell,'window.browserShell.getState()')['overviewVisible']
+        s.evaluate(shell,"document.querySelector('.overview-preview').click()")
+        wait(lambda:not s.evaluate(shell,'window.browserShell.getState()')['overviewVisible'])
+        # Import the same Chromium file twice through the actual UI file input.
+        imported=Path(isolated)/'Bookmarks.json'
+        imported.write_text(json.dumps({'roots':{'bookmark_bar':{'type':'folder','name':'Imported','children':[{'type':'url','name':'Site','url':'https://import.test'}]}}}),encoding='utf-8')
+        s.evaluate(shell,"window.confirm=()=>true;window.alert=()=>{}")
+        for _ in range(2):
+            s.evaluate(shell,"document.getElementById('sidebarButton').click()")
+            wait(lambda:s.evaluate(shell,"!document.querySelector('.bookmarks-menu').hidden"))
+            s.evaluate(shell,"[...document.querySelectorAll('.bookmark-actions button')].find(b=>b.textContent.startsWith('Импортировать')).click()")
+            doc=s.command(shell,'DOM.getDocument')
+            node=s.command(shell,'DOM.querySelector',{'nodeId':doc['root']['nodeId'],'selector':'.bookmarks-menu input[type=file]'})
+            s.command(shell,'DOM.setFileInputFiles',{'nodeId':node['nodeId'],'files':[str(imported)]})
+            wait(lambda:any(r.get('url')=='https://import.test' for r in s.evaluate(shell,'window.browserShell.getBookmarks()')))
+            time.sleep(.3)
+        final=s.evaluate(shell,'window.browserShell.getBookmarks()')
+        assert sum(r.get('url')=='https://import.test' for r in final)==1
+        shell.close();s.close_normally(process)
+        process=s.launch(sys.argv[1]);shell=shell_socket()
+        wait(lambda:s.evaluate(shell,"typeof window.browserShell !== 'undefined'"))
+        restored=s.evaluate(shell,'window.browserShell.getBookmarks()')
+        assert [(r['id'],r.get('parentId',0),r.get('url')) for r in restored]==[(r['id'],r.get('parentId',0),r.get('url')) for r in final]
+        shell.close();s.close_normally(process)
+        print('PASS: bookmarks/folders persist; invalid tree rejected; repeated import deduplicated; compact/classic bar; grid close/switch; JPEG cache; no top-level HWND.')
+    finally:
+        if process.poll() is None: process.kill()

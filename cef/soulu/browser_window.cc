@@ -1,11 +1,13 @@
 #include "examples/soulu/browser_window.h"
 #include "include/cef_app.h"
+#include "include/cef_devtools_message_observer.h"
 
 #include <windowsx.h>
 #include <ws2tcpip.h>
 
 #include <algorithm>
 #include <cstdint>
+#include <chrono>
 #include <cmath>
 #include "include/cef_urlrequest.h"
 #include "include/cef_task.h"
@@ -25,6 +27,25 @@
 
 namespace soulu {
 namespace {
+// A single request at a navigation boundary; no additional CEF renderer or HWND.
+class ThumbnailObserver final : public CefDevToolsMessageObserver {
+ public:
+  ThumbnailObserver(CefRefPtr<BrowserWindow> owner, int id, std::string url)
+      : owner_(owner), id_(id), url_(std::move(url)) {}
+  void OnDevToolsMethodResult(CefRefPtr<CefBrowser>, int message_id, bool success,
+                             const void* result, size_t size) override {
+    if(message_id!=900001 || !success) return;
+    auto parsed=CefParseJSON(std::string(static_cast<const char*>(result),size),JSON_PARSER_RFC);
+    if(parsed && parsed->GetType()==VTYPE_DICTIONARY) {
+      auto data=parsed->GetDictionary()->GetString("data").ToString();
+      if(!data.empty()) owner_->StoreThumbnail(id_,url_,"data:image/jpeg;base64,"+data);
+    }
+  }
+ private:
+  CefRefPtr<BrowserWindow> owner_; int id_; std::string url_;
+  IMPLEMENT_REFCOUNTING(ThumbnailObserver);
+};
+
 class ProfileContextHandler final : public CefRequestContextHandler {
  public:
   explicit ProfileContextHandler(CefRefPtr<BrowserWindow> owner) : owner_(owner) {}
@@ -210,7 +231,14 @@ BrowserWindow::BrowserWindow()
   vpn_settings_->SetString("address", "");
   vpn_settings_->SetString("region", "");
   vpn_settings_->SetString("lastProfileId", "");
+  settings_->SetString("bookmarksBarMode", "newTab");
+  settings_->SetString("bookmarksBarPosition", "above");
+  settings_->SetBool("bookmarksIconsOnly", false);
   LoadSettings();
+  std::ifstream marks(UserDataDirectory() / L"bookmarks.json", std::ios::binary);
+  std::stringstream data; data << marks.rdbuf();
+  auto saved = CefParseJSON(data.str(), JSON_PARSER_RFC);
+  if (saved && saved->GetType() == VTYPE_LIST) bookmarks_ = saved->GetList()->Copy();
 }
 
 void BrowserWindow::LoadSettings() {
@@ -524,6 +552,7 @@ void BrowserWindow::SwitchProfile(const std::string& id) {
   const auto it = std::find_if(profiles_.begin(), profiles_.end(),
       [&id](const Profile& profile) { return profile.id == id; });
   if (it == profiles_.end()) return;
+  CaptureThumbnail();
   active_profile_id_ = id;
   auto tab = std::find_if(tabs_.begin(), tabs_.end(),
       [&id](const Tab& item) { return !item.incognito && item.profile_id == id; });
@@ -579,6 +608,7 @@ int BrowserWindow::PreparePopup(int source_id, const std::string& url,
   tab.incognito = source->incognito;
   tab.profile_id = source->profile_id;
   tab.activate_on_attach = !background;
+  if (!background) CaptureThumbnail();
   tabs_.push_back(tab);
   info.SetAsChild(hwnd_, CurrentGeometry().content);
   // Soulu owns the window and tab lifecycle. The default Chrome runtime
@@ -613,7 +643,7 @@ void BrowserWindow::NewTab(const std::string& url, bool incognito,
     tab.title = settings_->GetString("language") == "en" ? "Settings" : "Настройки";
   tabs_.push_back(tab);
   const int previous_active = active_tab_id_;
-  if (foreground) active_tab_id_ = id;
+  if (foreground) { CaptureThumbnail(); active_tab_id_ = id; }
 
   CefWindowInfo info;
   info.SetAsChild(hwnd_, CurrentGeometry().content);
@@ -698,6 +728,7 @@ std::string BrowserWindow::VisibleProfileId() const {
 
 void BrowserWindow::SwitchTab(int id) {
   if (!FindTab(id)) return;
+  if (active_tab_id_ != id) CaptureThumbnail();
   active_tab_id_ = id;
   Layout();
   EmitState();
@@ -803,7 +834,12 @@ void BrowserWindow::UpdateTitle(int id, const std::string& title) {
   EmitState();
 }
 void BrowserWindow::UpdateAddress(int id, const std::string& url) {
-  if (auto* tab = FindTab(id)) tab->url = url.find("/ui/start.html") != std::string::npos ? "about:blank" : url;
+  if (auto* tab = FindTab(id)) {
+    const std::string next = url.find("/ui/start.html") != std::string::npos ? "about:blank" : url;
+    if (next != tab->url) tab->thumbnail.clear();
+    tab->url = next;
+  }
+  Layout();
   EmitState();
 }
 void BrowserWindow::UpdateFavicon(int id, const std::string& url) {
@@ -858,6 +894,48 @@ CefRefPtr<CefListValue> BrowserWindow::ProfileDownloads() const {
   return result;
 }
 
+bool BrowserWindow::SaveBookmarks(CefRefPtr<CefListValue> rows) const {
+  const auto path=UserDataDirectory()/L"bookmarks.json";
+  const auto temp=UserDataDirectory()/L"bookmarks.json.tmp";
+  {std::ofstream file(temp,std::ios::binary|std::ios::trunc); auto persistent=CefListValue::Create();
+    for(size_t i=0;i<rows->GetSize();++i) {auto row=rows->GetDictionary(i);if(row && row->GetString("profileId")!="__incognito__") persistent->SetDictionary(persistent->GetSize(),row->Copy(false));}
+    file<<CefWriteJSON(Wrap(persistent),JSON_WRITER_PRETTY_PRINT); file.flush(); if(!file.good()) return false;}
+  return MoveFileExW(temp.c_str(),path.c_str(),MOVEFILE_REPLACE_EXISTING|MOVEFILE_WRITE_THROUGH)!=FALSE;
+}
+
+bool BrowserWindow::BookmarksBarVisible() const {
+  const auto mode=settings_->GetString("bookmarksBarMode").ToString();
+  if(mode=="always") return true;
+  if(mode=="auto") return bookmarks_auto_visible_;
+  if(mode!="newTab") return false;
+  const auto* tab=const_cast<BrowserWindow*>(this)->ActiveTab();
+  return tab && (tab->url=="about:blank" || tab->url==settings_->GetString("startPageUrl").ToString());
+}
+
+void BrowserWindow::StoreThumbnail(int id, const std::string& url, const std::string& data) {
+  auto* tab=FindTab(id);
+  if(!tab || tab->url!=url || data.size()>2*1024*1024) return;
+  tab->thumbnail=data;
+  size_t bytes=0; for(const auto& item:tabs_) bytes+=item.thumbnail.size();
+  for(auto& item:tabs_) {if(bytes<=24*1024*1024) break; if(item.id!=id) {bytes-=item.thumbnail.size();item.thumbnail.clear();}}
+  if(overview_visible_) EmitState();
+}
+
+void BrowserWindow::CaptureThumbnail() {
+  auto* tab=ActiveTab();
+  if(!tab || !tab->browser || overview_visible_ || IsIconic(hwnd_)) return;
+  HWND child=tab->browser->GetHost()->GetWindowHandle(); RECT r={}; GetClientRect(child,&r);
+  if(!IsWindowVisible(child) || r.right<2 || r.bottom<2) return;
+  const double dpi=GetDpiForWindow(hwnd_)/96.0;
+  auto params=CefDictionaryValue::Create();params->SetString("format","jpeg");params->SetInt("quality",70);
+  params->SetBool("fromSurface",true);params->SetBool("captureBeyondViewport",false);
+  auto clip=CefDictionaryValue::Create();clip->SetDouble("x",0);clip->SetDouble("y",0);
+  clip->SetDouble("width",r.right/dpi);clip->SetDouble("height",r.bottom/dpi);
+  clip->SetDouble("scale",std::min(1.0,480.0*dpi/r.right));params->SetDictionary("clip",clip);
+  tab->thumbnail_registration=tab->browser->GetHost()->AddDevToolsMessageObserver(new ThumbnailObserver(this,tab->id,tab->url));
+  tab->browser->GetHost()->ExecuteDevToolsMethod(900001,"Page.captureScreenshot",params);
+}
+
 BrowserWindow::Geometry BrowserWindow::CurrentGeometry() const {
   RECT client = {}; GetClientRect(hwnd_, &client);
   const float scale = GetDpiForWindow(hwnd_) / 96.0f;
@@ -866,10 +944,10 @@ BrowserWindow::Geometry BrowserWindow::CurrentGeometry() const {
   g.scale = scale;
   g.width = std::max(1L, client.right - client.left);
   g.height = std::max(1L, client.bottom - client.top);
-  g.toolbar = px(settings_->GetString("layout") == "classic" ? 82 : 48);
+  g.toolbar = px((settings_->GetString("layout") == "classic" ? 82 : 48) + (BookmarksBarVisible() ? 28 : 0));
   g.sidebar = sidebar_visible_ ? px(276) : 0;
   g.panel = px(std::max(0, right_panel_width_));
-  g.shell_height = sidebar_visible_ || g.panel > 0 ? g.height :
+  g.shell_height = overview_visible_ || sidebar_visible_ || g.panel > 0 ? g.height :
       std::min(g.height, std::max(g.toolbar, px(suggestions_height_)));
   g.content = CefRect(g.sidebar, g.toolbar,
       std::max(1, g.width - g.sidebar - g.panel), std::max(1, g.height - g.toolbar));
@@ -888,7 +966,7 @@ void BrowserWindow::Layout() {
     if (!tab.browser) continue;
     HWND child = tab.browser->GetHost()->GetWindowHandle();
     const bool belongs = tab.incognito ? profile == "__incognito__" : tab.profile_id == profile;
-    const bool visible = belongs && tab.id == active_tab_id_;
+    const bool visible = !overview_visible_ && belongs && tab.id == active_tab_id_;
     positions.push_back({child, HWND_BOTTOM, g.content.x, g.content.y, g.content.width, g.content.height,
         flags | (visible ? SWP_SHOWWINDOW : SWP_HIDEWINDOW)});
   }
@@ -965,6 +1043,7 @@ CefRefPtr<CefDictionaryValue> BrowserWindow::State() const {
     row->SetString("label", tab.url == "about:blank" ? "" :
         (is_settings ? "Настройки Soulu" : tab.url));
     row->SetString("favicon", tab.favicon);
+    if (overview_visible_) row->SetString("thumbnail", tab.thumbnail);
     row->SetBool("loading", tab.loading);
     row->SetBool("active", tab.id == active_tab_id_);
     row->SetBool("incognito", tab.incognito);
@@ -973,6 +1052,9 @@ CefRefPtr<CefDictionaryValue> BrowserWindow::State() const {
   state->SetList("tabs", list);
   state->SetInt("activeTabId", active_tab_id_);
   state->SetBool("sidebarVisible", sidebar_visible_);
+  state->SetBool("overviewVisible", overview_visible_);
+  state->SetBool("bookmarksBarVisible", BookmarksBarVisible());
+  state->SetList("bookmarks", ProfileBookmarks());
   state->SetBool("maximized", IsZoomed(hwnd_) != FALSE);
   state->SetString("activeProfileId", active_profile_id_);
   state->SetBool("incognito", visible_profile == "__incognito__");
@@ -986,8 +1068,8 @@ CefRefPtr<CefDictionaryValue> BrowserWindow::State() const {
   }
   state->SetList("profiles", profiles);
   auto update = CefDictionaryValue::Create();
-  update->SetString("soulu", "0.9.0-cef-preview.36");
-  update->SetString("recommended", "0.9.0-cef-preview.36");
+  update->SetString("soulu", "0.9.0-cef-preview.37");
+  update->SetString("recommended", "0.9.0-cef-preview.37");
   update->SetString("cef", EngineVersion(0, 3));
   update->SetString("chromium", EngineVersion(4, 4));
   update->SetBool("available", false);
@@ -1044,7 +1126,7 @@ void BrowserWindow::EmitState() { Emit("state", Wrap(State())); }
 void BrowserWindow::SetSetting(const std::string& key, CefRefPtr<CefValue> value) {
   settings_->SetValue(key, value->Copy());
   SaveSettings();
-  if (key == "layout") Layout();
+  if (key == "layout" || key.find("bookmarks") == 0) Layout();
   if (key == "theme" || key == "mattePanel") { ApplyWindowAppearance(); ApplyContentTheme(); }
 }
 
@@ -1104,8 +1186,8 @@ void BrowserWindow::HandleBridge(const std::string& request,
   }
   else if (action == "browser.update.check") {
     auto update = CefDictionaryValue::Create();
-    update->SetString("soulu", "0.9.0-cef-preview.36");
-    update->SetString("recommended", "0.9.0-cef-preview.36");
+    update->SetString("soulu", "0.9.0-cef-preview.37");
+    update->SetString("recommended", "0.9.0-cef-preview.37");
     update->SetString("cef", EngineVersion(0, 3));
     update->SetString("chromium", EngineVersion(4, 4));
     update->SetBool("available", false);
@@ -1122,21 +1204,72 @@ void BrowserWindow::HandleBridge(const std::string& request,
   }
   else if (action == "browser.downloads.get") return Reply(callback, Wrap(ProfileDownloads()));
   else if (action == "browser.bookmarks.get") return Reply(callback, Wrap(ProfileBookmarks()));
+  else if (action == "browser.overview") {
+    const bool show = payload->GetBool();
+    if (show && !overview_visible_) CaptureThumbnail();
+    overview_visible_ = show; Layout(); EmitState();
+  }
+  else if (action == "browser.bookmarks.auto") {
+    bookmarks_auto_visible_ = payload->GetBool(); Layout(); EmitState();
+  }
+  else if (action == "browser.openTab") {
+    auto args = payload->GetDictionary();
+    if (auto* tab = ActiveTab()) OpenTabFrom(tab->id, tab->browser, args->GetString("url"), args->GetBool("background"));
+  }
+  else if (action == "browser.bookmarks.replace") {
+    if (!payload || payload->GetType() != VTYPE_LIST || payload->GetList()->GetSize() > 20000) {
+      callback->Failure(400, "Invalid bookmarks"); return;
+    }
+    auto incoming = payload->GetList();
+    auto merged = CefListValue::Create();
+    const auto profile = VisibleProfileId();
+    for (size_t i=0; i<bookmarks_->GetSize(); ++i) {
+      auto row=bookmarks_->GetDictionary(i);
+      if (row && row->GetString("profileId") != profile) merged->SetDictionary(merged->GetSize(), row->Copy(false));
+    }
+    std::vector<int> ids;
+    for (size_t i=0; i<incoming->GetSize(); ++i) {
+      auto row=incoming->GetDictionary(i);
+      if (!row || row->GetInt("id") <= 0 || std::find(ids.begin(),ids.end(),row->GetInt("id")) != ids.end()) {
+        callback->Failure(400, "Invalid bookmark id"); return;
+      }
+      ids.push_back(row->GetInt("id"));
+      auto copy=row->Copy(false); copy->SetString("profileId",profile);
+      merged->SetDictionary(merged->GetSize(),copy);
+    }
+    for (size_t i=0; i<incoming->GetSize(); ++i) {
+      auto row=incoming->GetDictionary(i); int parent=row->GetInt("parentId");
+      std::vector<int> ancestors={row->GetInt("id")};
+      while(parent) {
+        if(std::find(ancestors.begin(),ancestors.end(),parent)!=ancestors.end()) {callback->Failure(400,"Folder cycle"); return;}
+        ancestors.push_back(parent); CefRefPtr<CefDictionaryValue> folder;
+        for(size_t j=0;j<incoming->GetSize();++j) if(incoming->GetDictionary(j)->GetInt("id")==parent) folder=incoming->GetDictionary(j);
+        if(!folder || folder->GetString("type")!="folder") {callback->Failure(400,"Invalid folder");return;}
+        parent=folder->GetInt("parentId");
+      }
+    }
+    if(!SaveBookmarks(merged)) {callback->Failure(500,"Could not save bookmarks");return;}
+    bookmarks_=merged; EmitState(); return Reply(callback,Wrap(ProfileBookmarks()));
+  }
   else if (action == "browser.bookmarks.add") {
     if (auto* t = ActiveTab(); t && t->url != "about:blank") {
-      auto mark = CefDictionaryValue::Create();
-      mark->SetInt("id", static_cast<int>(bookmarks_->GetSize() + 1));
-      mark->SetString("title", t->title); mark->SetString("url", t->url); mark->SetString("favicon", t->favicon);
-      mark->SetString("profileId", VisibleProfileId());
-      bookmarks_->SetDictionary(bookmarks_->GetSize(), mark);
+      auto next=bookmarks_->Copy(); int id=1; bool exists=false;
+      for(size_t i=0;i<next->GetSize();++i) {auto row=next->GetDictionary(i); id=std::max(id,row->GetInt("id")+1); if(row->GetString("profileId")==VisibleProfileId() && row->GetString("url")==t->url) exists=true;}
+      if(!exists) {
+        auto mark=CefDictionaryValue::Create(); mark->SetInt("id",id); mark->SetString("type","url");
+        mark->SetString("title",t->title);mark->SetString("url",t->url);mark->SetString("favicon",t->favicon);
+        mark->SetString("profileId",VisibleProfileId());mark->SetInt("parentId",0);mark->SetInt("order",static_cast<int>(next->GetSize()));
+        mark->SetDouble("createdAt",static_cast<double>(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count()));next->SetDictionary(next->GetSize(),mark);
+        if(!SaveBookmarks(next)) {callback->Failure(500,"Could not save bookmarks");return;} bookmarks_=next; EmitState();
+      }
     }
-    return Reply(callback, Wrap(ProfileBookmarks()));
+    return Reply(callback,Wrap(ProfileBookmarks()));
   }
   else if (action == "browser.bookmarks.remove") {
-    const int id = payload->GetInt();
-    for (size_t i = 0; i < bookmarks_->GetSize(); ++i)
-      if (bookmarks_->GetDictionary(i)->GetInt("id") == id) { bookmarks_->Remove(i); break; }
-    return Reply(callback, Wrap(ProfileBookmarks()));
+    auto next=bookmarks_->Copy();
+    for(size_t i=0;i<next->GetSize();++i) if(next->GetDictionary(i)->GetString("profileId")==VisibleProfileId() && next->GetDictionary(i)->GetInt("id")==payload->GetInt()) {next->Remove(i);break;}
+    if(!SaveBookmarks(next)) {callback->Failure(500,"Could not save bookmarks");return;} bookmarks_=next; EmitState();
+    return Reply(callback,Wrap(ProfileBookmarks()));
   }
   else if (action == "browser.bookmarks.open") Navigate(payload->GetString());
   else if (action == "browser.settings.openWindow") OpenSettingsTab();
@@ -1164,6 +1297,7 @@ void BrowserWindow::HandleBridge(const std::string& request,
       if (!query.empty() && hay.find(lower) != std::string::npos && tab.url != "about:blank") {
         auto row = CefDictionaryValue::Create(); row->SetString("source", "tab");
         row->SetString("title", tab.title); row->SetString("url", tab.url); row->SetString("favicon", tab.favicon);
+    if (overview_visible_) row->SetString("thumbnail", tab.thumbnail);
         result->SetDictionary(out++, row);
       }
     }

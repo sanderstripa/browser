@@ -8,6 +8,7 @@
 #include "include/cef_browser.h"
 #include "examples/soulu/shell_surface.h"
 #include "include/cef_download_item.h"
+#include "include/cef_registration.h"
 #include "include/cef_request_context.h"
 #include "include/cef_values.h"
 #include "include/wrapper/cef_message_router.h"
@@ -24,6 +25,7 @@ class BrowserWindow final : public CefBaseRefCounted {
   void UpdateAddress(int tab_id, const std::string& url);
   void UpdateFavicon(int tab_id, const std::string& url);
   void UpdateLoading(int tab_id, bool loading, bool can_go_back);
+  void StoreThumbnail(int id, const std::string& url, const std::string& data);
   void UpdateDownload(CefRefPtr<CefDownloadItem> item);
   void HandleBridge(const std::string& request,
                     CefRefPtr<CefMessageRouterBrowserSide::Callback> callback);
@@ -48,6 +50,8 @@ class BrowserWindow final : public CefBaseRefCounted {
     std::string title = "New Tab";
     std::string url = "about:blank";
     std::string favicon;
+    std::string thumbnail;
+    CefRefPtr<CefRegistration> thumbnail_registration;
     std::string profile_id = "personal";
     bool incognito = false;
     bool activate_on_attach = false;
@@ -71,6 +75,9 @@ class BrowserWindow final : public CefBaseRefCounted {
   void CreateProfile(const std::string& name, const std::string& requested_id = "");
   void SaveProfiles() const;
   void LoadSettings();
+  bool SaveBookmarks(CefRefPtr<CefListValue> rows) const;
+  void CaptureThumbnail();
+  bool BookmarksBarVisible() const;
   void SaveSettings() const;
   void SwitchProfile(const std::string& id);
   Profile* ActiveProfile();
@@ -133,6 +140,8 @@ class BrowserWindow final : public CefBaseRefCounted {
   int right_panel_width_ = 0;
   int suggestions_height_ = 0;
   bool sidebar_visible_ = false;
+  bool overview_visible_ = false;
+  bool bookmarks_auto_visible_ = false;
   bool vpn_enabled_ = false;
   bool closing_ = false;
   bool flushing_cookies_ = false;
