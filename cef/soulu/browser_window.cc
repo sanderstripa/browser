@@ -564,6 +564,8 @@ void BrowserWindow::OfferCredential(int id,CefRefPtr<CefFrame> frame,
   if(MessageBoxW(hwnd_,prompt.c_str(),L"Пароли Soulu",MB_YESNO|MB_ICONQUESTION|MB_DEFBUTTON2)==IDYES &&
      !vault.Put(origin,username,password,true))
     MessageBoxW(hwnd_,L"Не удалось сохранить пароль.",L"Soulu",MB_OK|MB_ICONERROR);
+  if(auto* current=FindTab(id);current&&current==ActiveTab()&&current->browser)
+    current->browser->GetHost()->SetFocus(true);
   SecureZeroMemory(password.data(),password.size());
 }
 

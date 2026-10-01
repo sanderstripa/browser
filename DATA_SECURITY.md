@@ -114,6 +114,9 @@ user-initiated link navigation retains the existing tab-opening paths.
 CEF content settings mirror the effective camera, microphone, geolocation,
 notifications, automatic-download and sound policy at navigation and rule changes.
 Mute uses browser audio muting; Block also sets Chromium's sound content setting.
+Chromium 154's approximate/precise geolocation dictionary is also synchronized
+through `SetWebsiteSetting`, following its
+[geolocation schema](https://github.com/chromium/chromium/blob/154.0.8037.58/components/content_settings/core/browser/geolocation_setting_delegate.cc).
 Changes apply to subsequent requests. Reload an already open page to stop a
 previously running capture or refresh cached script-visible permission state.
 Unrelated permission types retain CEF's existing handling.

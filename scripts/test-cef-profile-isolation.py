@@ -65,7 +65,10 @@ class LoginHandler(s.SiteHandler):
 def submit_form(connection,secret,username):
     form=f'<form action="/signed-in" method="post"><input name="username" autocomplete="username" value="{username}"><input name="password" type="password" autocomplete="current-password" value="{secret}"><button id="login">Sign in</button></form>'
     s.evaluate(connection,'document.body.innerHTML='+json.dumps(form))
+    s.evaluate(connection,"window.fixtureSubmitted=false;document.addEventListener('submit',e=>{sessionStorage.setItem('fixtureSubmitTrusted',String(e.isTrusted));window.fixtureSubmitted=true},{once:true})")
+    s.command(connection,'Page.bringToFront')
     point=s.evaluate(connection,"(()=>{const r=document.getElementById('login').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()")
+    s.command(connection,'Input.dispatchMouseEvent',dict(type='mouseMoved',**point))
     s.command(connection,'Input.dispatchMouseEvent',dict(type='mousePressed',button='left',clickCount=1,**point))
     s.command(connection,'Input.dispatchMouseEvent',dict(type='mouseReleased',button='left',clickCount=1,**point))
 
@@ -92,6 +95,7 @@ with tempfile.TemporaryDirectory(prefix='soulu-profiles-',ignore_cleanup_errors=
         assert legacy['settings']['theme']!='dark','Profile settings changed the global migration template'
         assert 'vpn' in legacy,'The existing global VPN owner was lost'
         secret='vault-integration-test-'+str(time.time_ns())
+        private_secret='private-web-test-'+str(time.time_ns())
         invoke(shell,'addPassword',{'origin':origin,'username':'user','password':secret})
         password_id=invoke(shell,'getPasswords')[0]['id']
         worker,answer=answer_native_dialog(process,'Пароли Soulu')
@@ -104,7 +108,7 @@ with tempfile.TemporaryDirectory(prefix='soulu-profiles-',ignore_cleanup_errors=
         s.navigate(first,origin+'/fixture')
         worker,answer=answer_native_dialog(process,'Пароли Soulu',False)
         submit_form(first,secret+'-declined','declined-user');worker.join(22)
-        assert answer==[True],'Decline prompt was not shown'
+        assert answer==[True],('Decline prompt was not shown',s.evaluate(first,"({path:location.pathname,submitted:window.fixtureSubmitted,trusted:sessionStorage.getItem('fixtureSubmitTrusted')})"))
         assert len(invoke(shell,'getPasswords'))==2,'Declined credentials were saved'
         second,state=new_page(shell,'createProfile','Second');sockets.append(second)
         second_id=state['activeProfileId'];s.navigate(second,origin+'/verify')
@@ -126,8 +130,9 @@ with tempfile.TemporaryDirectory(prefix='soulu-profiles-',ignore_cleanup_errors=
         s.navigate(private,origin+'/verify')
         assert s.evaluate(private,"localStorage.getItem('isolation')") is None
         assert not any(c['name']=='soulu_auth' for c in s.command(private,'Network.getAllCookies')['cookies'])
-        s.evaluate(private,"localStorage.setItem('isolation','incognito');document.cookie='private_cookie=test; Path=/'")
-        s.evaluate(private,IDB_WRITE)
+        s.evaluate(private,"localStorage.setItem('isolation',"+json.dumps(private_secret)+
+                   ");document.cookie="+json.dumps('private_cookie='+private_secret+'; Path=/'))
+        s.evaluate(private,IDB_WRITE.replace('private-value',private_secret))
         assert s.evaluate(shell,"window.browserShell.getPasswords().then(()=>false,()=>true)")
         private_id=invoke(shell,'getState')['activeTabId'];invoke(shell,'closeTab',private_id)
         wait(lambda:not invoke(shell,'getState')['incognito'])
@@ -141,7 +146,10 @@ with tempfile.TemporaryDirectory(prefix='soulu-profiles-',ignore_cleanup_errors=
             connection.close()
         sockets=[];s.close_normally(process)
         for path in (Path(root)/'Soulu'/'User Data').rglob('*'):
-            if path.is_file():assert secret.encode() not in path.read_bytes(),f'Plaintext credential in {path.name}'
+            if path.is_file():
+                data=path.read_bytes()
+                for marker in (secret,private_secret):
+                    assert marker.encode() not in data and marker.encode('utf-16-le') not in data,f'Plaintext credential or private web storage in {path.name}'
         process=s.launch(sys.argv[1])
         shell=socket_for(wait(lambda:next((t for t in s.targets() if '/ui/index.html' in t.get('url','')),None)));sockets.append(shell)
         wait(lambda:s.evaluate(shell,"typeof window.browserShell==='object'"))

@@ -58,7 +58,7 @@ with tempfile.TemporaryDirectory(prefix='soulu-policy-',ignore_cleanup_errors=Tr
         blocking('',0);blocking('127.0.0.1',1);s.navigate(content,origin+'/block')
         assert s.evaluate(content,'window.adLoaded===undefined'),'Per-site block did not override global allow'
         assert s.evaluate(content,f"fetch('http://ads.doubleclick.net:{server.server_port}/ad.js').then(r=>r.ok)"),'XHR was accidentally blocked'
-        for name in ('camera','geolocation','notifications'):
+        for name in ('camera','microphone','geolocation','notifications'):
             s.evaluate(shell,'window.browserShell.setSiteRule('+json.dumps({'domain':'','permission':name,'value':2})+')')
             state=s.evaluate(content,"navigator.permissions.query({name:"+json.dumps(name)+"}).then(p=>p.state)")
             assert state=='denied',f'{name} global deny did not reach Chromium'
