@@ -134,10 +134,17 @@ with tempfile.TemporaryDirectory(prefix='soulu-reader-', ignore_cleanup_errors=T
             return True
         user.EnumWindows(own_window,0);assert handles
         hwnd=ctypes.c_void_p(handles[0])
+        user.ShowWindow(hwnd,9)
         scale=user.GetDpiForWindow(hwnd)/96
         for width,height in ((800,620),(1100,760)):
-            user.SetWindowPos(hwnd,None,20,20,width,height,0x14)
-            wait(lambda:s.evaluate(shell,"document.querySelector('.reader-view').clientWidth")>=(width-40)/scale)
+            assert user.SetWindowPos(hwnd,None,20,20,width,height,0x14)
+            class Rect(ctypes.Structure):
+                _fields_=[(name,ctypes.c_long) for name in ('left','top','right','bottom')]
+            rect=Rect();assert user.GetClientRect(hwnd,ctypes.byref(rect))
+            expected=(rect.right-rect.left)/scale
+            wait(lambda:abs(s.evaluate(shell,'innerWidth')-expected)<3)
+            geometry=s.evaluate(shell,"(()=>{const r=document.querySelector('.reader-view').getBoundingClientRect();return {left:r.left,right:r.right,width:r.width,viewport:innerWidth}})()")
+            assert_check(abs(geometry['right']-geometry['viewport'])<2 and geometry['width']>300, 'reader viewport follows native client '+str(width))
             assert_check(s.evaluate(shell,"document.querySelector('.reader-article').getBoundingClientRect().right<=innerWidth+1"), 'reader native resize '+str(width))
         for mode in (3,9):
             user.ShowWindow(hwnd,mode);time.sleep(.4)
