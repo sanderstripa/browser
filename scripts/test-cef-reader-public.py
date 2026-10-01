@@ -13,7 +13,7 @@ spec=importlib.util.spec_from_file_location('storage',Path(__file__).with_name('
 s=importlib.util.module_from_spec(spec);spec.loader.exec_module(s)
 articles=[
  ('https://blog.mozilla.org/en/firefox/firefox-ai/ai-link-previews-firefox/', 'link previews'),
- ('https://web.dev/articles/multi-device-content', 'content'),
+ ('https://web.dev/articles/multi-device-content?hl=en', 'content'),
  ('https://support.mozilla.org/en-US/kb/firefox-reader-view-clutter-free-web-pages', 'Reader'),
 ]
 out=Path(sys.argv[2]);out.mkdir(parents=True,exist_ok=True)
@@ -42,7 +42,11 @@ with tempfile.TemporaryDirectory(prefix='soulu-reader-public-',ignore_cleanup_er
    return s.evaluate(shell,'browserShell.siteAction('+json.dumps(name)+','+json.dumps(payload)+')')
   for index,(url,titlePart) in enumerate(articles):
    s.evaluate(shell,'browserShell.navigate('+json.dumps(url)+')')
-   wait(lambda:s.evaluate(shell,'browserShell.getState().then(s=>s.page.url.startsWith('+json.dumps(url)+')&&!s.page.loading)'))
+   try:
+    wait(lambda:s.evaluate(shell,'browserShell.getCurrentSite().then(s=>s.url.startsWith('+json.dumps(url.split('?')[0])+')&&!s.mainLoading)'),60)
+   except Exception:
+    print(json.dumps({'requested':url,'nativePage':s.evaluate(shell,'browserShell.getState().then(s=>s.page)')},ensure_ascii=False),flush=True)
+    raise
    assert not s.evaluate(page,'location.href').startswith('chrome-error:'),url
    result=action('reader.enter');article=result['article']
    assert titlePart.lower() in article['title'].lower(),article['title']
@@ -51,7 +55,9 @@ with tempfile.TemporaryDirectory(prefix='soulu-reader-public-',ignore_cleanup_er
    structure=s.evaluate(shell,"({paragraphs:document.querySelectorAll('.reader-body p').length,links:document.querySelectorAll('.reader-body a[href]').length,images:document.querySelectorAll('.reader-body img').length,unsafe:!!document.querySelector('.reader-body script,.reader-body iframe,.reader-body form,.reader-body [onclick]')})")
    assert not structure['unsafe'] and structure['paragraphs']>2,structure
    if index==0 and structure['images']:
+    s.evaluate(shell,"document.querySelector('.reader-body img').scrollIntoView()")
     wait(lambda:s.evaluate(shell,"[...document.querySelectorAll('.reader-body img')].some(i=>i.complete&&i.naturalWidth>0)"),30)
+    s.evaluate(shell,"document.querySelector('.reader-view').scrollTop=0")
    for theme in ('light','sepia','dark'):
     action('reader.preferences',{'preferences':{'theme':theme}})
     wait(lambda:s.evaluate(shell,"document.querySelector('.reader-view').dataset.theme")==theme)

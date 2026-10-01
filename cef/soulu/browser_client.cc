@@ -87,12 +87,14 @@ bool BrowserClient::OnShowPermissionPrompt(CefRefPtr<CefBrowser>,uint64_t,
   return true;
 }
 void BrowserClient::OnLoadEnd(CefRefPtr<CefBrowser>,CefRefPtr<CefFrame> frame,int) {
-  if(frame->IsMain()&&role_!=BrowserRole::kShell)owner_->ApplySiteSound();
+  if(frame->IsMain()&&role_!=BrowserRole::kShell){owner_->ReaderDocumentLoaded(tab_id_);owner_->ApplySiteSound();}
 }
 bool BrowserClient::OnBeforeBrowse(CefRefPtr<CefBrowser> browser,CefRefPtr<CefFrame> frame,
     CefRefPtr<CefRequest> request,bool,bool) {
   CEF_REQUIRE_UI_THREAD();if(router_)router_->OnBeforeBrowse(browser,frame);
-  if(role_!=BrowserRole::kShell&&frame->IsMain())owner_->SyncSitePolicy(tab_id_,request->GetURL());
+  if(role_!=BrowserRole::kShell&&frame->IsMain()){
+    owner_->ReaderDocumentNavigation(tab_id_);owner_->SyncSitePolicy(tab_id_,request->GetURL());
+  }
   return false;
 }
 

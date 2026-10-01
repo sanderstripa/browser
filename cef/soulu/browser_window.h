@@ -51,6 +51,8 @@ class BrowserWindow final : public CefBaseRefCounted {
   bool AllowSite(int id, const std::string& origin, const std::string& permission);
   void ApplySiteSound();
   void RequestFind();
+  void ReaderDocumentNavigation(int id);
+  void ReaderDocumentLoaded(int id);
   void FinishReader(int id, const std::string& url, int generation, bool enter,
       CefRefPtr<CefDictionaryValue> article,
       CefRefPtr<CefMessageRouterBrowserSide::Callback> callback);
@@ -74,6 +76,7 @@ class BrowserWindow final : public CefBaseRefCounted {
     bool loading = false;
     bool can_go_back = false;
     bool reader_active = false;
+    bool main_loading = false;
     int document_generation = 0;
     CefRefPtr<CefDictionaryValue> reader_article;
   };

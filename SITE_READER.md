@@ -50,7 +50,8 @@ loading still makes ordinary network requests in the source profile.
 Reader is an opaque shell view above the original content browser. It keeps
 the original URL and history and never creates a top-level window. Exit restores
 that same browser without reloading. Back/forward and source navigation invalidate
-the reader at a document boundary. The original page remains alive underneath;
+the reader at a main-document boundary. Reloading an iframe does not invalidate
+the reader or its document identity. The original page remains alive underneath;
 its own scripts can continue to run there, but no source script is copied to or
 executed in the privileged reader. This is a reading view, not script suspension.
 
@@ -64,8 +65,10 @@ preferences stay in memory and are discarded when the last private tab closes.
 
 Site-data deletion requires a native confirmation naming the exact origin and
 supported subset. `Storage.clearDataForOrigin` operates on that tab's browser
-context and clears **localStorage, IndexedDB, Cache Storage and service workers**.
-Cookies, sessionStorage, HTTP cache and other storage types are retained. This
+context and clears **localStorage, sessionStorage, IndexedDB, Cache Storage and service workers**.
+Chromium's `local_storage` removal also clears that origin's sessionStorage;
+the native integration test verifies this actual behavior. Cookies, HTTP cache
+and other storage types are retained. This
 intentional subset avoids broad cookie deletion that could affect sibling sites.
 The UI only reports success after Chromium acknowledges the operation; timeout
 or rejection is an error. Passwords, bookmarks, history, other origins and other

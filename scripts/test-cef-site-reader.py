@@ -27,7 +27,7 @@ def wait(fn, timeout=25):
 class Handler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == '/image.png':
-            body = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aN3sAAAAASUVORK5CYII=')
+            body = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAHgAAAA8CAIAAAAiz+n/AAAAoUlEQVR4nO3SQQ0AIAADMUAcctCEVFRwr9bAksvmPnfw3wo2ELrj0RGhI0JHhI4IHRE6InRE6IjQEaEjQkeEjggdEToidEToiNARoSNCR4SOCB0ROiJ0ROiI0BGhI0JHhI4IHRE6InRE6IjQEaEjQkeEjggdEToidEToiNARoSNCR4SOCB0ROiJ0ROiI0BGhI0JHhI4IHRE6InRE6IjQo/EAjRYBzPrxM7YAAAAASUVORK5CYII=')
             kind = 'image/png'
         elif self.path == '/worker.js':
             body = b"self.addEventListener('install',()=>self.skipWaiting());"; kind = 'text/javascript'
@@ -87,9 +87,14 @@ with tempfile.TemporaryDirectory(prefix='soulu-reader-', ignore_cleanup_errors=T
             else: assert_check(not data['author'] and not data['date'], 'no invented metadata')
             wait(lambda: s.evaluate(shell, "!document.querySelector('.reader-view').hidden"))
             assert_check(s.evaluate(shell, "!!document.querySelector('.reader-body img')&&!!document.querySelector('.reader-body a[href]')&&!!document.querySelector('.reader-body li')&&!!document.querySelector('.reader-body blockquote')"), 'article structure '+path)
+            s.evaluate(shell,"document.querySelector('.reader-body img').scrollIntoView()")
             wait(lambda:s.evaluate(shell,"[...document.querySelectorAll('.reader-body img')].some(i=>i.complete&&i.naturalWidth>0)"))
             assert_check(True, 'image delivered from source context '+path)
             assert_check(s.evaluate(shell, "!document.querySelector('.reader-body script,.reader-body iframe,.reader-body form,.reader-body [onclick]')&&!window.readerXSS"), 'source executable content absent '+path)
+            if path=='/article':
+                s.evaluate(page,'document.querySelector("iframe").src='+json.dumps(origin+'/empty?frame-only'))
+                time.sleep(.4)
+                assert_check(current()['readerActive'], 'subframe navigation preserves reader')
             action('reader.exit')
             assert_check(s.evaluate(page, 'location.href') == origin+path, 'exit preserves source '+path)
         # Test sanitizer independently with malicious content Readability may discard.
@@ -138,7 +143,10 @@ with tempfile.TemporaryDirectory(prefix='soulu-reader-', ignore_cleanup_errors=T
             user.ShowWindow(hwnd,mode);time.sleep(.4)
             assert_check(s.evaluate(shell,"!document.querySelector('.reader-view').hidden&&document.querySelector('.reader-article').getBoundingClientRect().right<=innerWidth+1"), 'reader maximize/restore '+str(mode))
         # CEF keyboard handler opens the shared find UI, rather than a prompt.
-        s.command(page,'Input.dispatchKeyEvent',{'type':'rawKeyDown','windowsVirtualKeyCode':70,'modifiers':2,'key':'f','code':'KeyF'})
+        # CDP Input bypasses CefKeyboardHandler; CI desktops do not reliably
+        # grant foreground focus. Send the real CefKeyEvent through the native
+        # host. This hook is rejected outside the existing diagnostic mode.
+        s.evaluate(shell,'browserShell.testFindShortcut()')
         wait(lambda:s.evaluate(shell,"!document.querySelector('.site-find').hidden"))
         assert_check(True, 'native Ctrl+F shared find')
         s.evaluate(shell,"document.querySelector('.site-find input').value='Reading';document.querySelector('.site-find input').dispatchEvent(new Event('input'))")
@@ -191,12 +199,12 @@ with tempfile.TemporaryDirectory(prefix='soulu-reader-', ignore_cleanup_errors=T
         worker=threading.Thread(target=confirm);worker.start()
         cleared=action('clear');worker.join(timeout=10)
         assert_check(cleared['cleared'], 'native confirmed storage cleanup')
-        assert_check(s.evaluate(page,"localStorage.getItem('keep')===null&&document.cookie.includes('keep=yes')&&sessionStorage.getItem('keep')==='yes'"), 'clear subset and retained cookies/sessionStorage')
+        assert_check(s.evaluate(page,"localStorage.getItem('keep')===null&&document.cookie.includes('keep=yes')&&sessionStorage.getItem('keep')===null"), 'clear DOM storage and retain cookies')
         assert_check(s.evaluate(page,"indexedDB.databases().then(ds=>!ds.some(d=>d.name==='site-reader'))"), 'clear indexeddb')
         assert_check(s.evaluate(page,"caches.keys().then(keys=>!keys.includes('reader-cache'))"), 'clear cache storage')
         assert_check(s.evaluate(page,"navigator.serviceWorker.getRegistrations().then(rows=>rows.length===0)"), 'clear service workers')
-        assert_check(s.evaluate(other_ws,"localStorage.getItem('keep')==='yes'"), 'other origin retained');other_ws.close()
-        assert_check(s.evaluate(second_ws,"localStorage.getItem('keep')==='yes'&&document.cookie.includes('keep=yes')"), 'other profile storage retained')
+        assert_check(s.evaluate(other_ws,"localStorage.getItem('keep')==='yes'&&sessionStorage.getItem('keep')==='yes'"), 'other origin retained');other_ws.close()
+        assert_check(s.evaluate(second_ws,"localStorage.getItem('keep')==='yes'&&sessionStorage.getItem('keep')==='yes'&&document.cookie.includes('keep=yes')"), 'other profile storage retained')
         second_prefs=json.loads((Path(root)/f'Soulu/User Data/Profiles/{second_id}/soulu-reader.json').read_text())
         assert_check(second_prefs['size']==18, 'other profile preferences retained');second_ws.close()
         page.close();shell.close();s.close_normally(process);process=None

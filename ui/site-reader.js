@@ -45,10 +45,10 @@
     anchor = document.querySelector('body[data-layout=classic] #classicPageMenu') || document.querySelector('[data-page-menu]') || document.querySelector('#classicPageMenu');
     const request = ++revision; const snapshot = await api.getCurrentSite();
     if (request !== revision) return;
-    site = snapshot; probing = Boolean(site.origin && !state.page?.loading && !site.readerActive); menu.hidden = shield.hidden = false; status.hidden = true;
+    site = snapshot; probing = Boolean(site.origin && !site.mainLoading && !site.readerActive); menu.hidden = shield.hidden = false; status.hidden = true;
     anchor?.setAttribute('aria-expanded', 'true'); renderMenu(); position(); await api.setPopover(true);
     menu.querySelector('button:not(:disabled)')?.focus();
-    if (site.origin && !state.page?.loading && !site.readerActive) {
+    if (site.origin && !site.mainLoading && !site.readerActive) {
       const result = await act('reader.probe', {}, snapshot).catch(e => { if (request === revision && !menu.hidden) error(e); });
       if (request === revision) { probing = false; if (!menu.hidden) renderMenu(); }
     }
@@ -76,7 +76,7 @@
     const read = button(site.readerActive ? 'Выйти из режима чтения' : 'Показать режим чтения', async () => { await act(site.readerActive ? 'reader.exit' : 'reader.enter'); close(); });
     read.dataset.readerAction = ''; read.disabled = !site.readerActive && !site.readerAvailable;
     content.append(read);
-    if (!site.readerActive && !site.readerAvailable) content.append(el('small', 'site-hint', state.page?.loading ? 'Дождитесь загрузки страницы' : probing ? 'Проверяем, подходит ли страница для чтения…' : 'На этой странице статья не определена.'));
+    if (!site.readerActive && !site.readerAvailable) content.append(el('small', 'site-hint', site.mainLoading ? 'Дождитесь загрузки страницы' : probing ? 'Проверяем, подходит ли страница для чтения…' : 'На этой странице статья не определена.'));
     const zoom = el('div', 'site-zoom');
     zoom.append(el('span', '', 'Масштаб'), button('−', () => act('zoom', {command: 'out'})), button(`${site.zoom || 100}%`, () => act('zoom', {command: 'reset'})), button('+', () => act('zoom', {command: 'in'})));
     for (const b of zoom.querySelectorAll('button')) b.disabled = !site.origin;
@@ -98,7 +98,7 @@
     content.append(el('small', 'site-hint', `Глобально: ${blocking.enabled ? 'включена' : 'выключена'} · ${override === undefined ? 'по умолчанию' : 'исключение сайта'}`));
     if (override !== undefined) content.append(button('Для рекламы: по умолчанию', () => act('blocking', {value:2})));
     content.append(button('Данные сайта…', async () => {
-      const result = await act('clear'); if (result?.cleared) { status.textContent = 'Хранилища origin очищены. Cookies, sessionStorage и HTTP-кэш сохранены.'; status.hidden = false; }
+      const result = await act('clear'); if (result?.cleared) { status.textContent = 'Хранилища origin очищены, включая sessionStorage. Cookies и HTTP-кэш сохранены.'; status.hidden = false; }
     }), button('Сбросить настройки сайта', () => act('reset')));
     content.append(el('small', 'site-hint', 'Сброс удаляет только исключения разрешений и рекламы для этого домена.'));
     if (focused) { const target = focusedLabel && [...content.querySelectorAll('[aria-label]')].find(n => n.getAttribute('aria-label') === focusedLabel); (target || content.querySelector('button:not(:disabled)'))?.focus(); }

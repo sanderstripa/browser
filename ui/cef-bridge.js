@@ -54,6 +54,7 @@
     pageMenu: () => invoke("browser.pageMenu"),
     getCurrentSite: () => invoke("browser.site.get"),
     siteAction: (action, value) => invoke("browser.site." + action, value),
+    testFindShortcut: () => invoke("browser.test.findShortcut"),
     shareMenu: () => invoke("browser.shareMenu"),
     find: value => invoke("browser.find", value),
     suggestions: value => invoke("browser.suggestions", value),
