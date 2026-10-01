@@ -17,6 +17,7 @@
   settings.hidden = true; settings.setAttribute('aria-label', 'Оформление режима чтения');
   const exit = button('‹ К странице', () => act('reader.exit'));
   const style = button('Оформление · Aa', () => { settings.hidden = !settings.hidden; style.setAttribute('aria-expanded', String(!settings.hidden)); });
+  style.setAttribute('aria-expanded', 'false');
   readerBar.append(exit, el('span', '', 'Режим чтения'), style); reader.append(readerBar, readerNotice, settings, article);
   let linkMenu = null;
   const closeLink = () => { linkMenu?.remove(); linkMenu = null; };
@@ -41,7 +42,7 @@
     menu.style.maxHeight = `${Math.max(50, innerHeight - rect.bottom - 20)}px`;
   }
   async function open() {
-    closeLink(); settings.hidden = true;
+    closeLink(); settings.hidden = true; style.setAttribute('aria-expanded', 'false');
     anchor = document.querySelector('body[data-layout=classic] #classicPageMenu') || document.querySelector('[data-page-menu]') || document.querySelector('#classicPageMenu');
     const request = ++revision; const snapshot = await api.getCurrentSite();
     if (request !== revision) return;
@@ -111,7 +112,7 @@
   function renderReader() {
     const active = Boolean(site?.readerActive && site.article); reader.hidden = !active;
     document.body.dataset.reader = String(active);
-    if (!active) { article.replaceChildren(); articleKey = ''; settings.hidden = true; return; }
+    if (!active) { article.replaceChildren(); articleKey = ''; settings.hidden = true; style.setAttribute('aria-expanded', 'false'); return; }
     const prefs = site.preferences;
     reader.dataset.theme = prefs.theme; reader.dataset.font = prefs.font; reader.dataset.size = String(prefs.size);
     reader.dataset.width = String(prefs.width); reader.dataset.spacing = String(prefs.spacing); reader.dataset.images = String(prefs.images);
@@ -172,10 +173,10 @@
   api.onRequestFind(() => { close(); findBox.hidden = false; updateSurface(); findInput.focus(); findInput.select(); });
   document.addEventListener('pointerdown', e => {
     if (linkMenu && !linkMenu.contains(e.target)) { closeLink(); updateSurface(); }
-    if (!settings.hidden && !settings.contains(e.target) && e.target !== style) settings.hidden = true;
+    if (!settings.hidden && !settings.contains(e.target) && e.target !== style) { settings.hidden = true; style.setAttribute('aria-expanded', 'false'); }
   });
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') { if (!menu.hidden) { e.preventDefault(); close(true); } else if (!findBox.hidden) closeFind(); else if (!settings.hidden) settings.hidden = true; else closeLink(); }
+    if (e.key === 'Escape') { if (!menu.hidden) { e.preventDefault(); close(true); } else if (!findBox.hidden) closeFind(); else if (!settings.hidden) { settings.hidden = true; style.setAttribute('aria-expanded', 'false'); } else closeLink(); }
     if (e.key === 'Tab' && !menu.hidden) {
       const items = [...menu.querySelectorAll('button:not(:disabled),select,summary,input')].filter(n => n.getClientRects().length);
       if (e.shiftKey && document.activeElement === items[0]) { e.preventDefault(); items.at(-1)?.focus(); }
@@ -183,7 +184,8 @@
     }
   });
   async function sync(next) {
-    state = next; reader.style.top = `${(state.settings?.layout === 'classic' ? 82 : 48) + (state.bookmarksBarVisible ? 28 : 0)}px`;
+    state = next; const readerTop = (state.settings?.layout === 'classic' ? 82 : 48) + (state.bookmarksBarVisible ? 28 : 0);
+    reader.style.top = `${readerTop}px`; reader.style.setProperty('--reader-top', `${readerTop}px`);
     reader.style.left = state.sidebarVisible ? '276px' : '0';
     const nextKey = `${state.activeTabId}|${state.page?.url || 'about:blank'}|${state.page?.generation}`;
     if (key !== nextKey) { key = nextKey; ++revision; site = null; articleKey = ''; reader.hidden = true; closeFind(); close(); }
