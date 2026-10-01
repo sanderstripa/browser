@@ -24,7 +24,7 @@
         secret.value=await api.revealPassword(item.id);secret.type="text";shown=true;reveal.textContent="Скрыть";
         timer=setTimeout(()=>{secret.type="password";secret.value="••••••••";shown=false;reveal.textContent="Показать";},15000);
       });
-      row.append(text,secret,reveal,button("Копировать",async()=>{await api.copyPassword(item.id,"password");message("Пароль скопирован. Буфер очистится через 30 секунд, если вы не скопируете другое содержимое.");}),
+      row.append(text,secret,reveal,button("Копировать",async()=>{await api.copyPassword(item.id,"password");message("Пароль скопирован. Пока Soulu запущен, буфер очистится через 30 секунд, если вы не скопируете другое содержимое.");}),
         button("Изменить",()=>{$("passwordOrigin").value=item.origin;$("passwordUsername").value=item.username;$("passwordSecret").value="";$("passwordSecret").focus();}),
         button("Удалить",async()=>{if(confirm("Удалить этот сохранённый пароль?")){passwords=await api.removePassword(item.id);renderPasswords();}}));
       $("passwordList").append(row);

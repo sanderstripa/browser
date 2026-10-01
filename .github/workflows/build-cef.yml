@@ -9,7 +9,7 @@ on:
         default: false
         type: boolean
   push:
-    branches: [main, codex/data-security-20261001]
+    branches: [main]
     tags: [preview-40]
     paths:
       - "cef/**"

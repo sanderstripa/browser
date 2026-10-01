@@ -43,7 +43,7 @@ only ciphertext and metadata. Corrupt vaults refuse mutation.
 List responses omit encrypted secrets. Reveal/copy require explicit UI actions;
 the settings list masks passwords, hides revealed values after 15 seconds or
 loss of focus, and native clipboard copying clears after 30 seconds only if the
-clipboard sequence is still unchanged. `origin + username` is the deduplication
+clipboard sequence is still unchanged and Soulu is running. `origin + username` is the deduplication
 key. Import never overwrites an existing record. Explicit manual saves and
 confirmed form-save offers can update it.
 
