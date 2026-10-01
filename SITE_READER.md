@@ -28,6 +28,8 @@ articles below 500 characters are rejected. A failed parse, navigation, close,
 loading state or ten-second deadline produces refusal, never an empty reader.
 Availability is checked when the site menu opens and extraction is repeated
 on entry. Dynamic content can be retried by reopening the menu.
+Explicit author metadata takes precedence over a guessed byline. Ambiguous
+social-link labels such as X/Twitter are omitted rather than displayed as authors.
 
 Results are untrusted data, capped to one million HTML characters. The trusted
 shell parses them in an inert template, then builds **new** allowlisted elements

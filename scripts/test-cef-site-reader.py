@@ -38,8 +38,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             wrapper = 'article' if self.path == '/article' else 'div class="post-content"'
             closing = 'article' if self.path == '/article' else 'div'
             metadata = '<meta name="author" content="Fixture Author"><meta property="article:published_time" content="2026-01-02">' if self.path == '/article' else ''
+            byline = '<a rel="author" href="https://twitter.com/fixture">X</a>' if self.path == '/social' else ''
             body = (f'<!doctype html><meta charset="utf-8"><title>Fixture article</title>{metadata}<nav>Navigation junk</nav>'
-                    f'<{wrapper}><h1>Fixture article</h1>{paragraphs}<h2>Section heading</h2><ul><li>List item</li></ul>'
+                    f'<{wrapper}><h1>Fixture article</h1>{byline}{paragraphs}<h2>Section heading</h2><ul><li>List item</li></ul>'
                     '<blockquote>Quoted text</blockquote><figure><img src="/image.png"><figcaption>Image caption</figcaption></figure>'
                     '<p><a href="/linked">Article link</a></p><script>window.sourceScript=true</script>'
                     '<p onclick="window.readerXSS=true">Inline-handler text</p><iframe src="/empty"></iframe>'
@@ -75,7 +76,7 @@ with tempfile.TemporaryDirectory(prefix='soulu-reader-', ignore_cleanup_errors=T
         return s.evaluate(ws, "(async()=>{localStorage.setItem('keep','yes');sessionStorage.setItem('keep','yes');document.cookie='keep=yes; path=/';await new Promise((resolve,reject)=>{const r=indexedDB.open('site-reader',1);r.onupgradeneeded=()=>r.result.createObjectStore('rows');r.onsuccess=()=>{r.result.close();resolve()};r.onerror=reject});await caches.open('reader-cache');await navigator.serviceWorker.register('/worker.js');return true})()")
     try:
         process, shell, page = start()
-        for path in ('/article','/post'):
+        for path in ('/article','/post','/social'):
             s.navigate(page, origin+path)
             wait(lambda: current().get('url') == origin+path and not s.evaluate(shell,'browserShell.getState().then(s=>s.page.loading)'))
             snapshot = action('reader.probe')

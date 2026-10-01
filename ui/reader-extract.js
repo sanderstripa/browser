@@ -5,7 +5,12 @@
   if (!article || article.length < 500 || !article.content) return null;
   // Return untrusted data only. The trusted view builds a new allowlisted DOM.
   const deck = document.querySelector('article .deck, article .dek, article .subtitle, meta[name="description"], meta[property="og:description"]');
+  const explicitAuthor = (document.querySelector('meta[name="author"]')?.getAttribute('content') || '').trim();
+  const byline = (explicitAuthor || article.byline || '').trim();
+  // Readability can mistake rel=author social-link labels for a person's name.
+  // Keep explicit author metadata; otherwise omit ambiguous network labels.
+  const author = !explicitAuthor && /^(?:x|twitter|facebook|linkedin)$/i.test(byline) ? '' : byline;
   return {url: location.href, title: article.title || document.title,
-    deck: (deck?.getAttribute('content') || deck?.textContent || '').trim().slice(0, 2000), author: article.byline || '', date: article.publishedTime || '',
+    deck: (deck?.getAttribute('content') || deck?.textContent || '').trim().slice(0, 2000), author, date: article.publishedTime || '',
     content: article.content.slice(0, 1000000)};
 })()

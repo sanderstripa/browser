@@ -50,6 +50,7 @@ with tempfile.TemporaryDirectory(prefix='soulu-reader-public-',ignore_cleanup_er
    assert not s.evaluate(page,'location.href').startswith('chrome-error:'),url
    result=action('reader.enter');article=result['article']
    assert titlePart.lower() in article['title'].lower(),article['title']
+   assert article['author'].lower() not in ('x','twitter','facebook','linkedin'), 'Social label used as author'
    assert len(article['content'])>1000,'Insufficient public article content'
    wait(lambda:s.evaluate(shell,"!document.querySelector('.reader-view').hidden&&document.querySelector('.reader-body').textContent.length>500"))
    structure=s.evaluate(shell,"({paragraphs:document.querySelectorAll('.reader-body p').length,links:document.querySelectorAll('.reader-body a[href]').length,images:document.querySelectorAll('.reader-body img').length,unsafe:!!document.querySelector('.reader-body script,.reader-body iframe,.reader-body form,.reader-body [onclick]')})")
@@ -73,7 +74,8 @@ with tempfile.TemporaryDirectory(prefix='soulu-reader-public-',ignore_cleanup_er
    wait(lambda:s.evaluate(shell,'browserShell.getState().then(s=>!s.page.loading&&s.page.url.includes('+json.dumps(host)+'))'))
    loaded=s.evaluate(page,'({url:location.href,title:document.title})')
    assert host in loaded['url'] and not loaded['url'].startswith('chrome-error:'),loaded
-   rows.append({'site':host,'navigation':loaded,'passed':True,'authenticatedSessionTest':False})
+   availability='site_error_page' if host=='ozon.ru' and 'нет соединения' in loaded['title'].lower() else 'loaded'
+   rows.append({'site':host,'navigation':loaded,'routingPassed':True,'contentAvailability':availability,'authenticatedSessionTest':False})
   (out/'public-reader.json').write_text(json.dumps(rows,ensure_ascii=False,indent=2),encoding='utf-8')
   print(json.dumps(rows,ensure_ascii=False))
  finally:
