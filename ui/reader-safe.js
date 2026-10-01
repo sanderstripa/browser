@@ -24,9 +24,9 @@
         node.setAttribute('rel', 'noopener noreferrer');
       }
       if (tag === 'img') {
-        const src = webURL(source.getAttribute('src') || source.getAttribute('data-src') || '', base);
+        const src = webURL(source.getAttribute('src') || '', base) || webURL(source.getAttribute('data-src') || '', base);
         if (!src) return;
-        node.setAttribute('src', src); node.setAttribute('alt', (source.getAttribute('alt') || '').slice(0, 1000));
+        node.dataset.readerSrc = src; node.setAttribute('alt', (source.getAttribute('alt') || '').slice(0, 1000));
         node.setAttribute('loading', 'lazy'); node.setAttribute('referrerpolicy', 'no-referrer');
       }
       for (const child of source.childNodes) copy(child, node, depth + 1);

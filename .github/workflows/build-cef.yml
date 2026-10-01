@@ -216,6 +216,21 @@ jobs:
           python browser/scripts/test-cef-storage.py $installedExe
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+      - name: Test real public articles and reported-site navigation
+        shell: pwsh
+        run: |
+          $env:SOULU_UI_TEST_PORT = '9223'
+          python browser/scripts/test-cef-reader-public.py '${{ steps.package.outputs.build_dir }}/Soulu.exe' browser/artifacts/reader-evidence
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload Reader Mode evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Soulu-reader-evidence-${{ github.run_id }}
+          path: browser/artifacts/reader-evidence
+          if-no-files-found: ignore
+
       - name: Test two profiles, incognito disposal and password restart
         shell: pwsh
         run: |
@@ -250,7 +265,6 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Smoke-test visible installer controls with mouse on Windows
-        continue-on-error: ${{ contains(github.event.head_commit.message, '[publish-as-is]') }}
         shell: pwsh
         run: |
           Add-Type @'

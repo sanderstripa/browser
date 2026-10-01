@@ -1,5 +1,6 @@
 """Exercise the real CEF bridge, isolated extraction, trusted view and persistence."""
 import ctypes
+import base64
 import http.server
 import importlib.util
 import json
@@ -25,9 +26,9 @@ def wait(fn, timeout=25):
 
 class Handler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
-        if self.path == '/image.svg':
-            body = b'<svg xmlns="http://www.w3.org/2000/svg" width="120" height="60"><rect width="120" height="60" fill="blue"/></svg>'
-            kind = 'image/svg+xml'
+        if self.path == '/image.png':
+            body = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aN3sAAAAASUVORK5CYII=')
+            kind = 'image/png'
         elif self.path == '/empty':
             body = b'<!doctype html><title>Search</title><nav>Home</nav><form><input></form>'; kind = 'text/html'
         else:
@@ -37,7 +38,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             metadata = '<meta name="author" content="Fixture Author"><meta property="article:published_time" content="2026-01-02">' if self.path == '/article' else ''
             body = (f'<!doctype html><meta charset="utf-8"><title>Fixture article</title>{metadata}<nav>Navigation junk</nav>'
                     f'<{wrapper}><h1>Fixture article</h1>{paragraphs}<h2>Section heading</h2><ul><li>List item</li></ul>'
-                    '<blockquote>Quoted text</blockquote><figure><img src="/image.svg"><figcaption>Image caption</figcaption></figure>'
+                    '<blockquote>Quoted text</blockquote><figure><img src="/image.png"><figcaption>Image caption</figcaption></figure>'
                     '<p><a href="/linked">Article link</a></p><script>window.sourceScript=true</script>'
                     '<p onclick="window.readerXSS=true">Inline-handler text</p><iframe src="/empty"></iframe>'
                     f'<form>Form junk<input></form></{closing}><aside>Recommendation junk</aside>').encode()
@@ -58,7 +59,7 @@ with tempfile.TemporaryDirectory(prefix='soulu-reader-', ignore_cleanup_errors=T
         p = subprocess.Popen([sys.argv[1], '--no-proxy-server'], env=env)
         t = wait(lambda: next((t for t in s.targets() if '/ui/index.html' in t.get('url', '')), None))
         ws = s.websocket.create_connection(t['webSocketDebuggerUrl'], timeout=30, origin=s.BASE)
-        wait(lambda: s.evaluate(ws, "typeof browserShell.siteAction==='function'"))
+        wait(lambda: s.evaluate(ws, "typeof window.browserShell?.siteAction==='function'"))
         return p, ws, s.page_socket()
     def current(): return s.evaluate(shell, 'browserShell.getCurrentSite()')
     def action(name, values=None, snapshot=None):
@@ -84,6 +85,8 @@ with tempfile.TemporaryDirectory(prefix='soulu-reader-', ignore_cleanup_errors=T
             else: assert_check(not data['author'] and not data['date'], 'no invented metadata')
             wait(lambda: s.evaluate(shell, "!document.querySelector('.reader-view').hidden"))
             assert_check(s.evaluate(shell, "!!document.querySelector('.reader-body img')&&!!document.querySelector('.reader-body a[href]')&&!!document.querySelector('.reader-body li')&&!!document.querySelector('.reader-body blockquote')"), 'article structure '+path)
+            wait(lambda:s.evaluate(shell,"[...document.querySelectorAll('.reader-body img')].some(i=>i.complete&&i.naturalWidth>0)"))
+            assert_check(True, 'image delivered from source context '+path)
             assert_check(s.evaluate(shell, "!document.querySelector('.reader-body script,.reader-body iframe,.reader-body form,.reader-body [onclick]')&&!window.readerXSS"), 'source executable content absent '+path)
             action('reader.exit')
             assert_check(s.evaluate(page, 'location.href') == origin+path, 'exit preserves source '+path)
@@ -113,6 +116,22 @@ with tempfile.TemporaryDirectory(prefix='soulu-reader-', ignore_cleanup_errors=T
             s.evaluate(shell,'browserShell.setSettings('+json.dumps({'layout':layout})+')')
             wait(lambda: s.evaluate(shell,'document.body.dataset.layout')==layout)
             assert_check(s.evaluate(shell,"document.querySelector('.reader-view').getBoundingClientRect().top") == (82 if layout=='classic' else 48), 'reader '+layout)
+        user=ctypes.windll.user32;handles=[]
+        @ctypes.WINFUNCTYPE(ctypes.c_bool,ctypes.c_void_p,ctypes.c_void_p)
+        def own_window(hwnd,_):
+            pid=ctypes.c_ulong();user.GetWindowThreadProcessId(hwnd,ctypes.byref(pid))
+            name=ctypes.create_unicode_buffer(128);user.GetClassNameW(hwnd,name,128)
+            if pid.value==process.pid and name.value=='SouluBrowserWindow':handles.append(hwnd)
+            return True
+        user.EnumWindows(own_window,0);assert handles
+        hwnd=ctypes.c_void_p(handles[0])
+        for width,height in ((800,620),(1100,760)):
+            user.SetWindowPos(hwnd,None,20,20,width,height,0x14)
+            wait(lambda:s.evaluate(shell,"document.querySelector('.reader-view').clientWidth")>=width-40)
+            assert_check(s.evaluate(shell,"document.querySelector('.reader-article').getBoundingClientRect().right<=innerWidth+1"), 'reader native resize '+str(width))
+        for mode in (3,9):
+            user.ShowWindow(hwnd,mode);time.sleep(.4)
+            assert_check(s.evaluate(shell,"!document.querySelector('.reader-view').hidden&&document.querySelector('.reader-article').getBoundingClientRect().right<=innerWidth+1"), 'reader maximize/restore '+str(mode))
         # CEF keyboard handler opens the shared find UI, rather than a prompt.
         s.command(page,'Input.dispatchKeyEvent',{'type':'rawKeyDown','windowsVirtualKeyCode':70,'modifiers':2,'key':'f','code':'KeyF'})
         wait(lambda:s.evaluate(shell,"!document.querySelector('.site-find').hidden"))
@@ -136,6 +155,16 @@ with tempfile.TemporaryDirectory(prefix='soulu-reader-', ignore_cleanup_errors=T
         assert_check(s.evaluate(shell,'browserShell.siteAction("zoom",'+json.dumps({**{k:stale[k] for k in ('tabId','url','generation')},'command':'in'})+').then(()=>false,()=>true)'), 'stale document rejected')
         # Native confirmation is exercised on disposable data only.
         seed(page)
+        before={t['id'] for t in s.targets()}
+        second_state=s.evaluate(shell,'browserShell.createProfile("Reader second")')
+        second_id=second_state['activeProfileId']
+        second_target=wait(lambda:next((t for t in s.targets() if t['id'] not in before and '/ui/index.html' not in t.get('url','')),None))
+        second_ws=s.websocket.create_connection(second_target['webSocketDebuggerUrl'],timeout=30,origin=s.BASE)
+        s.navigate(second_ws,origin+'/empty');seed(second_ws)
+        action('reader.preferences',{'preferences':{'size':18}})
+        action('permission',{'permission':'camera','value':0})
+        s.evaluate(shell,'browserShell.switchProfile("personal")');s.evaluate(shell,'browserShell.switchTab('+str(original['tabId'])+')')
+        wait(lambda:current()['tabId']==original['tabId'])
         s.evaluate(shell,'browserShell.openTab('+json.dumps(other+'/empty')+',false)')
         other_target=wait(lambda:next((t for t in s.targets() if t.get('url')==other+'/empty'),None))
         other_ws=s.websocket.create_connection(other_target['webSocketDebuggerUrl'],timeout=30,origin=s.BASE);seed(other_ws)
@@ -152,6 +181,9 @@ with tempfile.TemporaryDirectory(prefix='soulu-reader-', ignore_cleanup_errors=T
         assert_check(s.evaluate(page,"indexedDB.databases().then(ds=>!ds.some(d=>d.name==='site-reader'))"), 'clear indexeddb')
         assert_check(s.evaluate(page,"caches.keys().then(keys=>!keys.includes('reader-cache'))"), 'clear cache storage')
         assert_check(s.evaluate(other_ws,"localStorage.getItem('keep')==='yes'"), 'other origin retained');other_ws.close()
+        assert_check(s.evaluate(second_ws,"localStorage.getItem('keep')==='yes'&&document.cookie.includes('keep=yes')"), 'other profile storage retained')
+        second_prefs=json.loads((Path(root)/f'Soulu/User Data/Profiles/{second_id}/soulu-reader.json').read_text())
+        assert_check(second_prefs['size']==18, 'other profile preferences retained');second_ws.close()
         page.close();shell.close();s.close_normally(process);process=None
         persisted=json.loads((Path(root)/'Soulu/User Data/Profiles/personal/soulu-reader.json').read_text())
         assert_check(persisted['size']==24 and persisted['theme']=='dark', 'preferences on disk')

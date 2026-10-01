@@ -37,8 +37,14 @@ links/images and bounded image alt text. Event handlers, source CSS, IDs,
 srcset, arbitrary protocols, credentials in URLs and source JS cannot survive.
 The existing shell CSP remains in effect. Links are handled through the native
 Soulu tab routing, including foreground, background and incognito actions.
-Images load from their original HTTP(S) URLs with no referrer. Extraction itself
-is local; loading original article images still makes ordinary network requests.
+Images are fetched by native CefURLRequest in the **source tab's profile context**
+with no cache and no referrer, respecting the existing adblock rules. The shell
+receives raster data URLs, never source network URLs; incognito images cannot use
+or populate the shell's persistent network profile. There are four concurrent
+loads, at most 64 images per view and a 4 MB / 15 second limit per image. PNG,
+JPEG, WebP, GIF and AVIF are supported; other formats and oversized/unavailable
+images retain alt text. Extraction itself is local; original article image
+loading still makes ordinary network requests in the source profile.
 
 Reader is an opaque shell view above the original content browser. It keeps
 the original URL and history and never creates a top-level window. Exit restores

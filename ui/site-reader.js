@@ -123,6 +123,19 @@
       const metadata = [data.author, data.date].filter(Boolean).join(' · ');
       if (metadata) article.append(el('p', 'reader-meta', metadata));
       const body = el('div', 'reader-body'); body.append(safe.content(data.content, site.url)); article.append(body);
+      const snapshot = site, images = [...body.querySelectorAll('img[data-reader-src]')].slice(0, 64);
+      // Keep network activity in the source profile; deliver inert raster data
+      // to the shell. Four concurrent requests, bounded by the native loader.
+      let index = 0;
+      async function loadImages() {
+        while (index < images.length && articleKey === currentKey) {
+          const image = images[index++];
+          try { const result = await api.siteAction('reader.image', {...token(snapshot), target:image.dataset.readerSrc});
+            if (image.isConnected && articleKey === currentKey && /^data:image\/(png|jpeg|webp|gif|avif);base64,/.test(result)) image.src = result;
+          } catch { if (image.isConnected) image.alt = image.alt || 'Изображение недоступно'; }
+        }
+      }
+      for (let i = 0; i < 4; i++) loadImages();
     }
     const wasFocused = settings.contains(document.activeElement), label = document.activeElement?.getAttribute('aria-label');
     settings.replaceChildren(select('Тема', [['light','Светлая'],['sepia','Сепия'],['dark','Тёмная']], prefs.theme, theme => preferences({theme})),

@@ -147,6 +147,35 @@ class CookieFlushCompletion final : public CefCompletionCallback {
   IMPLEMENT_REFCOUNTING(CookieFlushCompletion);
 };
 
+// Images are fetched with the source tab's request context, never the shell's
+// persistent context (especially when reading an incognito article).
+class ReaderImageClient final : public CefURLRequestClient {
+ public:
+  explicit ReaderImageClient(CefRefPtr<CefMessageRouterBrowserSide::Callback> callback):callback_(callback) {}
+  void Timeout(CefRefPtr<CefURLRequest> request){if(callback_){request->Cancel();Fail();}}
+  void OnRequestComplete(CefRefPtr<CefURLRequest> request) override {
+    if(!callback_)return;auto response=request->GetResponse();
+    const std::string type=response?response->GetMimeType().ToString():"";
+    if(request->GetRequestStatus()!=UR_SUCCESS||!response||response->GetStatus()!=200||body_.empty()||
+       (type!="image/png"&&type!="image/jpeg"&&type!="image/webp"&&type!="image/gif"&&type!="image/avif")){Fail();return;}
+    auto value=CefValue::Create();value->SetString("data:"+type+";base64,"+CefBase64Encode(body_.data(),body_.size()).ToString());
+    auto callback=callback_;callback_=nullptr;body_.clear();callback->Success(CefWriteJSON(value,JSON_WRITER_DEFAULT));
+  }
+  void OnUploadProgress(CefRefPtr<CefURLRequest>,int64_t,int64_t) override {}
+  void OnDownloadProgress(CefRefPtr<CefURLRequest> request,int64_t current,int64_t total) override {
+    if(current>4*1024*1024||total>4*1024*1024){request->Cancel();Fail();}
+  }
+  void OnDownloadData(CefRefPtr<CefURLRequest> request,const void* data,size_t size) override {
+    if(body_.size()+size>4*1024*1024){request->Cancel();Fail();return;}
+    body_.append(static_cast<const char*>(data),size);
+  }
+  bool GetAuthCredentials(bool,const CefString&,int,const CefString&,const CefString&,CefRefPtr<CefAuthCallback>) override {return false;}
+ private:
+  void Fail(){if(!callback_)return;auto callback=callback_;callback_=nullptr;body_.clear();callback->Failure(422,"Изображение недоступно или превышает 4 МБ");}
+  CefRefPtr<CefMessageRouterBrowserSide::Callback> callback_;std::string body_;
+  IMPLEMENT_REFCOUNTING(ReaderImageClient);
+};
+
 class SuggestClient final : public CefURLRequestClient {
  public:
   SuggestClient(CefRefPtr<CefListValue> local, CefRefPtr<CefMessageRouterBrowserSide::Callback> reply)
@@ -1415,6 +1444,17 @@ bool BrowserWindow::HandleSiteAction(const std::string& action,CefRefPtr<CefValu
     else if(mode=="current"){tab->reader_active=false;Layout();tab->browser->GetMainFrame()->LoadURL(url);EmitState();}
     else {callback->Failure(400,"Некорректное действие ссылки");return true;}
     ReplyEmpty(callback);return true;
+  }
+  if(action=="browser.site.reader.image"){
+    const std::string target=data->GetString("target");auto policy=PolicyForTab(tab->id);
+    if(!tab->reader_active||WebOrigin(target).empty()||
+       BlockResource(tab->url,target,RT_IMAGE,policy&&policy->Blocking(tab->url))){callback->Failure(403,"Изображение недоступно");return true;}
+    auto request=CefRequest::Create();request->SetURL(target);request->SetMethod("GET");
+    request->SetFlags(UR_FLAG_SKIP_CACHE|UR_FLAG_ALLOW_STORED_CREDENTIALS);
+    CefRefPtr<ReaderImageClient> client=new ReaderImageClient(callback);
+    auto pending=CefURLRequest::Create(request,client,tab->browser->GetHost()->GetRequestContext());
+    if(!pending){callback->Failure(500,"Не удалось загрузить изображение");return true;}
+    CefPostDelayedTask(TID_UI,new FunctionTask([client,pending]{client->Timeout(pending);}),15000);return true;
   }
   if(action=="browser.site.reader.preferences"){
     auto prefs=ReaderPreferences(*tab);auto changes=data->GetDictionary("preferences");
