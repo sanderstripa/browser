@@ -191,7 +191,9 @@ bool SitePolicy::Set(const std::string& input,const std::string& name,int value)
   std::lock_guard lock(mutex_);auto old=data_->Copy(false);
   auto rules=data_->GetDictionary("defaults");
   if(!domain.empty()){auto sites=data_->GetDictionary("sites");rules=sites->GetDictionary(domain);
-    if(!rules){rules=CefDictionaryValue::Create();sites->SetDictionary(domain,rules);}}
+    if(!rules){rules=CefDictionaryValue::Create();sites->SetDictionary(domain,rules);
+      // SetDictionary transfers ownership and invalidates a standalone input.
+      rules=sites->GetDictionary(domain);}}
   if(value<0)rules->Remove(name);else rules->SetInt(name,value);
   if(!domain.empty()&&rules->GetSize()==0)data_->GetDictionary("sites")->Remove(domain);
   if(Save())return true;data_=old;return false;

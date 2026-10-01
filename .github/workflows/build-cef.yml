@@ -215,6 +215,13 @@ jobs:
           python browser/scripts/test-cef-profile-isolation.py '${{ steps.package.outputs.build_dir }}/Soulu.exe'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+      - name: Test native permission overrides and actual content filtering
+        shell: pwsh
+        run: |
+          $env:SOULU_UI_TEST_PORT = '9223'
+          python browser/scripts/test-cef-content-policy.py '${{ steps.package.outputs.build_dir }}/Soulu.exe'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - name: Verify internal tabs and native link context menu
         shell: pwsh
         run: |

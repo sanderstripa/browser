@@ -67,7 +67,9 @@
   async function refresh(state){
     if(loading)return;loading=true;
     try{
-      const current=state||await api.getState();profile=current.activeProfileId;
+      const current=state||await api.getState();
+      if(profile!==current.activeProfileId){$("passwordSecret").value="";$("passwordUsername").value="";$("passwordOrigin").value="";}
+      profile=current.activeProfileId;
       const target=$("passwordTarget"),selected=target.value;target.replaceChildren();
       for(const item of current.profiles||[])target.append(new Option(item.name,item.id));
       target.value=(current.profiles||[]).some(p=>p.id===selected)?selected:profile;

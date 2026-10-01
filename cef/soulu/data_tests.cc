@@ -1,6 +1,7 @@
 #include "examples/soulu/profile_data.h"
 #include <windows.h>
 #include <wincrypt.h>
+#include <bcrypt.h>
 #include <fstream>
 #include <sstream>
 #include <stdexcept>
@@ -10,12 +11,27 @@
 
 namespace soulu {
 namespace {
-void Check(bool passed,const char* name){if(!passed)throw std::runtime_error(name);}
+int checks=0;
+void Check(bool passed,const char* name){++checks;if(!passed)throw std::runtime_error(name);}
 std::string Bytes(const std::filesystem::path& path){std::ifstream f(path,std::ios::binary);std::stringstream data;data<<f.rdbuf();return data.str();}
 std::string Protect(const std::string& plain){
   DATA_BLOB input={static_cast<DWORD>(plain.size()),reinterpret_cast<BYTE*>(const_cast<char*>(plain.data()))},output={};
   Check(CryptProtectData(&input,nullptr,nullptr,nullptr,nullptr,CRYPTPROTECT_UI_FORBIDDEN,&output)!=0,"fixture-dpapi");
   std::string blob(reinterpret_cast<char*>(output.pbData),output.cbData);LocalFree(output.pbData);return blob;
+}
+std::string EncryptFixture(const std::string& plain,const std::string& key,const char* version){
+  BCRYPT_ALG_HANDLE algorithm=nullptr;BCRYPT_KEY_HANDLE handle=nullptr;
+  Check(BCryptOpenAlgorithmProvider(&algorithm,BCRYPT_AES_ALGORITHM,nullptr,0)>=0,"fixture-aes-provider");
+  Check(BCryptSetProperty(algorithm,BCRYPT_CHAINING_MODE,reinterpret_cast<PUCHAR>(const_cast<wchar_t*>(BCRYPT_CHAIN_MODE_GCM)),sizeof(BCRYPT_CHAIN_MODE_GCM),0)>=0,"fixture-gcm-mode");
+  Check(BCryptGenerateSymmetricKey(algorithm,&handle,nullptr,0,reinterpret_cast<PUCHAR>(const_cast<char*>(key.data())),32,0)>=0,"fixture-aes-key");
+  unsigned char nonce[12]={},tag[16]={};BCryptGenRandom(nullptr,nonce,sizeof(nonce),BCRYPT_USE_SYSTEM_PREFERRED_RNG);
+  BCRYPT_AUTHENTICATED_CIPHER_MODE_INFO info;BCRYPT_INIT_AUTH_MODE_INFO(info);
+  info.pbNonce=nonce;info.cbNonce=sizeof(nonce);info.pbTag=tag;info.cbTag=sizeof(tag);
+  std::string encrypted(plain.size(),'\0');ULONG count=0;
+  bool ok=BCryptEncrypt(handle,reinterpret_cast<PUCHAR>(const_cast<char*>(plain.data())),static_cast<ULONG>(plain.size()),
+    &info,nullptr,0,reinterpret_cast<PUCHAR>(encrypted.data()),static_cast<ULONG>(encrypted.size()),&count,0)>=0;
+  BCryptDestroyKey(handle);BCryptCloseAlgorithmProvider(algorithm,0);Check(ok,"fixture-aes-encrypt");
+  return std::string(version)+std::string(reinterpret_cast<char*>(nonce),sizeof(nonce))+encrypted+std::string(reinterpret_cast<char*>(tag),sizeof(tag));
 }
 }
 int RunDataSecurityTests(const std::filesystem::path& report) {
@@ -61,16 +77,23 @@ int RunDataSecurityTests(const std::filesystem::path& report) {
       Check(sqlite3_prepare_v2(db,"INSERT INTO logins VALUES('https://example.com',?,?,0)",-1,&q,nullptr)==SQLITE_OK,"fixture-prepare");
       sqlite3_bind_text(q,1,user.c_str(),-1,SQLITE_TRANSIENT);sqlite3_bind_blob(q,2,secret.data(),static_cast<int>(secret.size()),SQLITE_TRANSIENT);
       Check(sqlite3_step(q)==SQLITE_DONE,"fixture-insert");sqlite3_finalize(q);};
-    add("imported",Protect(test));add("protected","v20"+test);sqlite3_close(db);
+    std::string key(32,'\0');Check(BCryptGenRandom(nullptr,reinterpret_cast<PUCHAR>(key.data()),32,BCRYPT_USE_SYSTEM_PREFERRED_RNG)>=0,"fixture-key-rng");
+    auto wrapped=std::string("DPAPI")+Protect(key);auto crypto=CefDictionaryValue::Create();
+    crypto->SetString("encrypted_key",CefBase64Encode(wrapped.data(),wrapped.size()));
+    auto state=CefDictionaryValue::Create();state->SetDictionary("os_crypt",crypto);auto state_value=CefValue::Create();state_value->SetDictionary(state);
+    Check(WriteJson(source.parent_path()/L"Local State",state_value),"fixture-local-state");
+    add("imported",Protect(test));add("aes10",EncryptFixture(test,key,"v10"));add("aes11",EncryptFixture(test,key,"v11"));
+    auto corrupted=EncryptFixture(test,key,"v10");corrupted.back()^=1;add("tampered",corrupted);
+    add("protected","v20"+std::string(64,'x'));sqlite3_close(db);SecureZeroMemory(key.data(),key.size());
     auto before=Bytes(source/L"Login Data");
     auto result=ImportPasswords("Chrome:Default","test-two");
-    Check(result->GetInt("imported")==1&&result->GetInt("protected")==1&&result->GetInt("failed")==0,"import-dpapi-protected");
+    Check(result->GetInt("imported")==3&&result->GetInt("protected")==1&&result->GetInt("failed")==1,"import-dpapi-aes-protected-tampered");
     Check(Bytes(source/L"Login Data")==before&&!std::filesystem::exists(source/L"Login Data-shm"),"source-database-unchanged");
-    auto again=ImportPasswords("Chrome:Default","test-two");Check(again->GetInt("skipped")==1&&again->GetInt("imported")==0,"import-deduplication");
+    auto again=ImportPasswords("Chrome:Default","test-two");Check(again->GetInt("skipped")==3&&again->GetInt("imported")==0,"import-deduplication");
     PasswordVault imported("test-two");auto records=imported.List();
-    Check(records->GetSize()==1&&imported.Reveal(records->GetDictionary(0)->GetString("id"),revealed)&&revealed==test,"import-restart-decrypt");
+    Check(records->GetSize()==3&&imported.Reveal(records->GetDictionary(0)->GetString("id"),revealed)&&revealed==test,"import-restart-decrypt");
     Check(Bytes(ProfileRoot("test-two")/L"soulu-passwords.json").find(test)==std::string::npos,"import-target-encrypted");
-    std::ofstream output(report);output<<"{\"passed\":true,\"checks\":27}";return output?0:2;
+    std::ofstream output(report);output<<"{\"passed\":true,\"checks\":"<<checks<<"}";return output?0:2;
   }catch(const std::exception& error){std::ofstream output(report);output<<"{\"passed\":false,\"failed_check\":\""<<error.what()<<"\"}";return 2;}
 }
 }

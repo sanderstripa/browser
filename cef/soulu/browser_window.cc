@@ -1658,8 +1658,9 @@ void BrowserWindow::HandleBridge(const std::string& request,
         CloseClipboard();
       }
     } else if (command == 3) Emit("requestFind", EmptyValue());
-    else if(command==4&&current&&policy){
-      if(policy->SetBlocking(current->url,policy->Blocking(current->url)?0:1)&&current->browser)current->browser->Reload();
+    else if(command==4){
+      if(auto* tab=ActiveTab();tab&&tab->browser){auto rules=PolicyForTab(tab->id);
+        if(rules&&rules->SetBlocking(tab->url,rules->Blocking(tab->url)?0:1))tab->browser->Reload();}
     }
   }
   else if (action == "browser.shareMenu") {
