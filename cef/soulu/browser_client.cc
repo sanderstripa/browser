@@ -43,6 +43,13 @@ BrowserClient::BrowserClient(CefRefPtr<BrowserWindow> owner, BrowserRole role, i
     : owner_(owner), role_(role), tab_id_(tab_id),
       policy_(role!=BrowserRole::kShell?owner->PolicyForTab(tab_id):nullptr) {}
 
+bool BrowserClient::OnPreKeyEvent(CefRefPtr<CefBrowser>,const CefKeyEvent& event,CefEventHandle,bool*) {
+  if(event.type==KEYEVENT_RAWKEYDOWN&&(event.modifiers&EVENTFLAG_CONTROL_DOWN)&&event.windows_key_code=='F') {
+    owner_->RequestFind();return true;
+  }
+  return false;
+}
+
 CefRefPtr<CefResourceRequestHandler> BrowserClient::GetResourceRequestHandler(
     CefRefPtr<CefBrowser>,CefRefPtr<CefFrame>,CefRefPtr<CefRequest>,
     bool navigation,bool download,const CefString&,bool&) {

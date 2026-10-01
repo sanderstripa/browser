@@ -37,6 +37,73 @@ class FunctionTask final : public CefTask {
   std::function<void()> function_;
   IMPLEMENT_REFCOUNTING(FunctionTask);
 };
+// One operation owns its observer and deadline. Chromium's isolated world
+// prevents page scripts from replacing Readability, DOM APIs or URL parsing.
+class ReaderJob final : public CefDevToolsMessageObserver {
+ public:
+  ReaderJob(CefRefPtr<BrowserWindow> owner,int id,std::string url,int generation,bool enter,
+      std::string script,CefRefPtr<CefMessageRouterBrowserSide::Callback> callback)
+      :owner_(owner),id_(id),url_(std::move(url)),generation_(generation),enter_(enter),
+       script_(std::move(script)),callback_(callback) {}
+  void Start(CefRefPtr<CefBrowser> browser) {
+    browser_=browser;registration_=browser->GetHost()->AddDevToolsMessageObserver(this);
+    message_=browser->GetHost()->ExecuteDevToolsMethod(0,"Page.getFrameTree",nullptr);
+    CefRefPtr<ReaderJob> self=this;
+    CefPostDelayedTask(TID_UI,new FunctionTask([self]{self->Finish(nullptr);}),10000);
+  }
+  void OnDevToolsMethodResult(CefRefPtr<CefBrowser>,int id,bool success,const void* result,size_t size) override {
+    if(!callback_||id!=message_)return;
+    auto parsed=success?CefParseJSON(std::string(static_cast<const char*>(result),size),JSON_PARSER_RFC):nullptr;
+    if(!parsed||parsed->GetType()!=VTYPE_DICTIONARY){Finish(nullptr);return;}
+    auto data=parsed->GetDictionary();auto params=CefDictionaryValue::Create();
+    if(stage_==0){
+      auto tree=data->GetDictionary("frameTree");auto frame=tree?tree->GetDictionary("frame"):nullptr;
+      if(!frame||frame->GetString("url")!=url_){Finish(nullptr);return;}
+      params->SetString("frameId",frame->GetString("id"));params->SetString("worldName","SouluReader");
+      stage_=1;message_=browser_->GetHost()->ExecuteDevToolsMethod(0,"Page.createIsolatedWorld",params);
+    }else if(stage_==1){
+      if(!data->HasKey("executionContextId")){Finish(nullptr);return;}
+      params->SetInt("contextId",data->GetInt("executionContextId"));params->SetString("expression",script_);
+      params->SetBool("returnByValue",true);params->SetBool("awaitPromise",false);
+      stage_=2;message_=browser_->GetHost()->ExecuteDevToolsMethod(0,"Runtime.evaluate",params);
+    }else{
+      auto remote=data->GetDictionary("result");auto article=remote?remote->GetDictionary("value"):nullptr;
+      Finish(data->HasKey("exceptionDetails")?nullptr:article);
+    }
+  }
+ private:
+  void Finish(CefRefPtr<CefDictionaryValue> article) {
+    if(!callback_)return;auto callback=callback_;callback_=nullptr;
+    owner_->FinishReader(id_,url_,generation_,enter_,article,callback);
+    registration_=nullptr;browser_=nullptr;owner_=nullptr;
+  }
+  CefRefPtr<BrowserWindow> owner_;CefRefPtr<CefBrowser> browser_;CefRefPtr<CefRegistration> registration_;
+  int id_,generation_,message_=0,stage_=0;std::string url_,script_;bool enter_;
+  CefRefPtr<CefMessageRouterBrowserSide::Callback> callback_;
+  IMPLEMENT_REFCOUNTING(ReaderJob);
+};
+class SiteStorageJob final : public CefDevToolsMessageObserver {
+ public:
+  explicit SiteStorageJob(CefRefPtr<CefMessageRouterBrowserSide::Callback> callback):callback_(callback) {}
+  void Start(CefRefPtr<CefBrowser> browser,const std::string& origin) {
+    registration_=browser->GetHost()->AddDevToolsMessageObserver(this);
+    auto params=CefDictionaryValue::Create();params->SetString("origin",origin);
+    params->SetString("storageTypes","local_storage,indexeddb,cache_storage,service_workers");
+    message_=browser->GetHost()->ExecuteDevToolsMethod(0,"Storage.clearDataForOrigin",params);
+    CefRefPtr<SiteStorageJob> self=this;
+    CefPostDelayedTask(TID_UI,new FunctionTask([self]{self->Finish(false);}),10000);
+  }
+  void OnDevToolsMethodResult(CefRefPtr<CefBrowser>,int id,bool success,const void*,size_t) override {
+    if(id==message_)Finish(success);
+  }
+ private:
+  void Finish(bool success){if(!callback_)return;auto cb=callback_;callback_=nullptr;
+    if(success)cb->Success("{\"cleared\":true,\"cookiesRetained\":true}");else cb->Failure(500,"Не удалось подтвердить очистку хранилищ сайта");
+    registration_=nullptr;}
+  int message_=0;CefRefPtr<CefRegistration> registration_;
+  CefRefPtr<CefMessageRouterBrowserSide::Callback> callback_;
+  IMPLEMENT_REFCOUNTING(SiteStorageJob);
+};
 // A single request at a navigation boundary; no additional CEF renderer or HWND.
 class ThumbnailObserver final : public CefDevToolsMessageObserver {
  public:
@@ -534,7 +601,7 @@ void BrowserWindow::SyncSitePolicy(int id,const std::string& url) {
 }
 void BrowserWindow::ReleaseIncognito() {
   if(std::any_of(tabs_.begin(),tabs_.end(),[](const Tab& t){return t.incognito;}))return;
-  incognito_context_=nullptr;policies_.erase("__incognito__");
+  incognito_context_=nullptr;policies_.erase("__incognito__");reader_preferences_.erase("__incognito__");
   auto retained=CefListValue::Create();
   for(size_t i=0;i<bookmarks_->GetSize();++i){auto row=bookmarks_->GetDictionary(i);
     if(row&&row->GetString("profileId")!="__incognito__")retained->SetDictionary(retained->GetSize(),row->Copy(false));}
@@ -973,7 +1040,7 @@ void BrowserWindow::UpdateTitle(int id, const std::string& title) {
 void BrowserWindow::UpdateAddress(int id, const std::string& url) {
   if (auto* tab = FindTab(id)) {
     const std::string next = url.find("/ui/start.html") != std::string::npos ? "about:blank" : url;
-    if (next != tab->url) tab->thumbnail.clear();
+    if (next != tab->url) {tab->thumbnail.clear();++tab->document_generation;tab->reader_active=false;tab->reader_article=nullptr;}
     tab->url = next;
   }
   Layout();
@@ -984,7 +1051,10 @@ void BrowserWindow::UpdateFavicon(int id, const std::string& url) {
   EmitState();
 }
 void BrowserWindow::UpdateLoading(int id, bool loading, bool can_go_back) {
-  if (auto* tab = FindTab(id)) { tab->loading = loading; tab->can_go_back = can_go_back; }
+  if (auto* tab = FindTab(id)) {
+    if(loading&&!tab->loading){++tab->document_generation;tab->reader_active=false;tab->reader_article=nullptr;Layout();}
+    tab->loading = loading; tab->can_go_back = can_go_back;
+  }
   if (!loading && overview_visible_ && id == active_tab_id_) CaptureThumbnail();
   EmitState();
 }
@@ -1095,7 +1165,8 @@ BrowserWindow::Geometry BrowserWindow::CurrentGeometry() const {
   g.toolbar = px((settings_->GetString("layout") == "classic" ? 82 : 48) + (BookmarksBarVisible() ? 28 : 0));
   g.sidebar = sidebar_visible_ ? px(276) : 0;
   g.panel = px(std::max(0, right_panel_width_));
-  g.shell_height = popover_visible_ || overview_visible_ || sidebar_visible_ || g.panel > 0 ? g.height :
+  const auto* active=const_cast<BrowserWindow*>(this)->ActiveTab();
+  g.shell_height = (active&&active->reader_active) || popover_visible_ || overview_visible_ || sidebar_visible_ || g.panel > 0 ? g.height :
       std::min(g.height, std::max(g.toolbar, px(suggestions_height_)));
   g.content = CefRect(g.sidebar, g.toolbar,
       std::max(1, g.width - g.sidebar - g.panel), std::max(1, g.height - g.toolbar));
@@ -1203,6 +1274,8 @@ CefRefPtr<CefDictionaryValue> BrowserWindow::State() const {
   state->SetInt("activeTabId", active_tab_id_);
   state->SetBool("sidebarVisible", sidebar_visible_);
   state->SetBool("overviewVisible", overview_visible_);
+  auto* active=const_cast<BrowserWindow*>(this)->ActiveTab();
+  state->SetBool("readerActive",active&&active->reader_active);
   state->SetBool("bookmarksBarVisible", BookmarksBarVisible());
   state->SetList("bookmarks", ProfileBookmarks());
   state->SetBool("maximized", IsZoomed(hwnd_) != FALSE);
@@ -1218,8 +1291,8 @@ CefRefPtr<CefDictionaryValue> BrowserWindow::State() const {
   }
   state->SetList("profiles", profiles);
   auto update = CefDictionaryValue::Create();
-  update->SetString("soulu", "0.9.0-cef-preview.41");
-  update->SetString("recommended", "0.9.0-cef-preview.41");
+  update->SetString("soulu", "0.9.0-cef-preview.42");
+  update->SetString("recommended", "0.9.0-cef-preview.42");
   update->SetString("cef", EngineVersion(0, 3));
   update->SetString("chromium", EngineVersion(4, 4));
   update->SetBool("available", false);
@@ -1240,6 +1313,7 @@ CefRefPtr<CefDictionaryValue> BrowserWindow::State() const {
     page->SetString("favicon", tab->favicon);
     page->SetBool("loading", tab->loading);
     page->SetBool("canGoBack", tab->can_go_back);
+    page->SetInt("generation",tab->document_generation);
     state->SetDictionary("page", page);
   }
   return state;
@@ -1273,6 +1347,133 @@ void BrowserWindow::Emit(const std::string& event, CefRefPtr<CefValue> value) {
 }
 void BrowserWindow::EmitState() { Emit("state", Wrap(State())); }
 
+void BrowserWindow::RequestFind() { if(surface_)surface_->Focus();Emit("requestFind",EmptyValue()); }
+
+CefRefPtr<CefDictionaryValue> BrowserWindow::ReaderPreferences(const Tab& tab) {
+  const auto key=tab.incognito?"__incognito__":tab.profile_id;
+  auto& prefs=reader_preferences_[key];if(prefs)return prefs->Copy(false);
+  prefs=CefDictionaryValue::Create();prefs->SetString("theme","light");prefs->SetString("font","serif");
+  prefs->SetInt("size",20);prefs->SetInt("width",1);prefs->SetInt("spacing",1);prefs->SetBool("images",true);
+  // Validate persisted input through the same bounded schema as user edits.
+  auto saved=tab.incognito?nullptr:ReadJson(ProfileRoot(key)/L"soulu-reader.json");
+  if(saved&&saved->GetType()==VTYPE_DICTIONARY){auto d=saved->GetDictionary();
+    const auto theme=d->GetString("theme").ToString(),font=d->GetString("font").ToString();
+    if(theme=="light"||theme=="sepia"||theme=="dark")prefs->SetString("theme",theme);
+    if(font=="sans"||font=="serif"||font=="system")prefs->SetString("font",font);
+    if(d->HasKey("size"))prefs->SetInt("size",std::clamp(d->GetInt("size"),14,32));
+    if(d->HasKey("width"))prefs->SetInt("width",std::clamp(d->GetInt("width"),0,2));
+    if(d->HasKey("spacing"))prefs->SetInt("spacing",std::clamp(d->GetInt("spacing"),0,2));
+    if(d->GetType("images")==VTYPE_BOOL)prefs->SetBool("images",d->GetBool("images"));
+  }
+  return prefs->Copy(false);
+}
+
+CefRefPtr<CefDictionaryValue> BrowserWindow::SiteSnapshot() {
+  auto result=CefDictionaryValue::Create();auto* tab=ActiveTab();if(!tab)return result;
+  result->SetInt("tabId",tab->id);result->SetString("url",tab->url);result->SetInt("generation",tab->document_generation);
+  result->SetString("origin",WebOrigin(tab->url));result->SetString("domain",SiteDomain(tab->url));
+  result->SetString("favicon",tab->favicon);result->SetBool("readerActive",tab->reader_active);
+  result->SetBool("readerAvailable",tab->reader_article!=nullptr&&!tab->loading);
+  if(tab->reader_active&&tab->reader_article)result->SetDictionary("article",tab->reader_article->Copy(false));
+  result->SetDictionary("preferences",ReaderPreferences(*tab));
+  if(tab->browser)result->SetInt("zoom",static_cast<int>(std::round(100*std::pow(1.2,tab->browser->GetHost()->GetZoomLevel()))));
+  auto policy=PolicyForTab(tab->id);if(policy)result->SetDictionary("rules",policy->Snapshot());
+  return result;
+}
+
+void BrowserWindow::FinishReader(int id,const std::string& url,int generation,bool enter,
+    CefRefPtr<CefDictionaryValue> article,CefRefPtr<CefMessageRouterBrowserSide::Callback> callback) {
+  auto* tab=FindTab(id);
+  if(!tab||tab->id!=active_tab_id_||tab->url!=url||tab->document_generation!=generation||tab->loading){
+    callback->Failure(409,"Страница изменилась. Откройте меню заново.");return;}
+  if(article&&(article->GetString("url")!=url||article->GetString("content").length()>1000000||
+      article->GetString("content").empty()))article=nullptr;
+  tab->reader_article=article?article->Copy(false):nullptr;
+  if(enter&&!article){callback->Failure(422,"На этой странице не удалось выделить статью");return;}
+  if(enter){tab->reader_active=true;overview_visible_=false;Layout();EmitState();if(surface_)surface_->Focus();}
+  Reply(callback,SiteSnapshot());
+}
+
+bool BrowserWindow::HandleSiteAction(const std::string& action,CefRefPtr<CefValue> payload,
+    CefRefPtr<CefMessageRouterBrowserSide::Callback> callback) {
+  if(action.rfind("browser.site.",0)!=0)return false;
+  auto* tab=ActiveTab();auto data=payload&&payload->GetType()==VTYPE_DICTIONARY?payload->GetDictionary():nullptr;
+  if(!tab||!tab->browser){callback->Failure(400,"Нет активной страницы");return true;}
+  if(action=="browser.site.get"){Reply(callback,SiteSnapshot());return true;}
+  // Every mutation and asynchronous result is bound to a particular document,
+  // not whichever tab happens to be active when a bridge request arrives.
+  if(!data||data->GetInt("tabId")!=tab->id||data->GetString("url")!=tab->url||
+     data->GetInt("generation")!=tab->document_generation){callback->Failure(409,"Страница изменилась");return true;}
+  if(action=="browser.site.reader.exit"){
+    tab->reader_active=false;Layout();EmitState();Reply(callback,SiteSnapshot());return true;}
+  if(action=="browser.site.reader.link"){
+    const std::string url=data->GetString("target");
+    if(!tab->reader_active||WebOrigin(url).empty()){callback->Failure(400,"Некорректная ссылка");return true;}
+    const auto mode=data->GetString("mode").ToString();
+    if(mode=="incognito")OpenIncognitoLink(tab->id,tab->browser,url);
+    else if(mode=="background"||mode=="new")OpenTabFrom(tab->id,tab->browser,url,mode=="background");
+    else if(mode=="current"){tab->reader_active=false;Layout();tab->browser->GetMainFrame()->LoadURL(url);EmitState();}
+    else {callback->Failure(400,"Некорректное действие ссылки");return true;}
+    ReplyEmpty(callback);return true;
+  }
+  if(action=="browser.site.reader.preferences"){
+    auto prefs=ReaderPreferences(*tab);auto changes=data->GetDictionary("preferences");
+    if(!changes){callback->Failure(400,"Некорректные настройки чтения");return true;}
+    CefDictionaryValue::KeyList keys;changes->GetKeys(keys);
+    for(const auto& key:keys){auto value=changes->GetValue(key);const auto name=key.ToString();bool ok=false;
+      if(name=="theme"||name=="font"){auto str=value->GetString().ToString();ok=value->GetType()==VTYPE_STRING&&
+        (name=="theme"?(str=="light"||str=="sepia"||str=="dark"):(str=="sans"||str=="serif"||str=="system"));}
+      else if(name=="images")ok=value->GetType()==VTYPE_BOOL;
+      else if(name=="size"||name=="width"||name=="spacing")ok=value->GetType()==VTYPE_INT&&
+        (name=="size"?(value->GetInt()>=14&&value->GetInt()<=32):(value->GetInt()>=0&&value->GetInt()<=2));
+      if(!ok){callback->Failure(400,"Некорректные настройки чтения");return true;}
+      prefs->SetValue(key,value->Copy());
+    }
+    const auto key=tab->incognito?"__incognito__":tab->profile_id;
+    if(!tab->incognito&&!WriteJson(ProfileRoot(key)/L"soulu-reader.json",Wrap(prefs))){callback->Failure(500,"Настройки чтения не сохранены");return true;}
+    reader_preferences_[key]=prefs;Reply(callback,SiteSnapshot());return true;
+  }
+  const auto origin=WebOrigin(tab->url);
+  if(origin.empty()){callback->Failure(400,"Доступно только для HTTP/HTTPS-сайтов");return true;}
+  if(action=="browser.site.reader.probe"||action=="browser.site.reader.enter"){
+    if(tab->loading){callback->Failure(409,"Дождитесь загрузки страницы");return true;}
+    const auto ui=std::filesystem::u8path(ExecutableDirectory())/"ui";
+    std::string script="(()=>{";
+    for(const auto& path:{ui/"third_party"/"Readability.js",ui/"reader-extract.js"}){
+      std::ifstream file(path,std::ios::binary);if(!file){callback->Failure(500,"Parser режима чтения недоступен");return true;}
+      script+=std::string(std::istreambuf_iterator<char>(file),{});script+='\n';
+    }
+    // reader-extract's IIFE is the final expression, explicitly return it.
+    const auto marker=script.rfind("(() => {");if(marker==std::string::npos){callback->Failure(500,"Parser недоступен");return true;}
+    script.insert(marker,"return ");script+="})()";
+    CefRefPtr<ReaderJob> job=new ReaderJob(this,tab->id,tab->url,tab->document_generation,
+      action=="browser.site.reader.enter",script,callback);job->Start(tab->browser);return true;
+  }
+  if(action=="browser.site.zoom"){
+    const auto command=data->GetString("command").ToString();auto host=tab->browser->GetHost();
+    double level=host->GetZoomLevel();
+    if(command=="reset")level=0;else if(command=="in")level+=1;else if(command=="out")level-=1;
+    else {callback->Failure(400,"Некорректный масштаб");return true;}
+    host->SetZoomLevel(std::clamp(level,-5.0,8.0));Reply(callback,SiteSnapshot());return true;
+  }
+  if(action=="browser.site.find"){RequestFind();ReplyEmpty(callback);return true;}
+  if(action=="browser.site.clear"){
+    const std::wstring text=L"Очистить хранилища сайта "+CefString(origin).ToWString()+
+      L" в текущем профиле?\n\nБудут удалены localStorage, IndexedDB, Cache Storage и service workers только этого origin. Cookies, sessionStorage и HTTP-кэш сохранятся. Пароли, закладки и другие сайты не затрагиваются.";
+    const int id=tab->id,generation=tab->document_generation;const auto url=tab->url;
+    if(MessageBoxW(hwnd_,text.c_str(),L"Данные сайта",MB_YESNO|MB_ICONWARNING|MB_DEFBUTTON2)!=IDYES){callback->Success("{\"cleared\":false}");return true;}
+    tab=ActiveTab();if(!tab||tab->id!=id||tab->url!=url||tab->document_generation!=generation){callback->Failure(409,"Страница изменилась");return true;}
+    CefRefPtr<SiteStorageJob> job=new SiteStorageJob(callback);job->Start(tab->browser,origin);return true;
+  }
+  auto policy=PolicyForTab(tab->id);bool ok=false;
+  if(action=="browser.site.permission")ok=policy&&policy->Set(tab->url,data->GetString("permission"),data->GetInt("value"));
+  else if(action=="browser.site.blocking")ok=policy&&policy->SetBlocking(tab->url,data->GetInt("value"));
+  else if(action=="browser.site.reset")ok=policy&&policy->ResetSite(tab->url);
+  else {callback->Failure(400,"Неизвестное действие сайта");return true;}
+  if(!ok){callback->Failure(500,"Правило сайта не сохранено");return true;}
+  ApplySiteSound();SyncSitePolicy(tab->id,tab->url);Reply(callback,SiteSnapshot());return true;
+}
+
 void BrowserWindow::SetSetting(const std::string& key, CefRefPtr<CefValue> value) {
   settings_->SetValue(key, value->Copy());
   SaveSettings();
@@ -1290,6 +1491,7 @@ void BrowserWindow::HandleBridge(const std::string& request,
   auto root = parsed->GetDictionary();
   const std::string action = root->GetString("action");
   auto payload = root->GetValue("payload");
+  if(HandleSiteAction(action,payload,callback))return;
 
   if (action == "browser.state.get") return Reply(callback, State());
   if (action == "browser.surfaceDiagnostics") {
@@ -1389,8 +1591,8 @@ void BrowserWindow::HandleBridge(const std::string& request,
   }
   else if (action == "browser.update.check") {
     auto update = CefDictionaryValue::Create();
-    update->SetString("soulu", "0.9.0-cef-preview.41");
-    update->SetString("recommended", "0.9.0-cef-preview.41");
+    update->SetString("soulu", "0.9.0-cef-preview.42");
+    update->SetString("recommended", "0.9.0-cef-preview.42");
     update->SetString("cef", EngineVersion(0, 3));
     update->SetString("chromium", EngineVersion(4, 4));
     update->SetBool("available", false);
@@ -1405,7 +1607,13 @@ void BrowserWindow::HandleBridge(const std::string& request,
   else if (action == "browser.setRightPanel") { right_panel_width_ = payload->GetInt(); Layout(); }
   else if (action == "browser.setSuggestionsHeight") { suggestions_height_ = payload->GetInt(); Layout(); }
   else if (action == "browser.find") {
-    if (auto* t = ActiveTab(); t && t->browser) t->browser->GetHost()->Find(payload->GetString(), true, false, false);
+    if (auto* t = ActiveTab(); t && t->browser) {
+      auto browser=t->reader_active?shell_:t->browser;
+      const std::string text=payload->GetString();
+      if(text.empty()){browser->GetHost()->StopFinding(true);if(shell_)shell_->GetHost()->StopFinding(true);find_text_.clear();find_browser_id_=0;}
+      else {const bool next=find_text_==text&&find_browser_id_==browser->GetIdentifier();
+        browser->GetHost()->Find(text,true,false,next);find_text_=text;find_browser_id_=browser->GetIdentifier();}
+    }
   }
   else if (action == "browser.downloads.get") return Reply(callback, Wrap(ProfileDownloads()));
   else if (action == "browser.bookmarks.get") return Reply(callback, Wrap(ProfileBookmarks()));

@@ -62,6 +62,10 @@ int RunDataSecurityTests(const std::filesystem::path& report) {
     Check(policy.SetBlocking("",1)&&policy.Blocking("https://example.com"),"blocking-global");
     Check(policy.SetBlocking("example.com",0)&&!policy.Blocking("https://example.com"),"blocking-exception");
     Check(policy.SetBlocking("example.com",2)&&policy.Blocking("https://example.com"),"blocking-inherit");
+    Check(policy.Set("example.com","camera",0)&&policy.SetBlocking("example.com",0)&&
+      policy.Set("other.com","camera",0)&&policy.SetBlocking("other.com",0)&&policy.ResetSite("example.com")&&
+      policy.Rule("https://example.com","camera")==2&&policy.Blocking("https://example.com")&&
+      policy.Rule("https://other.com","camera")==0&&!policy.Blocking("https://other.com"),"site-reset-isolated-both-models");
     Check(BlockResource("https://example.com","https://ads.doubleclick.net/a.js",RT_SCRIPT,true),"block-ad-script");
     Check(!BlockResource("https://example.com","https://doubleclick.net/login",RT_MAIN_FRAME,true)&&
       !BlockResource("https://example.com","https://doubleclick.net/auth",RT_XHR,true)&&

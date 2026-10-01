@@ -10,3 +10,4 @@ vpn/native-host/xray/xray.exe
 vpn/native-host/xray/geoip.dat
 vpn/native-host/xray/geosite.dat
 vpn/native-host/xray/wintun.dll
+__pycache__/

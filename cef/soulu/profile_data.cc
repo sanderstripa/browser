@@ -212,6 +212,13 @@ bool SitePolicy::Reset(const std::string& input) {
   auto sites=data_->GetDictionary("sites");if(domain.empty())sites->Clear();else sites->Remove(domain);
   if(Save())return true;data_=old;return false;
 }
+bool SitePolicy::ResetSite(const std::string& input) {
+  auto domain=SiteDomain(input);if(domain.empty())return false;
+  std::lock_guard lock(mutex_);auto old=data_->Copy(false);
+  data_->GetDictionary("sites")->Remove(domain);
+  data_->GetDictionary("blocking")->GetDictionary("sites")->Remove(domain);
+  if(Save())return true;data_=old;return false;
+}
 bool BlockResource(const std::string& top,const std::string& url,int type,bool enabled) {
   if(!enabled||WebOrigin(top).empty()||WebOrigin(url).empty())return false;
   // Conservative host-only subset. Never filter documents, XHR, downloads,

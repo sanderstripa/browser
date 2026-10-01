@@ -43,6 +43,7 @@ class SitePolicy {
   bool Set(const std::string& domain, const std::string& permission, int value);
   bool SetBlocking(const std::string& domain, int value);
   bool Reset(const std::string& domain);
+  bool ResetSite(const std::string& domain);
  private:
   bool Save() const;
   mutable std::mutex mutex_;

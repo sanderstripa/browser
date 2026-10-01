@@ -50,6 +50,10 @@ class BrowserWindow final : public CefBaseRefCounted {
   std::shared_ptr<SitePolicy> PolicyForTab(int id);
   bool AllowSite(int id, const std::string& origin, const std::string& permission);
   void ApplySiteSound();
+  void RequestFind();
+  void FinishReader(int id, const std::string& url, int generation, bool enter,
+      CefRefPtr<CefDictionaryValue> article,
+      CefRefPtr<CefMessageRouterBrowserSide::Callback> callback);
   void SyncSitePolicy(int id, const std::string& url);
   void OfferCredential(int id, CefRefPtr<CefFrame> frame,
                        const std::string& username, std::string password,
@@ -69,6 +73,9 @@ class BrowserWindow final : public CefBaseRefCounted {
     bool activate_on_attach = false;
     bool loading = false;
     bool can_go_back = false;
+    bool reader_active = false;
+    int document_generation = 0;
+    CefRefPtr<CefDictionaryValue> reader_article;
   };
 
   struct Profile {
@@ -134,6 +141,13 @@ class BrowserWindow final : public CefBaseRefCounted {
   void Emit(const std::string& event, CefRefPtr<CefValue> value);
   void EmitState();
   void SetSetting(const std::string& key, CefRefPtr<CefValue> value);
+  bool HandleSiteAction(const std::string& action, CefRefPtr<CefValue> payload,
+      CefRefPtr<CefMessageRouterBrowserSide::Callback> callback);
+  CefRefPtr<CefDictionaryValue> SiteSnapshot();
+  CefRefPtr<CefDictionaryValue> ReaderPreferences(const Tab& tab);
+  std::map<std::string, CefRefPtr<CefDictionaryValue>> reader_preferences_;
+  std::string find_text_;
+  int find_browser_id_ = 0;
 
   HWND hwnd_ = nullptr;
   HWND resize_border_ = nullptr;

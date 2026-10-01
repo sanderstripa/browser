@@ -180,7 +180,6 @@ window.browserShell.onState(renderState);
 window.browserShell.onSettings?.((settings)=>{state.settings={...state.settings,...settings};renderTabs();appearance();renderSettings();});
 window.browserShell.onDownloads(renderDownloads);
 window.browserShell.onFocusAddress(()=>{const input=state.settings.layout==="classic"?$("#classicAddress"):$("#compactAddress");input?.focus();input?.select();});
-window.browserShell.onRequestFind(()=>{const v=prompt(tr("find"));if(v)window.browserShell.find(v);});
 window.browserShell.onOpenSettings(()=>openPanel("settings"));
 window.browserShell.onOpenDownloads(async()=>{renderDownloads(await window.browserShell.getDownloads());openPanel("downloads");});
 window.browserShell.onOpenFavorites(async()=>{if(window.souluNavigation)return window.souluNavigation.openBookmarks();renderBookmarks(await window.browserShell.getBookmarks());openPanel("favorites");});

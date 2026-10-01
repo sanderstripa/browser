@@ -52,6 +52,8 @@
     setRightPanel: width => invoke("browser.setRightPanel", width),
     setSuggestionsHeight: height => invoke("browser.setSuggestionsHeight", height),
     pageMenu: () => invoke("browser.pageMenu"),
+    getCurrentSite: () => invoke("browser.site.get"),
+    siteAction: (action, value) => invoke("browser.site." + action, value),
     shareMenu: () => invoke("browser.shareMenu"),
     find: value => invoke("browser.find", value),
     suggestions: value => invoke("browser.suggestions", value),

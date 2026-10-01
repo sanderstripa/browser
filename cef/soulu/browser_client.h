@@ -22,7 +22,8 @@ class BrowserClient final : public CefClient,
                             public CefRequestHandler,
                             public CefPermissionHandler,
                             public CefResourceRequestHandler,
-                            public CefContextMenuHandler {
+                            public CefContextMenuHandler,
+                            public CefKeyboardHandler {
  public:
   BrowserClient(CefRefPtr<BrowserWindow> owner, BrowserRole role, int tab_id = 0);
 
@@ -33,6 +34,8 @@ class BrowserClient final : public CefClient,
   CefRefPtr<CefRequestHandler> GetRequestHandler() override { return this; }
   CefRefPtr<CefContextMenuHandler> GetContextMenuHandler() override { return this; }
   CefRefPtr<CefPermissionHandler> GetPermissionHandler() override { return this; }
+  CefRefPtr<CefKeyboardHandler> GetKeyboardHandler() override { return this; }
+  bool OnPreKeyEvent(CefRefPtr<CefBrowser>, const CefKeyEvent&, CefEventHandle, bool*) override;
   CefRefPtr<CefResourceRequestHandler> GetResourceRequestHandler(
       CefRefPtr<CefBrowser>, CefRefPtr<CefFrame>, CefRefPtr<CefRequest>,
       bool, bool, const CefString&, bool&) override;
