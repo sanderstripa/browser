@@ -133,6 +133,15 @@ jobs:
           "SOULU_SCREENSHOT:browser-exe-icon="+[Convert]::ToBase64String([IO.File]::ReadAllBytes((Join-Path $PWD "browser/artifacts/browser-exe-icon.png")))
           "build_dir=$buildDir" >> $env:GITHUB_OUTPUT
 
+      - name: Upload native executable for local runtime verification
+        uses: actions/upload-artifact@v4
+        with:
+          name: Soulu-native-${{ github.sha }}
+          path: |
+            ${{ steps.package.outputs.build_dir }}/Soulu.exe
+            ${{ steps.package.outputs.build_dir }}/engine-version.json
+          if-no-files-found: error
+
       - name: Build installer
         shell: pwsh
         run: |

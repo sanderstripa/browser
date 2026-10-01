@@ -12,8 +12,9 @@ uses that model's separate `blocking` dictionary. `ResetSite` atomically removes
 only the current domain's permission and blocking overrides. Existing settings
 reset semantics remain intact. Zoom reads/writes CEF Get/SetZoomLevel; find uses
 the existing CEF Find method and one shared find UI, including native Ctrl+F.
-The header reports the HTTP/HTTPS scheme; it does not provide a certificate
-inspection service or a security score.
+The header reports the HTTP/HTTPS scheme and uses CEF's visible navigation
+entry SSL status to confirm a secure connection without certificate errors.
+It does not provide a certificate inspection service or a security score.
 
 ## Extraction and security
 

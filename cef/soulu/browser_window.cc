@@ -24,6 +24,7 @@
 #include "include/cef_app.h"
 #include "include/cef_cookie.h"
 #include "include/cef_parser.h"
+#include "include/cef_ssl_info.h"
 #include "include/wrapper/cef_helpers.h"
 #include <functional>
 
@@ -1402,6 +1403,9 @@ CefRefPtr<CefDictionaryValue> BrowserWindow::SiteSnapshot() {
   result->SetInt("tabId",tab->id);result->SetString("url",tab->url);result->SetInt("generation",tab->document_generation);
   result->SetString("origin",WebOrigin(tab->url));result->SetString("domain",SiteDomain(tab->url));
   result->SetString("favicon",tab->favicon);result->SetBool("readerActive",tab->reader_active);
+  auto entry=tab->browser?tab->browser->GetHost()->GetVisibleNavigationEntry():nullptr;
+  auto ssl=entry?entry->GetSSLStatus():nullptr;
+  result->SetBool("secureConnection",ssl&&ssl->IsSecureConnection()&&!CefIsCertStatusError(ssl->GetCertStatus()));
   result->SetBool("readerAvailable",tab->reader_article!=nullptr&&!tab->loading);
   if(tab->reader_active&&tab->reader_article)result->SetDictionary("article",tab->reader_article->Copy(false));
   result->SetDictionary("preferences",ReaderPreferences(*tab));
@@ -1450,7 +1454,7 @@ bool BrowserWindow::HandleSiteAction(const std::string& action,CefRefPtr<CefValu
     if(!tab->reader_active||WebOrigin(target).empty()||
        BlockResource(tab->url,target,RT_IMAGE,policy&&policy->Blocking(tab->url))){callback->Failure(403,"Изображение недоступно");return true;}
     auto request=CefRequest::Create();request->SetURL(target);request->SetMethod("GET");
-    request->SetFlags(UR_FLAG_SKIP_CACHE|UR_FLAG_ALLOW_STORED_CREDENTIALS);
+    request->SetFlags(UR_FLAG_DISABLE_CACHE|UR_FLAG_ALLOW_STORED_CREDENTIALS);
     CefRefPtr<ReaderImageClient> client=new ReaderImageClient(callback);
     auto pending=CefURLRequest::Create(request,client,tab->browser->GetHost()->GetRequestContext());
     if(!pending){callback->Failure(500,"Не удалось загрузить изображение");return true;}
@@ -1471,7 +1475,7 @@ bool BrowserWindow::HandleSiteAction(const std::string& action,CefRefPtr<CefValu
     }
     const auto key=tab->incognito?"__incognito__":tab->profile_id;
     if(!tab->incognito&&!WriteJson(ProfileRoot(key)/L"soulu-reader.json",Wrap(prefs))){callback->Failure(500,"Настройки чтения не сохранены");return true;}
-    reader_preferences_[key]=prefs;Reply(callback,SiteSnapshot());return true;
+    reader_preferences_[key]=prefs;EmitState();Reply(callback,SiteSnapshot());return true;
   }
   const auto origin=WebOrigin(tab->url);
   if(origin.empty()){callback->Failure(400,"Доступно только для HTTP/HTTPS-сайтов");return true;}

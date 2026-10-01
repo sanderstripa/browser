@@ -71,7 +71,7 @@
       icon.src = site.favicon; icon.alt = ''; icon.onerror = () => icon.remove(); head.append(icon);
     }
     const info = el('div'); info.append(el('strong', '', site.domain || 'Внутренняя страница'), el('small', '', site.origin || site.url));
-    info.append(el('small', '', site.origin?.startsWith('https:') ? 'HTTPS · соединение зашифровано' : site.origin ? 'HTTP · соединение не зашифровано' : 'Настройки сайта недоступны'));
+    info.append(el('small', '', site.origin?.startsWith('https:') ? (site.secureConnection ? 'HTTPS · защищённое соединение' : 'HTTPS · защита соединения не подтверждена') : site.origin ? 'HTTP · соединение не зашифровано' : 'Настройки сайта недоступны'));
     head.append(info); content.append(head);
     const read = button(site.readerActive ? 'Выйти из режима чтения' : 'Показать режим чтения', async () => { await act(site.readerActive ? 'reader.exit' : 'reader.enter'); close(); });
     read.dataset.readerAction = ''; read.disabled = !site.readerActive && !site.readerAvailable;

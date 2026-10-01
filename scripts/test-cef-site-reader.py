@@ -29,6 +29,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if self.path == '/image.png':
             body = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aN3sAAAAASUVORK5CYII=')
             kind = 'image/png'
+        elif self.path == '/worker.js':
+            body = b"self.addEventListener('install',()=>self.skipWaiting());"; kind = 'text/javascript'
         elif self.path == '/empty':
             body = b'<!doctype html><title>Search</title><nav>Home</nav><form><input></form>'; kind = 'text/html'
         else:
@@ -70,7 +72,7 @@ with tempfile.TemporaryDirectory(prefix='soulu-reader-', ignore_cleanup_errors=T
         assert value, name
         checks.append(name)
     def seed(ws):
-        return s.evaluate(ws, "(async()=>{localStorage.setItem('keep','yes');document.cookie='keep=yes; path=/';await new Promise((resolve,reject)=>{const r=indexedDB.open('site-reader',1);r.onupgradeneeded=()=>r.result.createObjectStore('rows');r.onsuccess=()=>{r.result.close();resolve()};r.onerror=reject});await caches.open('reader-cache');return true})()")
+        return s.evaluate(ws, "(async()=>{localStorage.setItem('keep','yes');sessionStorage.setItem('keep','yes');document.cookie='keep=yes; path=/';await new Promise((resolve,reject)=>{const r=indexedDB.open('site-reader',1);r.onupgradeneeded=()=>r.result.createObjectStore('rows');r.onsuccess=()=>{r.result.close();resolve()};r.onerror=reject});await caches.open('reader-cache');await navigator.serviceWorker.register('/worker.js');return true})()")
     try:
         process, shell, page = start()
         for path in ('/article','/post'):
@@ -106,10 +108,12 @@ with tempfile.TemporaryDirectory(prefix='soulu-reader-', ignore_cleanup_errors=T
         action('reader.enter')
         for theme in ('light','sepia','dark'):
             action('reader.preferences', {'preferences':{'theme':theme}})
+            wait(lambda:s.evaluate(shell,"document.querySelector('.reader-view').dataset.theme")==theme)
             assert_check(s.evaluate(shell,"document.querySelector('.reader-view').dataset.theme")==theme, 'theme '+theme)
         for font in ('sans','serif','system'): action('reader.preferences', {'preferences':{'font':font}})
         for value in (0,1,2): action('reader.preferences', {'preferences':{'width':value,'spacing':value}})
         action('reader.preferences', {'preferences':{'size':24,'images':False}})
+        wait(lambda:s.evaluate(shell,"getComputedStyle(document.querySelector('.reader-article')).fontSize==='24px'"))
         assert_check(s.evaluate(shell,"getComputedStyle(document.querySelector('.reader-body img')).display==='none'&&getComputedStyle(document.querySelector('.reader-article')).fontSize==='24px'"), 'text size and image toggle')
         # Both layout modes render inside the same native window.
         for layout in ('compact','classic'):
@@ -125,9 +129,10 @@ with tempfile.TemporaryDirectory(prefix='soulu-reader-', ignore_cleanup_errors=T
             return True
         user.EnumWindows(own_window,0);assert handles
         hwnd=ctypes.c_void_p(handles[0])
+        scale=user.GetDpiForWindow(hwnd)/96
         for width,height in ((800,620),(1100,760)):
             user.SetWindowPos(hwnd,None,20,20,width,height,0x14)
-            wait(lambda:s.evaluate(shell,"document.querySelector('.reader-view').clientWidth")>=width-40)
+            wait(lambda:s.evaluate(shell,"document.querySelector('.reader-view').clientWidth")>=(width-40)/scale)
             assert_check(s.evaluate(shell,"document.querySelector('.reader-article').getBoundingClientRect().right<=innerWidth+1"), 'reader native resize '+str(width))
         for mode in (3,9):
             user.ShowWindow(hwnd,mode);time.sleep(.4)
@@ -171,15 +176,25 @@ with tempfile.TemporaryDirectory(prefix='soulu-reader-', ignore_cleanup_errors=T
         s.evaluate(shell,'browserShell.switchTab('+str(original['tabId'])+')')
         wait(lambda:current()['tabId']==original['tabId'])
         def confirm():
-            user=ctypes.windll.user32;user.FindWindowW.restype=ctypes.c_void_p;user.GetDlgItem.restype=ctypes.c_void_p
-            hwnd=wait(lambda:user.FindWindowW('#32770','Данные сайта'))
-            user.PostMessageW(ctypes.c_void_p(hwnd),0x111,6,0)  # WM_COMMAND / IDYES
+            user=ctypes.windll.user32;user.GetDlgItem.restype=ctypes.c_void_p
+            def find():
+                found=[]
+                @ctypes.WINFUNCTYPE(ctypes.c_bool,ctypes.c_void_p,ctypes.c_void_p)
+                def visit(hwnd,_):
+                    pid=ctypes.c_ulong();user.GetWindowThreadProcessId(hwnd,ctypes.byref(pid))
+                    title=ctypes.create_unicode_buffer(128);user.GetWindowTextW(hwnd,title,128)
+                    if pid.value==process.pid and title.value=='Данные сайта':found.append(hwnd)
+                    return True
+                user.EnumWindows(visit,0);return found[0] if found else None
+            hwnd=wait(find);control=user.GetDlgItem(ctypes.c_void_p(hwnd),6)
+            assert control;user.SendMessageW(ctypes.c_void_p(control),0x00F5,0,0)  # BM_CLICK / IDYES
         worker=threading.Thread(target=confirm);worker.start()
         cleared=action('clear');worker.join(timeout=10)
         assert_check(cleared['cleared'], 'native confirmed storage cleanup')
-        assert_check(s.evaluate(page,"localStorage.getItem('keep')===null&&document.cookie.includes('keep=yes')"), 'clear subset and retained cookies')
+        assert_check(s.evaluate(page,"localStorage.getItem('keep')===null&&document.cookie.includes('keep=yes')&&sessionStorage.getItem('keep')==='yes'"), 'clear subset and retained cookies/sessionStorage')
         assert_check(s.evaluate(page,"indexedDB.databases().then(ds=>!ds.some(d=>d.name==='site-reader'))"), 'clear indexeddb')
         assert_check(s.evaluate(page,"caches.keys().then(keys=>!keys.includes('reader-cache'))"), 'clear cache storage')
+        assert_check(s.evaluate(page,"navigator.serviceWorker.getRegistrations().then(rows=>rows.length===0)"), 'clear service workers')
         assert_check(s.evaluate(other_ws,"localStorage.getItem('keep')==='yes'"), 'other origin retained');other_ws.close()
         assert_check(s.evaluate(second_ws,"localStorage.getItem('keep')==='yes'&&document.cookie.includes('keep=yes')"), 'other profile storage retained')
         second_prefs=json.loads((Path(root)/f'Soulu/User Data/Profiles/{second_id}/soulu-reader.json').read_text())
