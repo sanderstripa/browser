@@ -183,7 +183,7 @@ window.browserShell.onFocusAddress(()=>{const input=state.settings.layout==="cla
 window.browserShell.onRequestFind(()=>{const v=prompt(tr("find"));if(v)window.browserShell.find(v);});
 window.browserShell.onOpenSettings(()=>openPanel("settings"));
 window.browserShell.onOpenDownloads(async()=>{renderDownloads(await window.browserShell.getDownloads());openPanel("downloads");});
-window.browserShell.onOpenFavorites(async()=>{renderBookmarks(await window.browserShell.getBookmarks());openPanel("favorites");});
+window.browserShell.onOpenFavorites(async()=>{if(window.souluNavigation)return window.souluNavigation.openBookmarks();renderBookmarks(await window.browserShell.getBookmarks());openPanel("favorites");});
 window.browserShell.onOpenVpnSettings(()=>openPanel("vpn"));
 Promise.all([
  window.browserShell.getState(),

@@ -849,6 +849,7 @@ void BrowserWindow::UpdateFavicon(int id, const std::string& url) {
 }
 void BrowserWindow::UpdateLoading(int id, bool loading, bool can_go_back) {
   if (auto* tab = FindTab(id)) { tab->loading = loading; tab->can_go_back = can_go_back; }
+  if (!loading && overview_visible_ && id == active_tab_id_) CaptureThumbnail();
   EmitState();
 }
 
@@ -924,7 +925,7 @@ void BrowserWindow::StoreThumbnail(int id, const std::string& url, const std::st
 
 void BrowserWindow::CaptureThumbnail() {
   auto* tab=ActiveTab();
-  if(!tab || !tab->browser || overview_visible_ || IsIconic(hwnd_)) return;
+  if(!tab || !tab->browser || IsIconic(hwnd_)) return;
   HWND child=tab->browser->GetHost()->GetWindowHandle(); RECT r={}; GetClientRect(child,&r);
   if(!IsWindowVisible(child) || r.right<2 || r.bottom<2) return;
   const double dpi=GetDpiForWindow(hwnd_)/96.0;

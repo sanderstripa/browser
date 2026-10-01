@@ -70,5 +70,6 @@
   for(const header of document.querySelectorAll('.browser-toolbar')){header.addEventListener('pointerenter',()=>{clearTimeout(autoTimer);if(state.settings?.bookmarksBarMode==='auto'&&!state.bookmarksBarVisible)api.setBookmarksAuto(true);});header.addEventListener('pointerleave',()=>{autoTimer=setTimeout(()=>{if(state.settings?.bookmarksBarMode==='auto'&&menu.hidden&&!bar.matches(':hover'))api.setBookmarksAuto(false);},500);});}
   bar.addEventListener('pointerenter',()=>clearTimeout(autoTimer));bar.addEventListener('pointerleave',()=>{if(state.settings?.bookmarksBarMode==='auto'&&menu.hidden)api.setBookmarksAuto(false);});
   window.addEventListener('resize',()=>{renderBar();if(!menu.hidden)renderMenu();});
+  window.souluNavigation={openBookmarks:openMenu};
   const apply=s=>{const entered=s.overviewVisible&&!state.overviewVisible;state=s;rows=s.bookmarks||rows;for(const b of document.querySelectorAll('#sidebarButton,#compactSidebarButton')){b.title='Закладки';b.setAttribute('aria-label','Закладки');}if(entered)closeMenu();render();if(entered){search.value='';renderOverview();search.focus();}};api.onState(apply);api.getState().then(apply);
 })();
