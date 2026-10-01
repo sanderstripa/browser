@@ -52,7 +52,8 @@ class BrowserWindow final : public CefBaseRefCounted {
   void ApplySiteSound();
   void SyncSitePolicy(int id, const std::string& url);
   void OfferCredential(int id, CefRefPtr<CefFrame> frame,
-                       const std::string& username, std::string password);
+                       const std::string& username, std::string password,
+                       const std::string& submitted_url);
 
  private:
   struct Tab {

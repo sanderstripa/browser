@@ -10,7 +10,7 @@ on:
         type: boolean
   push:
     branches: [main, codex/data-security-20261001]
-    tags: [preview-39]
+    tags: [preview-40]
     paths:
       - "cef/**"
       - "installer/**"
@@ -33,8 +33,8 @@ jobs:
     runs-on: windows-2025
     timeout-minutes: 90
     env:
-      PREVIEW_VERSION: 0.9.0-cef-preview.39
-      PREVIEW_NUMBER: 39
+      PREVIEW_VERSION: 0.9.0-cef-preview.40
+      PREVIEW_NUMBER: 40
       PYTHONUTF8: 1
       PYTHONDONTWRITEBYTECODE: 1
     steps:
@@ -161,6 +161,7 @@ jobs:
           & ./browser/scripts/verify-cef-engine.ps1 -BuildDir $payloadDir
           $version = Get-Content browser/artifacts/engine-version.json -Raw | ConvertFrom-Json
           "Soulu Preview $env:PREVIEW_NUMBER. Verified CEF $($version.cef) / Chromium $($version.chromium). Source: $env:GITHUB_SHA. Clean build: $env:GITHUB_RUN_ID." | Set-Content browser/artifacts/release-notes.md -Encoding utf8
+          Get-Content browser/RELEASE_NOTES.md | Add-Content browser/artifacts/release-notes.md -Encoding utf8
           "passed=true" >> $env:GITHUB_OUTPUT
 
       - name: Upload verified engine evidence
@@ -490,8 +491,30 @@ jobs:
             browser/artifacts/engine-version.json
           if-no-files-found: error
 
+      - name: Upload native data-security evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Soulu-data-security-${{ github.run_id }}
+          path: browser/artifacts/data-security.json
+          if-no-files-found: ignore
+
+      - name: Verify release source is the current main commit
+        if: success() && (github.ref == 'refs/tags/preview-40' || (github.ref == 'refs/heads/main' && inputs.publish))
+        shell: pwsh
+        working-directory: browser
+        run: |
+          git fetch origin main
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $headSha = git rev-parse HEAD
+          $mainSha = git rev-parse origin/main
+          if ($headSha -ne $env:GITHUB_SHA -or $mainSha -ne $env:GITHUB_SHA) {
+            throw "Release source must equal current origin/main: HEAD=$headSha main=$mainSha build=$env:GITHUB_SHA"
+          }
+          Write-Host "Release source verified: HEAD == origin/main == $headSha"
+
       - name: Publish Soulu release
-        if: success() && (github.ref == 'refs/tags/preview-39' || (github.ref == 'refs/heads/main' && inputs.publish)) && steps.verified.outputs.passed == 'true'
+        if: success() && (github.ref == 'refs/tags/preview-40' || (github.ref == 'refs/heads/main' && inputs.publish)) && steps.verified.outputs.passed == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: preview-${{ env.PREVIEW_NUMBER }}
@@ -503,3 +526,4 @@ jobs:
             browser/artifacts/Soulu-Preview-${{ env.PREVIEW_NUMBER }}-x64.exe
             browser/artifacts/Soulu-Preview-${{ env.PREVIEW_NUMBER }}-x64.zip
             browser/artifacts/engine-version.json
+            browser/artifacts/data-security.json

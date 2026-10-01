@@ -281,8 +281,18 @@ void BrowserWindow::SaveSettings() const {
   root->SetDictionary("vpn", vpn_settings_->Copy(false));
   const auto profile = std::find_if(profiles_.begin(), profiles_.end(),
       [this](const Profile& p){return p.id==active_profile_id_;});
-  if(profile!=profiles_.end()) WriteJson(ProfileRoot(profile->id)/L"soulu-settings.json",Wrap(settings_));
-  else WriteJson(UserDataDirectory()/L"settings.json",Wrap(root));
+  if(profile!=profiles_.end()) {
+    WriteJson(ProfileRoot(profile->id)/L"soulu-settings.json",Wrap(settings_));
+    // VPN remains owned by the legacy global file. Preserve its settings
+    // migration template rather than copying the active profile into it.
+    auto legacy=ReadJson(UserDataDirectory()/L"settings.json");
+    if(legacy&&legacy->GetType()==VTYPE_DICTIONARY)
+      root=legacy->GetDictionary()->Copy(false);
+    else if(initial_settings_)
+      root->SetDictionary("settings",initial_settings_->Copy(false));
+    root->SetDictionary("vpn",vpn_settings_->Copy(false));
+  }
+  WriteJson(UserDataDirectory()/L"settings.json",Wrap(root));
 }
 
 void BrowserWindow::LoadProfileSettings() {
@@ -508,6 +518,16 @@ void BrowserWindow::SyncSitePolicy(int id,const std::string& url) {
     if(std::string(name)=="sound"&&rule==1)value=CEF_CONTENT_SETTING_VALUE_ALLOW;
     context->SetContentSetting(WebOrigin(url),WebOrigin(url),type,value);
   }
+  // Chromium 154 stores approximate/precise geolocation as a website-setting
+  // dictionary. The legacy integer setting alone leaves permission at Ask.
+  // Schema: chromium/components/content_settings/core/browser/
+  // geolocation_setting_delegate.cc (approved Chromium 154.0.8037.58).
+  const int geo_rule=policy->Rule(url,"geolocation");
+  const int geo_value=geo_rule==0?1:geo_rule==2?2:3;
+  auto geo=CefDictionaryValue::Create();
+  geo->SetInt("approximate",geo_value);geo->SetInt("precise",geo_value);
+  context->SetWebsiteSetting(WebOrigin(url),WebOrigin(url),
+      CEF_CONTENT_SETTING_TYPE_GEOLOCATION_WITH_OPTIONS,Wrap(geo));
   // Native popup gating lives in OnBeforePopup: allow Chromium to deliver the
   // request, retaining ordinary user-initiated target=_blank navigation.
   context->SetContentSetting(WebOrigin(url),WebOrigin(url),CEF_CONTENT_SETTING_TYPE_POPUPS,CEF_CONTENT_SETTING_VALUE_ALLOW);
@@ -525,12 +545,14 @@ void BrowserWindow::ReleaseIncognito() {
   downloads_=history;
 }
 void BrowserWindow::OfferCredential(int id,CefRefPtr<CefFrame> frame,
-                                   const std::string& username,std::string password) {
+                                   const std::string& username,std::string password,
+                                   const std::string& submitted_url) {
   auto* tab=FindTab(id);
   if(!tab||!tab->browser||tab->incognito||!frame||!frame->IsMain()||importing_ ||
-     WebOrigin(frame->GetURL()).empty()||username.size()>4096||password.size()>16384||password.empty()){
+     WebOrigin(submitted_url).empty()||WebOrigin(submitted_url)!=WebOrigin(frame->GetURL())||
+     username.size()>4096||password.size()>16384||password.empty()){
     if(!password.empty())SecureZeroMemory(password.data(),password.size());return;}
-  const auto profile=tab->profile_id,origin=WebOrigin(frame->GetURL());
+  const auto profile=tab->profile_id,origin=WebOrigin(submitted_url);
   PasswordVault vault(profile);bool exists=vault.Contains(origin,username);
   if(exists){auto rows=vault.List();for(size_t i=0;i<rows->GetSize();++i){auto row=rows->GetDictionary(i);
     if(row&&row->GetString("origin")==origin&&row->GetString("username")==username){
@@ -1194,8 +1216,8 @@ CefRefPtr<CefDictionaryValue> BrowserWindow::State() const {
   }
   state->SetList("profiles", profiles);
   auto update = CefDictionaryValue::Create();
-  update->SetString("soulu", "0.9.0-cef-preview.39");
-  update->SetString("recommended", "0.9.0-cef-preview.39");
+  update->SetString("soulu", "0.9.0-cef-preview.40");
+  update->SetString("recommended", "0.9.0-cef-preview.40");
   update->SetString("cef", EngineVersion(0, 3));
   update->SetString("chromium", EngineVersion(4, 4));
   update->SetBool("available", false);
@@ -1365,8 +1387,8 @@ void BrowserWindow::HandleBridge(const std::string& request,
   }
   else if (action == "browser.update.check") {
     auto update = CefDictionaryValue::Create();
-    update->SetString("soulu", "0.9.0-cef-preview.39");
-    update->SetString("recommended", "0.9.0-cef-preview.39");
+    update->SetString("soulu", "0.9.0-cef-preview.40");
+    update->SetString("recommended", "0.9.0-cef-preview.40");
     update->SetString("cef", EngineVersion(0, 3));
     update->SetString("chromium", EngineVersion(4, 4));
     update->SetBool("available", false);

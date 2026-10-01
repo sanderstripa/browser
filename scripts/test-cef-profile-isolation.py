@@ -88,6 +88,9 @@ with tempfile.TemporaryDirectory(prefix='soulu-profiles-',ignore_cleanup_errors=
         s.evaluate(first,"localStorage.setItem('isolation','first');sessionStorage.setItem('session','first')")
         s.evaluate(first,IDB_WRITE)
         invoke(shell,'setSettings',{'theme':'dark'})
+        legacy=json.loads((Path(root)/'Soulu'/'User Data'/'settings.json').read_text(encoding='utf-8'))
+        assert legacy['settings']['theme']!='dark','Profile settings changed the global migration template'
+        assert 'vpn' in legacy,'The existing global VPN owner was lost'
         secret='vault-integration-test-'+str(time.time_ns())
         invoke(shell,'addPassword',{'origin':origin,'username':'user','password':secret})
         password_id=invoke(shell,'getPasswords')[0]['id']
@@ -95,6 +98,9 @@ with tempfile.TemporaryDirectory(prefix='soulu-profiles-',ignore_cleanup_errors=
         submit_form(first,secret+'-form','form-user');worker.join(22)
         assert answer==[True],'Save prompt was not shown for a real form submit'
         wait(lambda:len(invoke(shell,'getPasswords'))==2)
+        # The consent prompt can close before the submitted POST navigation
+        # commits. Do not replace its document while that navigation is pending.
+        wait(lambda:s.evaluate(first,"location.pathname==='/signed-in'&&document.readyState==='complete'"))
         s.navigate(first,origin+'/fixture')
         worker,answer=answer_native_dialog(process,'Пароли Soulu',False)
         submit_form(first,secret+'-declined','declined-user');worker.join(22)

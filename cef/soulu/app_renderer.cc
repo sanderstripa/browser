@@ -16,6 +16,7 @@ class CredentialSubmit final : public CefV8Handler {
     auto message=CefProcessMessage::Create("soulu.credential.submit");
     message->GetArgumentList()->SetString(0,args[0]->GetStringValue());
     message->GetArgumentList()->SetString(1,args[1]->GetStringValue());
+    message->GetArgumentList()->SetString(2,frame->GetURL());
     frame->SendProcessMessage(PID_BROWSER,message);return true;
   }
  private:IMPLEMENT_REFCOUNTING(CredentialSubmit);

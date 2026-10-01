@@ -58,6 +58,9 @@ are not claimed as fully supported. No secrets are logged or sent to a service.
 
 ## Import
 
+Browser installation discovery reads Windows App Paths and standard installation
+locations, including a registered custom Firefox location. It is separate from
+the password-store catalog: an installed browser can have no local saved logins.
 The catalog discovers Chrome/Edge Default and Profile directories under the
 current user's Local AppData and Firefox profiles registered in that user's
 `profiles.ini`. UI selection uses catalog IDs, not arbitrary source paths.
@@ -140,7 +143,8 @@ promise to remove every advertisement.
 
 The pipeline includes native DPAPI/vault/SQLite/AES-GCM/protected-record tests,
 source-file integrity, password restart and plaintext scanning; real CEF
-two-profile storage/incognito disposal; Chromium permission-state queries;
+two-profile storage/incognito disposal, trusted form-submit save/decline prompts,
+confirmed profile deletion and exception reset; Chromium permission-state queries;
 actual request-filter toggles on controlled sites; and the existing bookmarks,
 internal-tab/link-menu, cookie persistence, classic/layout/resize and installer
 checks. Test artifacts identify the commit and exact CEF build.

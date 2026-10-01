@@ -42,7 +42,8 @@ with tempfile.TemporaryDirectory(prefix='soulu-policy-',ignore_cleanup_errors=Tr
     origin=f'http://127.0.0.1:{server.server_port}'
     env=dict(os.environ,SOULU_UI_TEST_PORT=str(s.DEBUG_PORT))
     # This changes resolution only in this disposable Soulu test process.
-    process=subprocess.Popen([sys.argv[1],'--host-resolver-rules=MAP ads.doubleclick.net 127.0.0.1'],env=env)
+    process=subprocess.Popen([sys.argv[1],'--no-proxy-server',
+        '--host-resolver-rules=MAP ads.doubleclick.net 127.0.0.1'],env=env)
     try:
         shell_target=wait(lambda:next((t for t in s.targets() if '/ui/index.html' in t.get('url','')),None))
         shell=s.websocket.create_connection(shell_target['webSocketDebuggerUrl'],timeout=30,origin=s.BASE)

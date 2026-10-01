@@ -182,8 +182,8 @@ bool BrowserClient::OnProcessMessageReceived(CefRefPtr<CefBrowser> browser,
   if(role_!=BrowserRole::kShell&&source_process==PID_RENDERER&&
      message->GetName()=="soulu.credential.submit") {
     auto args=message->GetArgumentList();
-    if(args->GetSize()==2 && args->GetType(0)==VTYPE_STRING&&args->GetType(1)==VTYPE_STRING)
-      owner_->OfferCredential(tab_id_,frame,args->GetString(0),args->GetString(1));
+    if(args->GetSize()==3 && args->GetType(0)==VTYPE_STRING&&args->GetType(1)==VTYPE_STRING&&args->GetType(2)==VTYPE_STRING)
+      owner_->OfferCredential(tab_id_,frame,args->GetString(0),args->GetString(1),args->GetString(2));
     return true;
   }
   return router_ && router_->OnProcessMessageReceived(browser, frame, source_process, message);
