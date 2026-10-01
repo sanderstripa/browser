@@ -12,6 +12,21 @@
 #include "examples/soulu/third_party/sqlite3.h"
 
 namespace soulu {
+bool LocalImportPath(const std::filesystem::path& path) {
+  // Reject UNC/device/relative paths before probing any network filesystem.
+  const auto drive=path.root_name().wstring();
+  if(!path.is_absolute()||drive.size()!=2||drive[1]!=L':'||
+     !((drive[0]>=L'A'&&drive[0]<=L'Z')||(drive[0]>=L'a'&&drive[0]<=L'z')))return false;
+  const auto type=GetDriveTypeW(path.root_path().c_str());
+  if(type!=DRIVE_FIXED&&type!=DRIVE_REMOVABLE&&type!=DRIVE_RAMDISK)return false;
+  auto current=path.root_path();
+  for(const auto& part:path.relative_path()){
+    current/=part;
+    const auto attributes=GetFileAttributesW(current.c_str());
+    if(attributes==INVALID_FILE_ATTRIBUTES||(attributes&FILE_ATTRIBUTE_REPARSE_POINT))return false;
+  }
+  return true;
+}
 namespace {
 struct Source {std::string id,browser,name;std::filesystem::path root,state;};
 std::filesystem::path Environment(const wchar_t* name) {
@@ -25,14 +40,14 @@ std::filesystem::path InstalledBrowser(const std::string& browser) {
     auto key=L"Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\"+executable;
     if(RegGetValueW(hive,key.c_str(),nullptr,RRF_RT_REG_SZ,nullptr,buffer,&size)==ERROR_SUCCESS){
       std::filesystem::path path(buffer);std::error_code error;
-      if(path.is_absolute()&&std::filesystem::is_regular_file(path,error))return path;
+      if(LocalImportPath(path)&&std::filesystem::is_regular_file(path,error))return path;
     }
   }
   const std::wstring relative=browser=="Chrome"?L"Google/Chrome/Application/chrome.exe":
     browser=="Edge"?L"Microsoft/Edge/Application/msedge.exe":L"Mozilla Firefox/firefox.exe";
   for(auto name:{L"ProgramW6432",L"PROGRAMFILES",L"PROGRAMFILES(X86)",L"LOCALAPPDATA"}){
     auto root=Environment(name);std::error_code error;
-    if(!root.empty()&&std::filesystem::is_regular_file(root/relative,error))return root/relative;
+    if(!root.empty()&&LocalImportPath(root/relative)&&std::filesystem::is_regular_file(root/relative,error))return root/relative;
   }return {};
 }
 std::vector<Source> Sources() {
@@ -41,14 +56,14 @@ std::vector<Source> Sources() {
   if(local.empty()||roaming.empty())return out;
   for(auto browser:{std::string("Chrome"),std::string("Edge")}) {
     auto root=local/(browser=="Chrome"?L"Google/Chrome/User Data":L"Microsoft/Edge/User Data");
-    if(!std::filesystem::is_directory(root,error))continue;
-    auto state=ReadJson(root/L"Local State");CefRefPtr<CefDictionaryValue> cache;
+    if(!LocalImportPath(root)||!std::filesystem::is_directory(root,error))continue;
+    auto state=LocalImportPath(root/L"Local State")?ReadJson(root/L"Local State"):nullptr;CefRefPtr<CefDictionaryValue> cache;
     if(state&&state->GetType()==VTYPE_DICTIONARY){auto profile=state->GetDictionary()->GetDictionary("profile");
       if(profile)cache=profile->GetDictionary("info_cache");}
     for(const auto& entry:std::filesystem::directory_iterator(root,error)) {
       auto filename=entry.path().filename().string();
       if(filename!="Default"&&filename.rfind("Profile ",0)!=0)continue;
-      if(!std::filesystem::is_regular_file(entry.path()/L"Login Data",error))continue;
+      if(!LocalImportPath(entry.path()/L"Login Data")||!std::filesystem::is_regular_file(entry.path()/L"Login Data",error))continue;
       // Stable catalog IDs, not arbitrary paths accepted from the UI.
       std::string name=filename;
       if(cache){auto item=cache->GetDictionary(filename);if(item&&!item->GetString("name").empty())name=item->GetString("name");}
@@ -56,6 +71,7 @@ std::vector<Source> Sources() {
     }
   }
   auto firefox=roaming/L"Mozilla/Firefox";
+  if(!LocalImportPath(firefox/L"profiles.ini"))return out;
   std::ifstream ini(firefox/L"profiles.ini");std::string line,section;std::map<std::string,std::string> values;
   auto append=[&](){
     if(section.rfind("Profile",0)!=0||!values.count("Path"))return;
@@ -63,7 +79,7 @@ std::vector<Source> Sources() {
     if(values["IsRelative"]!="0")path=firefox/path;
     // Profiles may legitimately use an absolute path, but must be owned by
     // this user's registered profiles.ini and readable without elevation.
-    if(!std::filesystem::is_regular_file(path/L"logins.json",error))return;
+    if(!LocalImportPath(path/L"logins.json")||!std::filesystem::is_regular_file(path/L"logins.json",error))return;
     out.push_back({"Firefox:"+section,"Firefox",values["Name"],path,{}});
   };
   while(std::getline(ini,line)){
@@ -78,18 +94,30 @@ std::vector<Source> Sources() {
 class Snapshot {
  public:
   Snapshot():root_(Environment(L"TEMP")/std::filesystem::u8path("soulu-import-"+RandomId())) {
-    if(root_.parent_path().empty())throw std::runtime_error("Temporary directory unavailable");
+    if(!LocalImportPath(root_.parent_path()))throw std::runtime_error("Local temporary directory unavailable");
     std::filesystem::create_directories(root_);
   }
   ~Snapshot(){for(auto handle:handles_)CloseHandle(handle);std::error_code e;std::filesystem::remove_all(root_,e);}
   bool Copy(const std::filesystem::path& source,const std::vector<std::wstring>& files) {
+    if(!LocalImportPath(source)||!LocalImportPath(root_))return false;
     std::vector<std::pair<std::wstring,HANDLE>> opened;
     for(const auto& name:files){
       auto path=source/name;std::error_code e;
+      auto attributes=GetFileAttributesW(path.c_str());
+      if(attributes!=INVALID_FILE_ATTRIBUTES&&(attributes&FILE_ATTRIBUTE_REPARSE_POINT))return false;
       if(!std::filesystem::exists(path,e))continue;
-      auto h=CreateFileW(path.c_str(),GENERIC_READ,FILE_SHARE_READ,nullptr,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,nullptr);
+      auto h=CreateFileW(path.c_str(),GENERIC_READ,FILE_SHARE_READ,nullptr,OPEN_EXISTING,
+                         FILE_ATTRIBUTE_NORMAL|FILE_FLAG_OPEN_REPARSE_POINT,nullptr);
       if(h==INVALID_HANDLE_VALUE)return false;
-      handles_.push_back(h);opened.push_back({name,h});
+      handles_.push_back(h);
+      wchar_t final_path[32768]={};
+      auto length=GetFinalPathNameByHandleW(h,final_path,32768,FILE_NAME_NORMALIZED|VOLUME_NAME_DOS);
+      if(!length||length>=32768)return false;
+      std::wstring resolved(final_path);
+      if(resolved.rfind(L"\\\\?\\UNC\\",0)==0)return false;
+      if(resolved.rfind(L"\\\\?\\",0)==0)resolved.erase(0,4);
+      if(!LocalImportPath(std::filesystem::path(resolved)))return false;
+      opened.push_back({name,h});
     }
     for(const auto& item:opened){
       LARGE_INTEGER size={};if(!GetFileSizeEx(item.second,&size)||size.QuadPart>256LL*1024*1024)return false;
@@ -195,6 +223,8 @@ CefRefPtr<CefDictionaryValue> ImportPasswords(const std::string& source_id,const
     report->SetInt("failed",failed);report->SetInt("protected",protected_count);return report;};
   try {
     if(!ValidProfileId(target)){report->SetString("message","Invalid target profile");return finish();}
+    if(!LocalImportPath(DataRoot())||!LocalImportPath(Environment(L"TEMP"))){
+      report->SetString("message","Import requires local user-data and temporary storage; network and reparse paths are unsupported");return finish();}
     auto sources=Sources();auto source=std::find_if(sources.begin(),sources.end(),[&](const Source& s){return s.id==source_id;});
     if(source==sources.end()){report->SetString("message","Source profile is no longer available");return finish();}
     Snapshot snapshot;PasswordVault vault(target);

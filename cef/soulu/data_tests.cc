@@ -93,6 +93,13 @@ int RunDataSecurityTests(const std::filesystem::path& report) {
     PasswordVault imported("test-two");auto records=imported.List();
     Check(records->GetSize()==3&&imported.Reveal(records->GetDictionary(0)->GetString("id"),revealed)&&revealed==test,"import-restart-decrypt");
     Check(Bytes(ProfileRoot("test-two")/L"soulu-passwords.json").find(test)==std::string::npos,"import-target-encrypted");
+    Check(LocalImportPath(DataRoot()),"import-local-path");
+    Check(!LocalImportPath(std::filesystem::path(L"\\\\invalid.example\\share\\profile"))&&
+          !LocalImportPath(std::filesystem::path(L"relative/profile")),"import-reject-network-relative");
+    auto link=DataRoot()/L"import-link";
+    if(CreateSymbolicLinkW(link.c_str(),DataRoot().c_str(),SYMBOLIC_LINK_FLAG_DIRECTORY|SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE)){
+      Check(!LocalImportPath(link),"import-reject-reparse");RemoveDirectoryW(link.c_str());
+    }
     std::ofstream output(report);output<<"{\"passed\":true,\"checks\":"<<checks<<"}";return output?0:2;
   }catch(const std::exception& error){std::ofstream output(report);output<<"{\"passed\":false,\"failed_check\":\""<<error.what()<<"\"}";return 2;}
 }

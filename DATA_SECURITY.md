@@ -65,6 +65,11 @@ The catalog discovers Chrome/Edge Default and Profile directories under the
 current user's Local AppData and Firefox profiles registered in that user's
 `profiles.ini`. UI selection uses catalog IDs, not arbitrary source paths.
 Both source and destination profiles are selectable.
+Network/UNC/mapped-network drives, relative paths and reparse points in source
+paths are not supported or enumerated. Checks proceed from the local drive root
+before probing child paths. Snapshot and destination storage must also be local;
+opened source handles are checked for their resolved local path before reading.
+This applies to Firefox's registered absolute paths as well as Chromium stores.
 
 The importer denies concurrent writes while copying encrypted source files to
 a unique temporary directory. The original SQLite database is never opened,
