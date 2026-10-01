@@ -115,8 +115,15 @@ with tempfile.TemporaryDirectory(prefix='soulu-reader-', ignore_cleanup_errors=T
             action('reader.preferences', {'preferences':{'theme':theme}})
             wait(lambda:s.evaluate(shell,"document.querySelector('.reader-view').dataset.theme")==theme)
             assert_check(s.evaluate(shell,"document.querySelector('.reader-view').dataset.theme")==theme, 'theme '+theme)
-        for font in ('sans','serif','system'): action('reader.preferences', {'preferences':{'font':font}})
-        for value in (0,1,2): action('reader.preferences', {'preferences':{'width':value,'spacing':value}})
+        for font,family in (('sans','Arial'),('serif','Georgia'),('system','system-ui')):
+            action('reader.preferences', {'preferences':{'font':font}})
+            wait(lambda:s.evaluate(shell,"document.querySelector('.reader-view').dataset.font")==font)
+            assert_check(family in s.evaluate(shell,"getComputedStyle(document.querySelector('.reader-article')).fontFamily"), 'font '+font)
+        for value,width,line in ((0,560,1.5),(1,720,1.75),(2,900,2)):
+            action('reader.preferences', {'preferences':{'width':value,'spacing':value}})
+            wait(lambda:s.evaluate(shell,"document.querySelector('.reader-view').dataset.width")==str(value))
+            metrics=s.evaluate(shell,"(()=>{const c=getComputedStyle(document.querySelector('.reader-article'));return {width:parseFloat(c.maxWidth),line:parseFloat(c.lineHeight)/parseFloat(c.fontSize)}})()")
+            assert_check(metrics['width']==width and abs(metrics['line']-line)<.01, 'column and line spacing '+str(value))
         action('reader.preferences', {'preferences':{'size':24,'images':False}})
         wait(lambda:s.evaluate(shell,"getComputedStyle(document.querySelector('.reader-article')).fontSize==='24px'"))
         assert_check(s.evaluate(shell,"getComputedStyle(document.querySelector('.reader-body img')).display==='none'&&getComputedStyle(document.querySelector('.reader-article')).fontSize==='24px'"), 'text size and image toggle')
