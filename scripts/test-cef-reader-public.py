@@ -14,7 +14,7 @@ s=importlib.util.module_from_spec(spec);spec.loader.exec_module(s)
 articles=[
  ('https://blog.mozilla.org/en/firefox/firefox-ai/ai-link-previews-firefox/', 'link previews'),
  ('https://web.dev/articles/multi-device-content?hl=en', 'content'),
- ('https://support.mozilla.org/en-US/kb/firefox-reader-view-clutter-free-web-pages', 'Reader'),
+ ('https://developer.chrome.com/blog/inside-browser-part1', 'browser'),
 ]
 out=Path(sys.argv[2]);out.mkdir(parents=True,exist_ok=True)
 rows=[]
@@ -64,6 +64,8 @@ with tempfile.TemporaryDirectory(prefix='soulu-reader-public-',ignore_cleanup_er
     picture=s.command(shell,'Page.captureScreenshot',{'format':'png'})['data']
     (out/f'article-{index}-{theme}.png').write_bytes(base64.b64decode(picture))
    rows.append({'url':url,'title':article['title'],'author':article['author'],'date':article['date'],'htmlCharacters':len(article['content']),**structure,'passed':True})
+   (out/'public-reader.json').write_text(json.dumps(rows,ensure_ascii=False,indent=2),encoding='utf-8')
+   print(json.dumps(rows[-1],ensure_ascii=False),flush=True)
    action('reader.exit');assert s.evaluate(page,'location.href')==result['url']
   # Reported sites continue to navigate in the same CEF content target.
   for host in ('youtube.com','sanderstripa.com','google.com','ozon.ru'):

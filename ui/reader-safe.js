@@ -3,6 +3,7 @@
   const allowed = new Set('p h2 h3 h4 h5 h6 ul ol li blockquote pre code em strong b i u s del br hr a img figure figcaption table thead tbody tfoot tr th td sup sub span div'.split(' '));
   const forbidden = new Set('script style iframe frame object embed form input button select textarea svg math template noscript audio video source link meta base'.split(' '));
   function webURL(value, base) {
+    if (typeof value !== 'string' || !value.trim()) return '';
     try { const u = new URL(value, base); return /^https?:$/.test(u.protocol) && !u.username && !u.password ? u.href : ''; }
     catch { return ''; }
   }
