@@ -3,6 +3,10 @@
 #include <map>
 
 #include "include/cef_client.h"
+#include "include/cef_permission_handler.h"
+#include "include/cef_resource_request_handler.h"
+#include "examples/soulu/profile_data.h"
+#include <memory>
 #include "include/wrapper/cef_message_router.h"
 
 namespace soulu {
@@ -16,6 +20,8 @@ class BrowserClient final : public CefClient,
                             public CefLifeSpanHandler,
                             public CefLoadHandler,
                             public CefRequestHandler,
+                            public CefPermissionHandler,
+                            public CefResourceRequestHandler,
                             public CefContextMenuHandler {
  public:
   BrowserClient(CefRefPtr<BrowserWindow> owner, BrowserRole role, int tab_id = 0);
@@ -26,6 +32,17 @@ class BrowserClient final : public CefClient,
   CefRefPtr<CefLoadHandler> GetLoadHandler() override { return this; }
   CefRefPtr<CefRequestHandler> GetRequestHandler() override { return this; }
   CefRefPtr<CefContextMenuHandler> GetContextMenuHandler() override { return this; }
+  CefRefPtr<CefPermissionHandler> GetPermissionHandler() override { return this; }
+  CefRefPtr<CefResourceRequestHandler> GetResourceRequestHandler(
+      CefRefPtr<CefBrowser>, CefRefPtr<CefFrame>, CefRefPtr<CefRequest>,
+      bool, bool, const CefString&, bool&) override;
+  ReturnValue OnBeforeResourceLoad(CefRefPtr<CefBrowser>, CefRefPtr<CefFrame>,
+      CefRefPtr<CefRequest>, CefRefPtr<CefCallback>) override;
+  bool OnRequestMediaAccessPermission(CefRefPtr<CefBrowser>, CefRefPtr<CefFrame>,
+      const CefString&, uint32_t, CefRefPtr<CefMediaAccessCallback>) override;
+  bool OnShowPermissionPrompt(CefRefPtr<CefBrowser>, uint64_t, const CefString&,
+      uint32_t, CefRefPtr<CefPermissionPromptCallback>) override;
+  void OnLoadEnd(CefRefPtr<CefBrowser>, CefRefPtr<CefFrame>, int) override;
   void OnBeforeContextMenu(CefRefPtr<CefBrowser>, CefRefPtr<CefFrame>,
       CefRefPtr<CefContextMenuParams>, CefRefPtr<CefMenuModel>) override;
   bool RunContextMenu(CefRefPtr<CefBrowser>, CefRefPtr<CefFrame>,
@@ -74,6 +91,7 @@ class BrowserClient final : public CefClient,
   CefRefPtr<CefMessageRouterBrowserSide> router_;
   std::unique_ptr<CefMessageRouterBrowserSide::Handler> bridge_;
   std::map<int, int> pending_popups_;
+  std::shared_ptr<SitePolicy> policy_;
   CefRefPtr<BrowserClient> popup_opener_;
   int opener_popup_id_ = -1;
   IMPLEMENT_REFCOUNTING(BrowserClient);

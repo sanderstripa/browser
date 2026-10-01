@@ -21,7 +21,7 @@
         <button class="nav-item" data-section="downloads"><span>↓</span><b data-t="downloads">Загрузки</b></button>
         <button class="nav-item" data-section="vpn"><span>≈</span><b>VPN</b></button>
         <button class="nav-item" data-section="profiles"><span>◉</span><b data-t="profiles">Профили</b></button>
-        <button class="nav-item" data-section="accounts"><span>◎</span><b data-t="accounts">Аккаунты</b></button>
+        <button class="nav-item" data-section="sites"><span>◎</span><b data-t="sites">Сайты и разрешения</b></button>
         <button class="nav-item" data-section="passwords"><span>⌁</span><b data-t="passwords">Пароли</b></button>
         <button class="nav-item" data-section="updates"><span>↻</span><b data-t="updates">Обновления</b><i class="update-dot" id="updateDot"></i></button>
       </nav>
@@ -121,12 +121,40 @@
         </article>
       </div>
 
-      <div class="settings-section" data-page="accounts">
-        <article class="card"><h2 data-t="accounts">Аккаунты</h2><p class="note" data-t="accountsHint">Вход в Google выполняется в общей сессии браузера. Синхронизация Chrome пока не включена.</p></article>
+      <div class="settings-section" data-page="sites">
+        <article class="card"><h2>Разрешения по умолчанию</h2><p class="note">Для активного профиля. Правила отдельного домена имеют приоритет. Разрешения действуют для точного домена, без поддоменов.</p><div id="permissionDefaults"></div></article>
+        <article class="card"><h2>Исключения сайтов</h2>
+          <label class="field"><span>Домен или адрес сайта</span><input id="siteDomain" placeholder="example.com"></label>
+          <button id="editSite">Открыть правила</button><button id="resetSite">Сбросить этот домен</button>
+          <p class="note" id="siteEditing"></p><div id="sitePermissions"></div>
+          <label class="field"><span>Поиск по исключениям</span><input id="siteSearch" type="search"></label>
+          <div id="siteList"></div><button id="resetAllSites">Сбросить все исключения разрешений…</button>
+        </article>
+        <article class="card"><h2>Блокировка рекламы</h2>
+          <label class="row"><span><b>Включить для профиля</b></span><input id="contentBlocking" class="switch" type="checkbox"></label>
+          <label class="row"><span>Для выбранного домена</span><select id="siteBlocking"><option value="2">По умолчанию</option><option value="1">Блокировать рекламу</option><option value="0">Разрешать рекламу</option></select></label>
+          <p class="note">Базовый список рекламных доменов. Фильтруются сторонние скрипты, изображения, стили и шрифты; не поддерживается полный синтаксис ABP/uBlock. Изменения действуют на новые запросы; перезагрузите открытый сайт. В меню страницы можно быстро отключить блокировку.</p>
+        </article>
       </div>
 
       <div class="settings-section" data-page="passwords">
-        <article class="card"><h2 data-t="passwords">Пароли</h2><p class="note" data-t="passwordsHint">Пароли каждого профиля хранятся изолированно от остальных профилей.</p></article>
+        <article class="card"><h2 data-t="passwords">Пароли</h2><p class="note">Локальное хранилище активного профиля, защищённое учётной записью Windows. В инкогнито пароли не сохраняются.</p>
+          <label class="field"><span>Поиск по сайту или логину</span><input id="passwordSearch" type="search"></label>
+          <div id="passwordList"></div>
+        </article>
+        <article class="card"><h2>Добавить или обновить запись</h2>
+          <label class="field"><span>Адрес сайта</span><input id="passwordOrigin" placeholder="https://example.com"></label>
+          <label class="field"><span>Логин</span><input id="passwordUsername" autocomplete="off"></label>
+          <label class="field"><span>Пароль</span><input id="passwordSecret" type="password" autocomplete="new-password"></label>
+          <button id="savePassword">Сохранить / обновить</button>
+        </article>
+        <article class="card"><h2>Импорт из браузера</h2>
+          <p class="note">Только локальные профили текущего пользователя. Закройте исходный браузер перед импортом. Исходные файлы не изменяются. Chrome/Edge App-Bound Encryption и Firefox с основным паролем могут быть недоступны. Существующие записи Soulu не перезаписываются.</p>
+          <button id="discoverPasswords">Найти профили</button>
+          <label class="field"><span>Исходный профиль</span><select id="passwordSource"></select></label>
+          <label class="field"><span>Целевой профиль Soulu</span><select id="passwordTarget"></select></label>
+          <button id="importPasswords">Импортировать</button><p class="note" id="importReport" aria-live="polite"></p>
+        </article><p class="note" id="dataMessage" aria-live="polite"></p>
       </div>
 
       <div class="settings-section" data-page="updates">
@@ -145,6 +173,7 @@
   </main>
   <script src="cef-bridge.js"></script>
   <script src="settings.js"></script>
+  <script src="settings-data.js"></script>
 </body>
 </html>
 

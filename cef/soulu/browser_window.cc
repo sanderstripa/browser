@@ -25,6 +25,7 @@
 #include "include/cef_cookie.h"
 #include "include/cef_parser.h"
 #include "include/wrapper/cef_helpers.h"
+#include "include/wrapper/cef_closure_task.h"
 
 namespace soulu {
 namespace {
@@ -152,13 +153,7 @@ std::string ExecutableDirectory() {
 }
 
 std::filesystem::path UserDataDirectory() {
-  wchar_t local_app_data[MAX_PATH] = {};
-  const DWORD length = GetEnvironmentVariableW(
-      L"LOCALAPPDATA", local_app_data, MAX_PATH);
-  std::filesystem::path root =
-      length ? std::filesystem::path(local_app_data)
-             : std::filesystem::path(ExecutableDirectory());
-  const auto directory = root / L"Soulu" / L"User Data";
+  const auto directory = DataRoot();
   std::filesystem::create_directories(directory);
   return directory;
 }
@@ -236,6 +231,7 @@ BrowserWindow::BrowserWindow()
   settings_->SetString("bookmarksBarPosition", "above");
   settings_->SetBool("bookmarksIconsOnly", false);
   LoadSettings();
+  initial_settings_ = settings_->Copy(false);
   std::ifstream marks(UserDataDirectory() / L"bookmarks.json", std::ios::binary);
   std::stringstream data; data << marks.rdbuf();
   auto saved = CefParseJSON(data.str(), JSON_PARSER_RFC);
@@ -275,8 +271,20 @@ void BrowserWindow::SaveSettings() const {
   auto root = CefDictionaryValue::Create();
   root->SetDictionary("settings", settings_->Copy(false));
   root->SetDictionary("vpn", vpn_settings_->Copy(false));
-  std::ofstream file(UserDataDirectory() / L"settings.json", std::ios::binary | std::ios::trunc);
-  file << CefWriteJSON(Wrap(root), JSON_WRITER_PRETTY_PRINT);
+  const auto profile = std::find_if(profiles_.begin(), profiles_.end(),
+      [this](const Profile& p){return p.id==active_profile_id_;});
+  if(profile!=profiles_.end()) WriteJson(ProfileRoot(profile->id)/L"soulu-settings.json",Wrap(settings_));
+  else WriteJson(UserDataDirectory()/L"settings.json",Wrap(root));
+}
+
+void BrowserWindow::LoadProfileSettings() {
+  settings_=initial_settings_->Copy(false);
+  auto saved=ReadJson(ProfileRoot(active_profile_id_)/L"soulu-settings.json");
+  if(saved&&saved->GetType()==VTYPE_DICTIONARY){
+    CefDictionaryValue::KeyList keys;saved->GetDictionary()->GetKeys(keys);
+    for(const auto& key:keys)settings_->SetValue(key,saved->GetDictionary()->GetValue(key)->Copy());
+  }
+  SaveSettings();ApplyWindowAppearance();ApplyContentTheme();
 }
 
 void BrowserWindow::Create() {
@@ -364,17 +372,18 @@ void BrowserWindow::InitializeProfiles() {
   }
   if (profiles_.empty()) CreateProfile("Личный", "personal");
   active_profile_id_ = profiles_.front().id;
+  LoadProfileSettings();
 }
 
 void BrowserWindow::CreateProfile(const std::string& name,
                                   const std::string& requested_id) {
   std::string id = requested_id.empty()
-      ? (profiles_.empty() ? "personal"
-                           : "profile-" + std::to_string(profiles_.size() + 1))
+      ? (profiles_.empty() ? "personal" : "profile-" + RandomId())
       : requested_id;
+  if(!ValidProfileId(id) || std::any_of(profiles_.begin(),profiles_.end(),
+       [&id](const Profile& p){return p.id==id;}))return;
   CefRequestContextSettings context_settings;
-  auto profile_path = UserDataDirectory() / L"Profiles" /
-      std::filesystem::u8path(id);
+  auto profile_path = ProfileRoot(id);
   // CEF's Windows context registry compares path strings. Match Chromium's
   // native initial-profile path so a restored last-used profile reuses its
   // context instead of opening the same databases a second time.
@@ -389,6 +398,7 @@ void BrowserWindow::CreateProfile(const std::string& name,
   profile.context = CefRequestContext::CreateContext(
       context_settings, new ProfileContextHandler(this));
   profiles_.push_back(profile);
+  policies_[id]=std::make_shared<SitePolicy>(id);
   SaveProfiles();
 }
 
@@ -445,6 +455,60 @@ void BrowserWindow::ApplyProxy(CefRefPtr<CefRequestContext> context) {
 void BrowserWindow::RequestContextInitialized(CefRefPtr<CefRequestContext> context) {
   CEF_REQUIRE_UI_THREAD();
   ApplyProxy(context);
+}
+
+bool BrowserWindow::IsTrustedUi(const std::string& url) const {
+  const auto ui=std::filesystem::u8path(ExecutableDirectory())/"ui";
+  return url==FileUrl(ui/"index.html") || url==FileUrl(ui/"settings.html");
+}
+bool BrowserWindow::IsIncognitoTab(int id) {auto* tab=FindTab(id);return tab&&tab->incognito;}
+std::shared_ptr<SitePolicy> BrowserWindow::PolicyForTab(int id) {
+  auto* tab=FindTab(id);if(!tab)return nullptr;
+  auto profile=tab->incognito?"__incognito__":tab->profile_id;
+  auto& policy=policies_[profile];
+  if(!policy)policy=std::make_shared<SitePolicy>(profile);
+  return policy;
+}
+bool BrowserWindow::AllowSite(int id,const std::string& origin,const std::string& permission) {
+  auto policy=PolicyForTab(id);if(!policy||WebOrigin(origin).empty())return false;
+  int rule=policy->Rule(origin,permission);if(rule==0)return true;if(rule==2)return false;
+  const std::map<std::string,std::wstring> labels={{"geolocation",L"геолокацию"},
+    {"camera",L"камеру"},{"microphone",L"микрофон"},{"notifications",L"уведомления"},
+    {"popups",L"всплывающее окно"},{"downloads",L"загрузку файла"}};
+  auto label=labels.find(permission);if(label==labels.end())return false;
+  const auto text=CefString(WebOrigin(origin)).ToWString()+L" запрашивает "+label->second+L". Разрешить один раз?";
+  return MessageBoxW(hwnd_,text.c_str(),L"Разрешение сайта — Soulu",MB_YESNO|MB_ICONQUESTION|MB_DEFBUTTON2)==IDYES;
+}
+void BrowserWindow::ApplySiteSound() {
+  for(auto& tab:tabs_)if(tab.browser){auto policy=PolicyForTab(tab.id);
+    tab.browser->GetHost()->SetAudioMuted(policy&&policy->Rule(tab.url,"sound")!=0);}
+}
+void BrowserWindow::ReleaseIncognito() {
+  if(std::any_of(tabs_.begin(),tabs_.end(),[](const Tab& t){return t.incognito;}))return;
+  incognito_context_=nullptr;policies_.erase("__incognito__");
+  auto retained=CefListValue::Create();
+  for(size_t i=0;i<bookmarks_->GetSize();++i){auto row=bookmarks_->GetDictionary(i);
+    if(row&&row->GetString("profileId")!="__incognito__")retained->SetDictionary(retained->GetSize(),row->Copy(false));}
+  bookmarks_=retained;
+  auto history=CefListValue::Create();
+  for(size_t i=0;i<downloads_->GetSize();++i){auto row=downloads_->GetDictionary(i);
+    if(row&&row->GetString("profileId")!="__incognito__")history->SetDictionary(history->GetSize(),row->Copy(false));}
+  downloads_=history;
+}
+void BrowserWindow::OfferCredential(int id,CefRefPtr<CefFrame> frame,
+                                   const std::string& username,std::string password) {
+  auto* tab=FindTab(id);
+  if(!tab||!tab->browser||tab->incognito||!frame||!frame->IsMain()||importing_ ||
+     WebOrigin(frame->GetURL()).empty()||username.size()>4096||password.size()>16384||password.empty()){
+    if(!password.empty())SecureZeroMemory(password.data(),password.size());return;}
+  const auto profile=tab->profile_id,origin=WebOrigin(frame->GetURL());
+  PasswordVault vault(profile);bool exists=vault.Contains(origin,username);
+  const auto prompt=CefString(origin).ToWString()+L"\n"+
+    (exists?L"Обновить сохранённый пароль после отправки формы входа?":L"Сохранить пароль после отправки формы входа?")+L"\nВход ещё может потребовать подтверждения на сайте.";
+  if(MessageBoxW(hwnd_,prompt.c_str(),L"Пароли Soulu",MB_YESNO|MB_ICONQUESTION|MB_DEFBUTTON2)==IDYES &&
+     !vault.Put(origin,username,password,true))
+    MessageBoxW(hwnd_,L"Не удалось сохранить пароль.",L"Soulu",MB_OK|MB_ICONERROR);
+  SecureZeroMemory(password.data(),password.size());
 }
 
 void BrowserWindow::ApplyWindowAppearance() {
@@ -563,6 +627,7 @@ void BrowserWindow::SwitchProfile(const std::string& id) {
   if (it == profiles_.end()) return;
   CaptureThumbnail();
   active_profile_id_ = id;
+  LoadProfileSettings();
   auto tab = std::find_if(tabs_.begin(), tabs_.end(),
       [&id](const Tab& item) { return !item.incognito && item.profile_id == id; });
   if (tab == tabs_.end()) NewTab();
@@ -582,7 +647,7 @@ void BrowserWindow::OpenSettingsTab() {
                tab.url == url;
       });
   if (existing != tabs_.end()) SwitchTab(existing->id);
-  else if (auto* tab = ActiveTab(); tab && tab->url == "about:blank" && tab->browser) {
+  else if (auto* tab = ActiveTab(); tab && !tab->incognito && tab->url == "about:blank" && tab->browser) {
     tab->url = url;
     tab->title = settings_->GetString("language") == "en" ? "Settings" : "Настройки";
     tab->browser->GetMainFrame()->LoadURL(url);
@@ -669,7 +734,8 @@ void BrowserWindow::NewTab(const std::string& url, bool incognito,
   const bool created = CefBrowserHost::CreateBrowser(
       info, new BrowserClient(this, role, id),
       url == "about:blank" ? FileUrl(std::filesystem::u8path(ExecutableDirectory()) / "ui" / "start.html") : url, browser_settings,
-      nullptr, context ? context : ContextForNewTab(incognito));
+      [&](){auto extra=CefDictionaryValue::Create();extra->SetBool("souluIncognito",incognito);return extra;}(),
+      context ? context : ContextForNewTab(incognito));
   if (!created) {
     AbortPopup(id);
     active_tab_id_ = previous_active;
@@ -701,6 +767,7 @@ void BrowserWindow::AttachContent(int tab_id, CefRefPtr<CefBrowser> browser) {
     return;
   }
   tab->browser = browser;
+  ApplySiteSound();
   if (closing_) {
     browser->GetHost()->CloseBrowser(true);
     return;
@@ -736,7 +803,8 @@ std::string BrowserWindow::VisibleProfileId() const {
 }
 
 void BrowserWindow::SwitchTab(int id) {
-  if (!FindTab(id)) return;
+  auto* tab=FindTab(id);if(!tab)return;
+  if(!tab->incognito&&tab->profile_id!=active_profile_id_){active_profile_id_=tab->profile_id;LoadProfileSettings();}
   if (active_tab_id_ != id) CaptureThumbnail();
   active_tab_id_ = id;
   Layout();
@@ -753,6 +821,7 @@ void BrowserWindow::CloseTab(int id) {
   }
   const bool active = id == active_tab_id_;
   tabs_.erase(it);
+  ReleaseIncognito();
   if (active) active_tab_id_ = 0;
   if (!closing_ && active_tab_id_ == 0) {
     if (settings_->GetBool("openStartPageAfterLastTab")) {
@@ -779,6 +848,7 @@ void BrowserWindow::BrowserClosed(CefRefPtr<CefBrowser> browser, int tab_id,
     tabs_.erase(std::remove_if(tabs_.begin(), tabs_.end(),
                                [tab_id](const Tab& tab) { return tab.id == tab_id; }),
                 tabs_.end());
+    ReleaseIncognito();
     if (active_tab_id_ == tab_id) {
       const std::string visible = active_profile_id_;
       auto next = std::find_if(tabs_.begin(), tabs_.end(),
@@ -861,14 +931,15 @@ void BrowserWindow::UpdateLoading(int id, bool loading, bool can_go_back) {
   EmitState();
 }
 
-void BrowserWindow::UpdateDownload(CefRefPtr<CefDownloadItem> item) {
+void BrowserWindow::UpdateDownload(int tab_id, CefRefPtr<CefDownloadItem> item) {
+  auto* tab=FindTab(tab_id);if(!tab)return;
   auto row = CefDictionaryValue::Create();
   row->SetInt("id", static_cast<int>(item->GetId()));
   row->SetString("filename", item->GetSuggestedFileName());
   row->SetDouble("receivedBytes", static_cast<double>(item->GetReceivedBytes()));
   row->SetDouble("totalBytes", static_cast<double>(item->GetTotalBytes()));
   row->SetString("state", item->IsComplete() ? "completed" : item->IsCanceled() ? "cancelled" : "progressing");
-  row->SetString("profileId", VisibleProfileId());
+  row->SetString("profileId", tab->incognito?"__incognito__":tab->profile_id);
   bool replaced = false;
   for (size_t i = 0; i < downloads_->GetSize(); ++i) {
     auto current = downloads_->GetDictionary(i);
@@ -1198,12 +1269,64 @@ void BrowserWindow::HandleBridge(const std::string& request,
         ? payload->GetString() : "Профиль";
     CreateProfile(name);
     active_profile_id_ = profiles_.back().id;
+    LoadProfileSettings();
     NewTab();
     return Reply(callback, State());
   }
   else if (action == "browser.profile.switch") {
     SwitchProfile(payload->GetString());
     return Reply(callback, State());
+  }
+  else if(action=="browser.profile.delete") {
+    if(importing_){callback->Failure(409,"Wait for password import to finish");return;}
+    const std::string id=payload&&payload->GetType()==VTYPE_STRING?payload->GetString():"";
+    auto found=std::find_if(profiles_.begin(),profiles_.end(),[&](const Profile& p){return p.id==id;});
+    if(found==profiles_.end()||profiles_.size()<2){callback->Failure(400,"Keep at least one profile");return;}
+    const auto text=L"Удалить профиль «"+CefString(found->name).ToWString()+
+      L"» и только его данные? Вкладки будут закрыты. Файлы удалятся после завершения Soulu.";
+    if(MessageBoxW(hwnd_,text.c_str(),L"Удаление профиля",MB_YESNO|MB_ICONWARNING|MB_DEFBUTTON2)!=IDYES)return Reply(callback,State());
+    auto pending=ReadJson(DataRoot()/L"soulu-delete-profiles.json");
+    auto list=pending&&pending->GetType()==VTYPE_LIST?pending->GetList()->Copy():CefListValue::Create();
+    list->SetString(list->GetSize(),id);
+    if(!WriteJson(DataRoot()/L"soulu-delete-profiles.json",Wrap(list))){callback->Failure(500,"Unable to schedule deletion");return;}
+    std::vector<int> close;for(const auto& tab:tabs_)if(tab.profile_id==id&&!tab.incognito)close.push_back(tab.id);
+    profiles_.erase(found);policies_.erase(id);SaveProfiles();
+    SwitchProfile(profiles_.front().id);
+    for(int tab_id:close)CloseTab(tab_id);
+    auto marks=CefListValue::Create();for(size_t i=0;i<bookmarks_->GetSize();++i){auto row=bookmarks_->GetDictionary(i);
+      if(row&&row->GetString("profileId")!=id)marks->SetDictionary(marks->GetSize(),row->Copy(false));}
+    bookmarks_=marks;SaveBookmarks(marks);return Reply(callback,State());
+  }
+  else if(action=="browser.import.sources")return Reply(callback,Wrap(DiscoverPasswordSources()));
+  else if(action=="browser.import.passwords") {
+    auto data=payload&&payload->GetType()==VTYPE_DICTIONARY?payload->GetDictionary():nullptr;
+    if(!data||importing_||VisibleProfileId()=="__incognito__") {callback->Failure(409,"Import is unavailable");return;}
+    const std::string target=data->GetString("target"),source=data->GetString("source");
+    if(std::none_of(profiles_.begin(),profiles_.end(),[&](const Profile& p){return p.id==target;})) {callback->Failure(400,"Unknown target profile");return;}
+    importing_=true;CefRefPtr<BrowserWindow> self=this;
+    CefPostTask(TID_FILE_BACKGROUND,base::BindOnce([self,callback,target,source](){
+      auto report=ImportPasswords(source,target);
+      CefPostTask(TID_UI,base::BindOnce([self,callback,report](){
+        self->importing_=false;self->Reply(callback,report);
+        if(self->close_after_import_)self->CloseAll();
+      }));
+    }));return;
+  }
+  else if(action.rfind("browser.sites.",0)==0){
+    auto* tab=ActiveTab();auto policy=tab?PolicyForTab(tab->id):policies_[active_profile_id_];
+    if(!policy){callback->Failure(400,"No profile policy");return;}
+    if(action=="browser.sites.get")return Reply(callback,policy->Snapshot());
+    auto data=payload&&payload->GetType()==VTYPE_DICTIONARY?payload->GetDictionary():nullptr;
+    if(!data){callback->Failure(400,"Invalid site rule");return;}
+    const std::string domain=data->GetString("domain");bool ok=false;
+    if(action=="browser.sites.set")ok=policy->Set(domain,data->GetString("permission"),data->GetInt("value"));
+    else if(action=="browser.sites.blocking")ok=policy->SetBlocking(domain,data->GetInt("value"));
+    else if(action=="browser.sites.reset"){
+      if(domain.empty()&&MessageBoxW(hwnd_,L"Сбросить все исключения разрешений сайтов этого профиля?",L"Soulu",MB_YESNO|MB_DEFBUTTON2)!=IDYES)return Reply(callback,policy->Snapshot());
+      ok=policy->Reset(domain);
+    }
+    if(!ok){callback->Failure(400,"Rule could not be saved");return;}
+    ApplySiteSound();return Reply(callback,policy->Snapshot());
   }
   else if (action == "browser.update.check") {
     auto update = CefDictionaryValue::Create();
@@ -1354,7 +1477,43 @@ void BrowserWindow::HandleBridge(const std::string& request,
     }
     return Reply(callback, Wrap(result));
   }
-  else if (action == "browser.passwords.get") return Reply(callback, Wrap(CefListValue::Create()));
+  else if (action.rfind("browser.passwords.",0)==0) {
+    if(importing_&&action!="browser.passwords.get"){callback->Failure(409,"Wait for import to finish");return;}
+    if(VisibleProfileId()=="__incognito__") {callback->Failure(403,"Passwords are unavailable in incognito");return;}
+    PasswordVault vault(active_profile_id_);
+    if(action=="browser.passwords.get")return Reply(callback,Wrap(vault.List()));
+    auto data=payload&&payload->GetType()==VTYPE_DICTIONARY?payload->GetDictionary():nullptr;
+    bool ok=false;
+    if(action=="browser.passwords.add"&&data){
+      std::string secret=data->GetString("password");
+      ok=vault.Put(data->GetString("origin"),data->GetString("username"),secret,true);
+      if(!secret.empty())SecureZeroMemory(secret.data(),secret.size());
+    }else if(action=="browser.passwords.remove"&&payload&&payload->GetType()==VTYPE_STRING)ok=vault.Remove(payload->GetString());
+    else if(action=="browser.passwords.reveal"&&payload&&payload->GetType()==VTYPE_STRING){
+      std::string secret;if(!vault.Reveal(payload->GetString(),secret)){callback->Failure(500,"Unable to decrypt credential");return;}
+      auto v=CefValue::Create();v->SetString(secret);Reply(callback,v);
+      if(!secret.empty())SecureZeroMemory(secret.data(),secret.size());return;
+    }
+    else if(action=="browser.passwords.copy"&&data){
+      std::string secret;
+      if(!vault.Reveal(data->GetString("id"),secret)){callback->Failure(500,"Unable to decrypt credential");return;}
+      std::wstring wide=CefString(secret).ToWString();
+      if(!secret.empty())SecureZeroMemory(secret.data(),secret.size());
+      HGLOBAL memory=GlobalAlloc(GMEM_MOVEABLE,(wide.size()+1)*sizeof(wchar_t));
+      if(memory){void* buffer=GlobalLock(memory);
+        if(buffer){memcpy(buffer,wide.c_str(),(wide.size()+1)*sizeof(wchar_t));GlobalUnlock(memory);
+          if(OpenClipboard(hwnd_)){EmptyClipboard();if(SetClipboardData(CF_UNICODETEXT,memory)){memory=nullptr;ok=true;}CloseClipboard();}}
+        if(memory)GlobalFree(memory);}
+      if(!wide.empty())SecureZeroMemory(wide.data(),wide.size()*sizeof(wchar_t));
+      if(ok){DWORD sequence=GetClipboardSequenceNumber();HWND hwnd=hwnd_;
+        CefPostDelayedTask(TID_UI,base::BindOnce([sequence,hwnd](){
+          if(GetClipboardSequenceNumber()==sequence&&OpenClipboard(hwnd)){
+            if(GetClipboardSequenceNumber()==sequence)EmptyClipboard();CloseClipboard();}
+        }),30000);}
+    }
+    if(!ok){callback->Failure(400,"Credential could not be saved or removed");return;}
+    return Reply(callback,Wrap(vault.List()));
+  }
   else if (action == "vpn.resolve") {
     auto result = CefDictionaryValue::Create();
     const std::wstring host = CefString(payload->GetString()).ToWString();
@@ -1446,6 +1605,9 @@ void BrowserWindow::HandleBridge(const std::string& request,
     HMENU menu = CreatePopupMenu();
     AppendMenuW(menu, MF_STRING, 1, L"Копировать адрес");
     AppendMenuW(menu, MF_STRING, 3, L"Найти на странице");
+    auto* current=ActiveTab();auto policy=current?PolicyForTab(current->id):nullptr;
+    if(current&&policy&&!WebOrigin(current->url).empty())AppendMenuW(menu,MF_STRING,4,
+      policy->Blocking(current->url)?L"Отключить блокировку рекламы на этом сайте":L"Включить блокировку рекламы на этом сайте");
     const int command = TrackPopupMenu(menu, TPM_RETURNCMD | TPM_RIGHTBUTTON,
                                        point.x, point.y, 0, hwnd_, nullptr);
     DestroyMenu(menu);
@@ -1457,6 +1619,9 @@ void BrowserWindow::HandleBridge(const std::string& request,
         CloseClipboard();
       }
     } else if (command == 3) Emit("requestFind", EmptyValue());
+    else if(command==4&&current&&policy){
+      if(policy->SetBlocking(current->url,policy->Blocking(current->url)?0:1)&&current->browser)current->browser->Reload();
+    }
   }
   else if (action == "browser.shareMenu") {
     if (auto* t = ActiveTab()) {
@@ -1472,6 +1637,7 @@ void BrowserWindow::HandleBridge(const std::string& request,
 }
 
 void BrowserWindow::CloseAll() {
+  if(importing_){close_after_import_=true;return;}
   if (closing_) return;
   closing_ = true;
   // Destroying an Alloy child can synchronously call BrowserClosed and erase

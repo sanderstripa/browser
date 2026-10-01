@@ -57,6 +57,7 @@ try:
         return s.evaluate(shell, 'window.browserShell.getState()')
 
     wait_for(lambda: s.evaluate(shell, 'typeof window.browserShell !== "undefined"'))
+    s.evaluate(shell,"window.browserShell.setSiteRule({domain:'',permission:'popups',value:0})")
     initial = state()
     main_windows = wait_for(lambda: native_windows(process))
     assert len(main_windows) == 1, {'initial_native_windows': main_windows}

@@ -9,7 +9,7 @@ on:
         default: false
         type: boolean
   push:
-    branches: [main]
+    branches: [main, codex/data-security-20261001]
     tags: [preview-39]
     paths:
       - "cef/**"
@@ -109,6 +109,13 @@ jobs:
           cmake --build cef-build --config Release --target soulu --parallel 2
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+      - name: Test native encrypted vault, import and site policy
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem cef-build -Recurse -Filter Soulu.exe | Where-Object { $_.FullName -match 'Release' } | Select-Object -First 1
+          python browser/scripts/test-cef-data-security.py $exe.FullName browser/artifacts/data-security.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - name: Locate output and package ZIP
         id: package
         shell: pwsh
@@ -199,6 +206,13 @@ jobs:
           $env:SOULU_UI_TEST_PORT = "9223"
           $installedExe = Join-Path "${{ steps.package.outputs.build_dir }}" "Soulu.exe"
           python browser/scripts/test-cef-storage.py $installedExe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Test two profiles, incognito disposal and password restart
+        shell: pwsh
+        run: |
+          $env:SOULU_UI_TEST_PORT = '9223'
+          python browser/scripts/test-cef-profile-isolation.py '${{ steps.package.outputs.build_dir }}/Soulu.exe'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Verify internal tabs and native link context menu

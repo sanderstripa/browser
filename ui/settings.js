@@ -33,6 +33,10 @@
     en:{appearance:"Customize the browser and main toolbar.",toolbar:"Choose toolbar items and placement.",search:"Search and address bar behavior.",startup:"What Soulu opens on launch.",downloads:"Download folder and behavior.",vpn:"Built-in VPN preferences.",profiles:"Independent spaces for personal and work use.",accounts:"Accounts and web sessions.",passwords:"Saved sign-in details.",updates:"Soulu, CEF and Chromium versions."}
   };
   const titles = {appearance:"appearance",toolbar:"toolbar",search:"search",startup:"startup",downloads:"downloads",vpn:"VPN",profiles:"profiles",accounts:"accounts",passwords:"passwords",updates:"updates"};
+  copy.ru.sites="Сайты и разрешения";copy.en.sites="Sites and permissions";titles.sites="sites";
+  copy.ru.profiles="Профили и данные";copy.en.profiles="Profiles and data";
+  sectionHints.ru.sites="Разрешения, исключения и отдельная блокировка рекламы.";
+  sectionHints.en.sites="Permissions, site exceptions and content blocking.";
 
   function translate() {
     const lang = settings.language === "en" ? "en" : "ru";
@@ -88,15 +92,24 @@
   function renderProfiles() {
     const box = $("#profileList");
     if (!box) return;
-    box.innerHTML = (browserState.profiles || []).map(profile =>
-      `<div class="profile-row${profile.active ? " active" : ""}"><span><b>${profile.name}</b><small>${profile.id}</small></span><button data-profile-id="${profile.id}" ${profile.active ? "disabled" : ""}>${profile.active ? "✓" : "Открыть"}</button></div>`
-    ).join("");
-    box.querySelectorAll("[data-profile-id]").forEach(button =>
+    box.replaceChildren();
+    for(const profile of browserState.profiles||[]){
+      const row=document.createElement("div");row.className="profile-row"+(profile.active?" active":"");
+      const span=document.createElement("span"),name=document.createElement("b"),id=document.createElement("small");
+      name.textContent=profile.name;id.textContent=profile.id;span.append(name,id);
+      const button=document.createElement("button");button.disabled=profile.active;
+      button.textContent=profile.active?"✓":"Открыть";
       button.onclick = async () => {
-        browserState = await window.browserShell.switchProfile(button.dataset.profileId);
+        browserState = await window.browserShell.switchProfile(profile.id);
         settings = browserState.settings || settings;
         fill();
-      });
+      };
+      const remove=document.createElement("button");remove.textContent="Удалить…";
+      remove.disabled=(browserState.profiles||[]).length<2;
+      remove.onclick=async()=>{try{browserState=await window.browserShell.deleteProfile(profile.id);settings=browserState.settings||settings;fill();}
+        catch(error){alert(error.message);}};
+      row.append(span,button,remove);box.append(row);
+    }
   }
 
   function renderUpdate(update) {

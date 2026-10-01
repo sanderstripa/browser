@@ -9,6 +9,10 @@ set(SOULU_SRCS
   browser_client.cc
   browser_window.h
   browser_window.cc
+  profile_data.h
+  profile_data.cc
+  password_import.cc
+  data_tests.cc
   frosted_backdrop.h
   frosted_backdrop.cc
   shell_surface.h
@@ -35,7 +39,13 @@ else()
 endif()
 
 add_dependencies(${EXAMPLE_TARGET} shared)
-target_link_libraries(${EXAMPLE_TARGET} shared dwmapi ws2_32 advapi32 windowsapp CoreMessaging)
+enable_language(C)
+add_library(soulu_sqlite STATIC third_party/sqlite3.c)
+if(MSVC)
+  target_compile_options(soulu_sqlite PRIVATE ${CEF_RUNTIME_LIBRARY_FLAG})
+endif()
+target_compile_definitions(soulu_sqlite PRIVATE SQLITE_OMIT_LOAD_EXTENSION SQLITE_DQS=0 SQLITE_SECURE_DELETE=1)
+target_link_libraries(${EXAMPLE_TARGET} shared soulu_sqlite crypt32 bcrypt dwmapi ws2_32 advapi32 windowsapp CoreMessaging)
 target_compile_definitions(${EXAMPLE_TARGET} PRIVATE UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN)
 if(MSVC)
   target_compile_options(${EXAMPLE_TARGET} PRIVATE /utf-8 /EHsc /Zc:__cplusplus)

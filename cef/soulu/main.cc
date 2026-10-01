@@ -6,17 +6,16 @@
 #include "examples/soulu/engine_version.h"
 
 #include "examples/soulu/app_factory.h"
+#include "examples/soulu/profile_data.h"
 #include "include/cef_command_line.h"
+namespace soulu { int RunDataSecurityTests(const std::filesystem::path&); }
 
 namespace {
 std::filesystem::path SouluDataRoot() {
-  wchar_t buffer[MAX_PATH] = {};
-  DWORD size = GetEnvironmentVariableW(L"LOCALAPPDATA", buffer, MAX_PATH);
-  std::filesystem::path root = size ? buffer : L".";
   // Chrome-style CEF requires disk profiles to be immediate children of
   // root_cache_path. BrowserWindow uses Soulu/User Data/Profiles/<id>.
   // Keep those paths unchanged and align the CEF root with their parent.
-  return root / L"Soulu" / L"User Data" / L"Profiles";
+  auto root=soulu::DataRoot()/L"Profiles";root.make_preferred();return root;
 }
 
 std::wstring LocalDataPath() {
@@ -28,6 +27,16 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, wchar_t*, int) {
   CefMainArgs main_args(instance);
   auto command_line = CefCommandLine::CreateCommandLine();
   command_line->InitFromString(GetCommandLineW());
+  if(command_line->HasSwitch("data-security-test-report")){
+    wchar_t enabled[12]={};
+    if(!GetEnvironmentVariableW(L"SOULU_UI_TEST_PORT",enabled,12))return 2;
+    wchar_t test_root[32768]={},local[32768]={},roaming[32768]={};
+    if(!GetEnvironmentVariableW(L"SOULU_DATA_SECURITY_TEST_ROOT",test_root,32768)||
+       !GetEnvironmentVariableW(L"LOCALAPPDATA",local,32768)||
+       !GetEnvironmentVariableW(L"APPDATA",roaming,32768)||
+       std::wstring(test_root)!=local||std::wstring(test_root)!=roaming)return 2;
+    return soulu::RunDataSecurityTests(std::filesystem::path(command_line->GetSwitchValue("data-security-test-report").ToWString()));
+  }
   // CI probes the linked libcef before profile initialization or message loops.
   if (command_line->HasSwitch("engine-version-file")) {
     const std::filesystem::path output(
@@ -64,7 +73,9 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, wchar_t*, int) {
   CefString(&settings.accept_language_list) = "ru-RU,ru,en-US,en";
   if (!CefInitialize(main_args, settings, app, nullptr)) return 1;
   CefRunMessageLoop();
+  const auto deletions=soulu::PendingProfileDeletions();
   CefShutdown();
+  soulu::CleanupDeletedProfiles(deletions);
   return 0;
 }
 

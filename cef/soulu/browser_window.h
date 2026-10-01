@@ -4,6 +4,9 @@
 
 #include <string>
 #include <vector>
+#include <memory>
+#include <map>
+#include "examples/soulu/profile_data.h"
 
 #include "include/cef_browser.h"
 #include "examples/soulu/shell_surface.h"
@@ -26,7 +29,7 @@ class BrowserWindow final : public CefBaseRefCounted {
   void UpdateFavicon(int tab_id, const std::string& url);
   void UpdateLoading(int tab_id, bool loading, bool can_go_back);
   void StoreThumbnail(int id, const std::string& url, const std::string& data);
-  void UpdateDownload(CefRefPtr<CefDownloadItem> item);
+  void UpdateDownload(int tab_id, CefRefPtr<CefDownloadItem> item);
   void HandleBridge(const std::string& request,
                     CefRefPtr<CefMessageRouterBrowserSide::Callback> callback);
 
@@ -42,6 +45,13 @@ class BrowserWindow final : public CefBaseRefCounted {
                    const std::string& url, bool background);
   void CookieStoreFlushed();
   void RequestContextInitialized(CefRefPtr<CefRequestContext> context);
+  bool IsTrustedUi(const std::string& url) const;
+  bool IsIncognitoTab(int id);
+  std::shared_ptr<SitePolicy> PolicyForTab(int id);
+  bool AllowSite(int id, const std::string& origin, const std::string& permission);
+  void ApplySiteSound();
+  void OfferCredential(int id, CefRefPtr<CefFrame> frame,
+                       const std::string& username, std::string password);
 
  private:
   struct Tab {
@@ -80,6 +90,8 @@ class BrowserWindow final : public CefBaseRefCounted {
   bool BookmarksBarVisible() const;
   void SaveSettings() const;
   void SwitchProfile(const std::string& id);
+  void LoadProfileSettings();
+  void ReleaseIncognito();
   Profile* ActiveProfile();
   CefRefPtr<CefRequestContext> ContextForNewTab(bool incognito);
   void ApplyProxy(CefRefPtr<CefRequestContext> context);
@@ -131,6 +143,8 @@ class BrowserWindow final : public CefBaseRefCounted {
   std::vector<Profile> profiles_;
   CefRefPtr<CefRequestContext> incognito_context_;
   CefRefPtr<CefDictionaryValue> settings_;
+  CefRefPtr<CefDictionaryValue> initial_settings_;
+  std::map<std::string, std::shared_ptr<SitePolicy>> policies_;
   CefRefPtr<CefDictionaryValue> vpn_settings_;
   CefRefPtr<CefListValue> bookmarks_;
   CefRefPtr<CefListValue> downloads_;
@@ -145,6 +159,8 @@ class BrowserWindow final : public CefBaseRefCounted {
   bool bookmarks_auto_visible_ = false;
   bool vpn_enabled_ = false;
   bool closing_ = false;
+  bool importing_ = false;
+  bool close_after_import_ = false;
   bool flushing_cookies_ = false;
   int pending_cookie_flushes_ = 0;
   IMPLEMENT_REFCOUNTING(BrowserWindow);

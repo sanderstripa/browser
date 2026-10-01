@@ -28,9 +28,7 @@ class BridgeHandler final : public CefMessageRouterBrowserSide::Handler {
                CefRefPtr<Callback> callback) override {
     if (!frame->IsMain()) return false;
     const std::string url = frame->GetURL();
-    if (url.rfind("file://", 0) != 0 ||
-        (url.find("/ui/index.html") == std::string::npos &&
-         url.find("/ui/settings.html") == std::string::npos)) {
+    if (!owner_->IsTrustedUi(url)) {
       return false;
     }
     owner_->HandleBridge(request, callback);
@@ -42,7 +40,46 @@ class BridgeHandler final : public CefMessageRouterBrowserSide::Handler {
 }
 
 BrowserClient::BrowserClient(CefRefPtr<BrowserWindow> owner, BrowserRole role, int tab_id)
-    : owner_(owner), role_(role), tab_id_(tab_id) {}
+    : owner_(owner), role_(role), tab_id_(tab_id),
+      policy_(role!=BrowserRole::kShell?owner->PolicyForTab(tab_id):nullptr) {}
+
+CefRefPtr<CefResourceRequestHandler> BrowserClient::GetResourceRequestHandler(
+    CefRefPtr<CefBrowser>,CefRefPtr<CefFrame>,CefRefPtr<CefRequest>,
+    bool navigation,bool download,const CefString&,bool&) {
+  return role_!=BrowserRole::kShell&&!navigation&&!download?this:nullptr;
+}
+BrowserClient::ReturnValue BrowserClient::OnBeforeResourceLoad(CefRefPtr<CefBrowser> browser,
+    CefRefPtr<CefFrame> frame,CefRefPtr<CefRequest> request,CefRefPtr<CefCallback>) {
+  if(!browser||!frame||!policy_)return RV_CONTINUE;
+  auto main=browser->GetMainFrame();if(!main)return RV_CONTINUE;
+  const std::string top=main->GetURL();
+  return BlockResource(top,request->GetURL(),request->GetResourceType(),policy_->Blocking(top))?RV_CANCEL:RV_CONTINUE;
+}
+bool BrowserClient::OnRequestMediaAccessPermission(CefRefPtr<CefBrowser>,CefRefPtr<CefFrame>,
+    const CefString& origin,uint32_t requested,CefRefPtr<CefMediaAccessCallback> callback) {
+  CEF_REQUIRE_UI_THREAD();uint32_t allowed=0;
+  if(requested&CEF_MEDIA_PERMISSION_DEVICE_VIDEO_CAPTURE)
+    if(owner_->AllowSite(tab_id_,origin,"camera"))allowed|=CEF_MEDIA_PERMISSION_DEVICE_VIDEO_CAPTURE;
+  if(requested&CEF_MEDIA_PERMISSION_DEVICE_AUDIO_CAPTURE)
+    if(owner_->AllowSite(tab_id_,origin,"microphone"))allowed|=CEF_MEDIA_PERMISSION_DEVICE_AUDIO_CAPTURE;
+  // Screen capture is a separate permission, deliberately never inferred from camera access.
+  callback->Continue(allowed);return true;
+}
+bool BrowserClient::OnShowPermissionPrompt(CefRefPtr<CefBrowser>,uint64_t,
+    const CefString& origin,uint32_t requested,CefRefPtr<CefPermissionPromptCallback> callback) {
+  CEF_REQUIRE_UI_THREAD();uint32_t handled=0;bool allowed=true;
+  const std::pair<uint32_t,const char*> supported[]={
+    {CEF_PERMISSION_TYPE_GEOLOCATION,"geolocation"},{CEF_PERMISSION_TYPE_NOTIFICATIONS,"notifications"},
+    {CEF_PERMISSION_TYPE_CAMERA_STREAM,"camera"},{CEF_PERMISSION_TYPE_MIC_STREAM,"microphone"},
+    {CEF_PERMISSION_TYPE_MULTIPLE_DOWNLOADS,"downloads"}};
+  for(const auto& [flag,name]:supported)if(requested&flag){handled|=flag;
+    allowed=owner_->AllowSite(tab_id_,origin,name)&&allowed;}
+  callback->Continue(allowed&&handled==requested&&handled!=0?CEF_PERMISSION_RESULT_ACCEPT:CEF_PERMISSION_RESULT_DENY);
+  return true;
+}
+void BrowserClient::OnLoadEnd(CefRefPtr<CefBrowser>,CefRefPtr<CefFrame> frame,int) {
+  if(frame->IsMain()&&role_!=BrowserRole::kShell)owner_->ApplySiteSound();
+}
 
 void BrowserClient::OnBeforeContextMenu(CefRefPtr<CefBrowser>, CefRefPtr<CefFrame>,
     CefRefPtr<CefContextMenuParams> params, CefRefPtr<CefMenuModel> model) {
@@ -134,6 +171,13 @@ bool BrowserClient::OnProcessMessageReceived(CefRefPtr<CefBrowser> browser,
                                              CefProcessId source_process,
                                              CefRefPtr<CefProcessMessage> message) {
   CEF_REQUIRE_UI_THREAD();
+  if(role_!=BrowserRole::kShell&&source_process==PID_RENDERER&&
+     message->GetName()=="soulu.credential.submit") {
+    auto args=message->GetArgumentList();
+    if(args->GetSize()==2 && args->GetType(0)==VTYPE_STRING&&args->GetType(1)==VTYPE_STRING)
+      owner_->OfferCredential(tab_id_,frame,args->GetString(0),args->GetString(1));
+    return true;
+  }
   return router_ && router_->OnProcessMessageReceived(browser, frame, source_process, message);
 }
 
@@ -172,13 +216,14 @@ bool BrowserClient::OnOpenURLFromTab(CefRefPtr<CefBrowser> browser,
   }
 }
 
-bool BrowserClient::OnBeforePopup(CefRefPtr<CefBrowser>, CefRefPtr<CefFrame>,
+bool BrowserClient::OnBeforePopup(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame>,
     int popup_id, const CefString& url, const CefString&,
-    WindowOpenDisposition disposition, bool, const CefPopupFeatures&,
+    WindowOpenDisposition disposition, bool gesture, const CefPopupFeatures&,
     CefWindowInfo& info, CefRefPtr<CefClient>& client, CefBrowserSettings&,
-    CefRefPtr<CefDictionaryValue>&, bool*) {
+    CefRefPtr<CefDictionaryValue>& extra_info, bool*) {
   CEF_REQUIRE_UI_THREAD();
   if (role_ == BrowserRole::kShell) return true;
+  if(!gesture&&!owner_->AllowSite(tab_id_,browser->GetMainFrame()->GetURL(),"popups"))return true;
   const int id = owner_->PreparePopup(tab_id_, url,
       disposition == CEF_WOD_NEW_BACKGROUND_TAB, info);
   if (!id) return true;
@@ -188,6 +233,8 @@ bool BrowserClient::OnBeforePopup(CefRefPtr<CefBrowser>, CefRefPtr<CefFrame>,
   popup_client->opener_popup_id_ = popup_id;
   client = popup_client;
   pending_popups_[popup_id] = id;
+  if(!extra_info)extra_info=CefDictionaryValue::Create();
+  extra_info->SetBool("souluIncognito",owner_->IsIncognitoTab(tab_id_));
   // Let CEF create the real popup, retaining its opener and request context.
   return false;
 }
@@ -245,10 +292,15 @@ void BrowserClient::OnLoadingStateChange(CefRefPtr<CefBrowser>, bool loading,
   if (!loading && role_ != BrowserRole::kShell) owner_->ApplyContentTheme();
 }
 
-bool BrowserClient::OnBeforeDownload(CefRefPtr<CefBrowser>,
+bool BrowserClient::OnBeforeDownload(CefRefPtr<CefBrowser> browser,
                                      CefRefPtr<CefDownloadItem>,
                                      const CefString& suggested_name,
                                      CefRefPtr<CefBeforeDownloadCallback> callback) {
+  const std::string site=browser->GetMainFrame()->GetURL();
+  if(!owner_->AllowSite(tab_id_,site,"downloads")) {
+    MessageBoxW(owner_->hwnd(),L"Загрузка заблокирована правилом сайта. Изменить правило можно в настройках сайтов.",L"Soulu",MB_OK|MB_ICONINFORMATION);
+    return true;
+  }
   callback->Continue(suggested_name, true);
   return true;
 }
@@ -256,7 +308,7 @@ bool BrowserClient::OnBeforeDownload(CefRefPtr<CefBrowser>,
 void BrowserClient::OnDownloadUpdated(CefRefPtr<CefBrowser>,
                                       CefRefPtr<CefDownloadItem> item,
                                       CefRefPtr<CefDownloadItemCallback>) {
-  owner_->UpdateDownload(item);
+  owner_->UpdateDownload(tab_id_,item);
 }
 }
 
