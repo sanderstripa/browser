@@ -43,17 +43,26 @@ with tempfile.TemporaryDirectory(prefix='soulu-navigation-', ignore_cleanup_erro
         shell=shell_socket()
         wait(lambda:s.evaluate(shell,"typeof window.browserShell !== 'undefined'"))
         rows=[{'id':1,'type':'folder','title':'Work','parentId':0,'order':0},
-              {'id':2,'type':'url','title':'Example','url':'https://example.com','parentId':1,'order':0}]
-        assert len(s.evaluate(shell,'window.browserShell.replaceBookmarks('+json.dumps(rows)+')'))==2
+              {'id':2,'type':'url','title':'Example','url':'https://example.com','parentId':1,'order':0},
+              {'id':3,'type':'url','title':'Move me','url':'https://move.test','parentId':0,'order':1}]
+        assert len(s.evaluate(shell,'window.browserShell.replaceBookmarks('+json.dumps(rows)+')'))==3
         saved=Path(isolated)/'Soulu'/'User Data'/'bookmarks.json'
         assert json.loads(saved.read_text(encoding='utf-8'))[1]['parentId']==1
         assert s.evaluate(shell,"window.browserShell.replaceBookmarks([{id:3,type:'folder',parentId:3}]).then(()=>false,()=>true)") is True
-        assert len(s.evaluate(shell,'window.browserShell.getBookmarks()'))==2
+        assert len(s.evaluate(shell,'window.browserShell.getBookmarks()'))==3
         for layout in ('classic','compact'):
             for position in ('above','below'):
                 s.evaluate(shell,'window.browserShell.setSettings('+json.dumps({'layout':layout,'bookmarksBarMode':'always','bookmarksBarPosition':position})+')')
                 wait(lambda:s.evaluate(shell,"document.body.dataset.bookmarksBar === 'true'"))
                 assert s.evaluate(shell,"document.querySelector('.bookmarks-bar').getBoundingClientRect().height")==28
+        positions=s.evaluate(shell,"(()=>{const p=id=>{const r=document.querySelector('.bookmarks-bar [data-bookmark-id=\"'+id+'\"]').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}};return {from:p(3),to:p(1)}})()")
+        s.command(shell,'Input.dispatchMouseEvent',{'type':'mouseMoved',**positions['from']})
+        s.command(shell,'Input.dispatchMouseEvent',{'type':'mousePressed','button':'left','clickCount':1,**positions['from']})
+        for step in range(1,9):
+            point={k:positions['from'][k]+(positions['to'][k]-positions['from'][k])*step/8 for k in ('x','y')}
+            s.command(shell,'Input.dispatchMouseEvent',{'type':'mouseMoved','buttons':1,**point})
+        s.command(shell,'Input.dispatchMouseEvent',{'type':'mouseReleased','button':'left','clickCount':1,**positions['to']})
+        wait(lambda:any(r['id']==3 and r.get('parentId')==1 for r in s.evaluate(shell,'window.browserShell.getBookmarks()')))
         s.evaluate(shell,'window.browserShell.newTab()')
         wait(lambda:len(s.evaluate(shell,'window.browserShell.getState()')['tabs'])==2)
         before=windows(process.pid)
