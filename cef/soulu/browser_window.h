@@ -141,6 +141,7 @@ class BrowserWindow final : public CefBaseRefCounted {
   int suggestions_height_ = 0;
   bool sidebar_visible_ = false;
   bool overview_visible_ = false;
+  bool popover_visible_ = false;
   bool bookmarks_auto_visible_ = false;
   bool vpn_enabled_ = false;
   bool closing_ = false;

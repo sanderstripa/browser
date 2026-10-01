@@ -48,6 +48,7 @@
     suggestions: value => invoke("browser.suggestions", value),
     getDownloads: () => invoke("browser.downloads.get"),
     setOverview: value => invoke("browser.overview", value),
+    setPopover: value => invoke("browser.popover", value),
     setBookmarksAuto: value => invoke("browser.bookmarks.auto", value),
     openTab: (url, background = false) => invoke("browser.openTab", {url, background}),
     replaceBookmarks: rows => invoke("browser.bookmarks.replace", rows),

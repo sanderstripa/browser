@@ -949,7 +949,7 @@ BrowserWindow::Geometry BrowserWindow::CurrentGeometry() const {
   g.toolbar = px((settings_->GetString("layout") == "classic" ? 82 : 48) + (BookmarksBarVisible() ? 28 : 0));
   g.sidebar = sidebar_visible_ ? px(276) : 0;
   g.panel = px(std::max(0, right_panel_width_));
-  g.shell_height = overview_visible_ || sidebar_visible_ || g.panel > 0 ? g.height :
+  g.shell_height = popover_visible_ || overview_visible_ || sidebar_visible_ || g.panel > 0 ? g.height :
       std::min(g.height, std::max(g.toolbar, px(suggestions_height_)));
   g.content = CefRect(g.sidebar, g.toolbar,
       std::max(1, g.width - g.sidebar - g.panel), std::max(1, g.height - g.toolbar));
@@ -1201,6 +1201,7 @@ void BrowserWindow::HandleBridge(const std::string& request,
   else if (action == "browser.switchTab") SwitchTab(payload->GetInt());
   else if (action == "browser.closeTab") CloseTab(payload->GetInt());
   else if (action == "browser.toggleSidebar") { sidebar_visible_ = !sidebar_visible_; Layout(); EmitState(); }
+  else if (action == "browser.popover") { popover_visible_ = payload->GetBool(); Layout(); }
   else if (action == "browser.setRightPanel") { right_panel_width_ = payload->GetInt(); Layout(); }
   else if (action == "browser.setSuggestionsHeight") { suggestions_height_ = payload->GetInt(); Layout(); }
   else if (action == "browser.find") {
@@ -1308,6 +1309,7 @@ void BrowserWindow::HandleBridge(const std::string& request,
     }
     for (size_t i = 0; i < bookmarks_->GetSize() && out < 8; ++i) {
       auto mark = bookmarks_->GetDictionary(i);
+      if (!mark || mark->GetString("type") == "folder") continue;
       if (!mark || mark->GetString("profileId") != visible_profile) continue;
       std::string hay = mark->GetString("title").ToString() + " " + mark->GetString("url").ToString();
       std::transform(hay.begin(), hay.end(), hay.begin(), ::tolower);
