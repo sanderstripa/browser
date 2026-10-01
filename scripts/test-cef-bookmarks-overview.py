@@ -92,6 +92,11 @@ with tempfile.TemporaryDirectory(prefix='soulu-navigation-', ignore_cleanup_erro
         wait(lambda:any(r['id']==3 and r.get('parentId')==1 for r in s.evaluate(shell,'window.browserShell.getBookmarks()')))
         s.evaluate(shell,'window.browserShell.newTab()')
         wait(lambda:len(s.evaluate(shell,'window.browserShell.getState()')['tabs'])==2)
+        s.evaluate(shell,"window.browserShell.setSettings({bookmarksBarMode:'newTab'})")
+        assert s.evaluate(shell,'window.browserShell.getState()')['bookmarksBarVisible'], 'Fresh new tab did not show bookmarks bar'
+        s.evaluate(shell,"window.browserShell.setSettings({bookmarksBarPosition:'hidden'})")
+        assert not s.evaluate(shell,'window.browserShell.getState()')['bookmarksBarVisible'], 'Hidden position did not hide bar'
+        s.evaluate(shell,"window.browserShell.setSettings({bookmarksBarMode:'always',bookmarksBarPosition:'above'})")
         before=windows(process.pid)
         assert s.evaluate(shell,"document.querySelector('.classic-toolbar .navigation-toolbar-button').parentElement.classList.contains('window-controls')")
         s.evaluate(shell,"document.querySelector('.compact-toolbar .navigation-toolbar-button').click()")

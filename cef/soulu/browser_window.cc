@@ -921,8 +921,9 @@ bool BrowserWindow::BookmarksBarVisible() const {
   if(mode!="newTab" && mode!="home") return false;
   const auto* tab=const_cast<BrowserWindow*>(this)->ActiveTab();
   if(!tab) return false;
-  if(mode=="newTab") return tab->url=="about:blank";
-  if(tab->url=="about:blank") return settings_->GetString("startPageMode")!="custom";
+  const bool blank=tab->url.empty() || tab->url=="about:blank";
+  if(mode=="newTab") return blank;
+  if(blank) return settings_->GetString("startPageMode")!="custom";
   const std::string configured=settings_->GetString("startPageUrl");
   if(settings_->GetString("startPageMode")!="custom" || configured.empty()) return false;
   CefURLParts parts;
