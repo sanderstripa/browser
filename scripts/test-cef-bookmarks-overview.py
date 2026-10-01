@@ -81,6 +81,25 @@ with tempfile.TemporaryDirectory(prefix='soulu-navigation-', ignore_cleanup_erro
         assert s.evaluate(shell,"document.querySelector('.bookmarks-menu').getBoundingClientRect().left")==0
         assert s.evaluate(shell,"document.querySelector('.bookmarks-menu').getBoundingClientRect().bottom")==s.evaluate(shell,'innerHeight')
         assert s.evaluate(shell,"document.querySelector('.bookmark-actions').getBoundingClientRect().bottom < innerHeight"), 'Popover actions clipped to toolbar viewport'
+        # Real pointer clicks must expose and select each DOM-rendered chooser.
+        def click_selector(selector):
+            point=s.evaluate(shell,'(()=>{const r=document.querySelector('+json.dumps(selector)+').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()')
+            s.command(shell,'Input.dispatchMouseEvent',{'type':'mouseMoved',**point})
+            s.command(shell,'Input.dispatchMouseEvent',{'type':'mousePressed','button':'left','clickCount':1,**point})
+            s.command(shell,'Input.dispatchMouseEvent',{'type':'mouseReleased','button':'left','clickCount':1,**point})
+        for key,values in [('bookmarksBarMode',['newTab','home','always']),('bookmarksBarPosition',['hidden','above']),('bookmarksIconsOnly',['true','false'])]:
+            for value in values:
+                trigger=f'.bookmark-select-trigger[data-key="{key}"]'
+                click_selector(trigger)
+                wait(lambda:s.evaluate(shell,'document.querySelector('+json.dumps(trigger)+').getAttribute("aria-expanded")==="true"'))
+                selector=f'#bookmark-choice-{key} [data-value="{value}"]'
+                assert s.evaluate(shell,'(()=>{const r=document.querySelector('+json.dumps(selector)+').getBoundingClientRect();return r.height>0&&r.top>=0&&r.bottom<=innerHeight})()'), 'Chooser options not visible in native viewport'
+                click_selector(selector)
+                expected=value=='true' if key=='bookmarksIconsOnly' else value
+                wait(lambda:s.evaluate(shell,'window.browserShell.getState()')['settings'][key]==expected)
+                wait(lambda:s.evaluate(shell,'document.querySelector('+json.dumps(trigger)+').getAttribute("aria-expanded")==="false"'))
+        settings_file=Path(isolated)/'Soulu'/'User Data'/'settings.json'
+        assert json.loads(settings_file.read_text(encoding='utf-8'))['settings']['bookmarksBarMode']=='always'
         s.evaluate(shell,"document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))")
         positions=s.evaluate(shell,"(()=>{const p=id=>{const r=document.querySelector('.bookmarks-bar [data-bookmark-id=\"'+id+'\"]').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}};return {from:p(3),to:p(1)}})()")
         s.command(shell,'Input.dispatchMouseEvent',{'type':'mouseMoved',**positions['from']})

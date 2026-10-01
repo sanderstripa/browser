@@ -1089,8 +1089,8 @@ CefRefPtr<CefDictionaryValue> BrowserWindow::State() const {
   }
   state->SetList("profiles", profiles);
   auto update = CefDictionaryValue::Create();
-  update->SetString("soulu", "0.9.0-cef-preview.38");
-  update->SetString("recommended", "0.9.0-cef-preview.38");
+  update->SetString("soulu", "0.9.0-cef-preview.39");
+  update->SetString("recommended", "0.9.0-cef-preview.39");
   update->SetString("cef", EngineVersion(0, 3));
   update->SetString("chromium", EngineVersion(4, 4));
   update->SetBool("available", false);
@@ -1207,8 +1207,8 @@ void BrowserWindow::HandleBridge(const std::string& request,
   }
   else if (action == "browser.update.check") {
     auto update = CefDictionaryValue::Create();
-    update->SetString("soulu", "0.9.0-cef-preview.38");
-    update->SetString("recommended", "0.9.0-cef-preview.38");
+    update->SetString("soulu", "0.9.0-cef-preview.39");
+    update->SetString("recommended", "0.9.0-cef-preview.39");
     update->SetString("cef", EngineVersion(0, 3));
     update->SetString("chromium", EngineVersion(4, 4));
     update->SetBool("available", false);
