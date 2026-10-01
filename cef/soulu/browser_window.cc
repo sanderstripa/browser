@@ -15,6 +15,7 @@
 #include <filesystem>
 #include <fstream>
 #include <sstream>
+#include <unordered_map>
 
 #include "examples/soulu/browser_client.h"
 #include "examples/soulu/engine_version.h"
@@ -966,7 +967,9 @@ void BrowserWindow::Layout() {
     if (!tab.browser) continue;
     HWND child = tab.browser->GetHost()->GetWindowHandle();
     const bool belongs = tab.incognito ? profile == "__incognito__" : tab.profile_id == profile;
-    const bool visible = !overview_visible_ && belongs && tab.id == active_tab_id_;
+    // The opaque shell overview covers the existing active view. Keeping that
+    // view mapped lets an asynchronous compositor screenshot finish reliably.
+    const bool visible = belongs && tab.id == active_tab_id_;
     positions.push_back({child, HWND_BOTTOM, g.content.x, g.content.y, g.content.width, g.content.height,
         flags | (visible ? SWP_SHOWWINDOW : SWP_HIDEWINDOW)});
   }
@@ -1227,13 +1230,13 @@ void BrowserWindow::HandleBridge(const std::string& request,
       auto row=bookmarks_->GetDictionary(i);
       if (row && row->GetString("profileId") != profile) merged->SetDictionary(merged->GetSize(), row->Copy(false));
     }
-    std::vector<int> ids;
+    std::unordered_map<int,CefRefPtr<CefDictionaryValue>> index;
     for (size_t i=0; i<incoming->GetSize(); ++i) {
       auto row=incoming->GetDictionary(i);
-      if (!row || row->GetInt("id") <= 0 || std::find(ids.begin(),ids.end(),row->GetInt("id")) != ids.end()) {
+      if (!row || row->GetInt("id") <= 0 || index.find(row->GetInt("id")) != index.end()) {
         callback->Failure(400, "Invalid bookmark id"); return;
       }
-      ids.push_back(row->GetInt("id"));
+      index.emplace(row->GetInt("id"),row);
       auto copy=row->Copy(false); copy->SetString("profileId",profile);
       merged->SetDictionary(merged->GetSize(),copy);
     }
@@ -1242,8 +1245,9 @@ void BrowserWindow::HandleBridge(const std::string& request,
       std::vector<int> ancestors={row->GetInt("id")};
       while(parent) {
         if(std::find(ancestors.begin(),ancestors.end(),parent)!=ancestors.end()) {callback->Failure(400,"Folder cycle"); return;}
+        if(ancestors.size()>64) {callback->Failure(400,"Folder hierarchy too deep");return;}
         ancestors.push_back(parent); CefRefPtr<CefDictionaryValue> folder;
-        for(size_t j=0;j<incoming->GetSize();++j) if(incoming->GetDictionary(j)->GetInt("id")==parent) folder=incoming->GetDictionary(j);
+        auto found=index.find(parent); if(found!=index.end()) folder=found->second;
         if(!folder || folder->GetString("type")!="folder") {callback->Failure(400,"Invalid folder");return;}
         parent=folder->GetInt("parentId");
       }

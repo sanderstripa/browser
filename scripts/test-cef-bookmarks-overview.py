@@ -62,7 +62,7 @@ with tempfile.TemporaryDirectory(prefix='soulu-navigation-', ignore_cleanup_erro
         assert s.evaluate(shell,"getComputedStyle(document.querySelector('.overview-grid')).display")=='grid'
         assert s.evaluate(shell,"document.querySelectorAll('.overview-card').length")==2
         assert windows(process.pid)==before, 'Overview created a top-level HWND'
-        wait(lambda:any(t.get('thumbnail','').startswith('data:image/jpeg;base64,') for t in s.evaluate(shell,'window.browserShell.getState()')['tabs']))
+        wait(lambda:any(t.get('active') and t.get('thumbnail','').startswith('data:image/jpeg;base64,') for t in s.evaluate(shell,'window.browserShell.getState()')['tabs']))
         state=s.evaluate(shell,'window.browserShell.getState()')
         s.evaluate(shell,'window.browserShell.closeTab('+str(state['tabs'][0]['id'])+')')
         wait(lambda:len(s.evaluate(shell,'window.browserShell.getState()')['tabs'])==1)

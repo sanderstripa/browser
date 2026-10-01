@@ -16,3 +16,9 @@ body[data-bookmarks-bar=true][data-layout=compact] :is(.sidebar,.side-panel,.vpn
 .overview-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(290px,100%),1fr));gap:28px;align-items:start}.overview-card{min-width:0;border-radius:13px;padding:5px;border:2px solid transparent}.overview-card.active{border-color:var(--blue,#719bc9)}.overview-preview{display:flex;align-items:center;justify-content:center;width:100%;aspect-ratio:16/10;padding:0;border-radius:9px;background:var(--field);overflow:hidden;box-shadow:0 4px 16px #0002}.overview-preview img{width:100%;height:100%;object-fit:cover;object-position:top}.preview-placeholder{color:var(--muted);padding:25px;font-size:13px}.overview-caption{display:flex;align-items:center;gap:8px;padding:8px 3px}.overview-caption>span:nth-child(2){flex:1;min-width:0;white-space:nowrap;text-overflow:ellipsis;overflow:hidden}.overview-new{aspect-ratio:16/10;border:1px dashed var(--line);display:grid;place-items:center;background:var(--soft);font-size:18px;border-radius:12px}
 
 body[data-bookmarks-bar=true] .bookmarks-bar{background:var(--solid,var(--surface))}
+
+.bookmark-drag-ghost{position:fixed;z-index:14000;pointer-events:none;background:var(--panel);border:1px solid var(--line);box-shadow:0 5px 20px var(--shadow);opacity:.9}
+
+.bookmarks-bar{pointer-events:auto}
+
+.navigation-toolbar-button svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.4}
