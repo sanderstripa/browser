@@ -202,6 +202,7 @@ jobs:
           }
 
       - name: Test bookmarks persistence and native tab overview
+        if: ${{ !cancelled() && steps.verified.outputs.passed == 'true' }}
         shell: pwsh
         run: |
           python -m pip install --disable-pip-version-check websocket-client
@@ -210,6 +211,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Test current-site popover and local Reader Mode in native CEF
+        if: ${{ !cancelled() && steps.verified.outputs.passed == 'true' }}
         shell: pwsh
         run: |
           $env:SOULU_UI_TEST_PORT = '9223'
@@ -217,6 +219,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Test persistent CEF cookies and site storage
+        if: ${{ !cancelled() && steps.verified.outputs.passed == 'true' }}
         shell: pwsh
         run: |
           $env:LOCALAPPDATA = Join-Path $env:RUNNER_TEMP 'soulu-preview36-storage'
@@ -226,6 +229,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Test real public articles and reported-site navigation
+        if: ${{ !cancelled() && steps.verified.outputs.passed == 'true' }}
         shell: pwsh
         run: |
           $env:SOULU_UI_TEST_PORT = '9223'
@@ -241,6 +245,7 @@ jobs:
           if-no-files-found: ignore
 
       - name: Test two profiles, incognito disposal and password restart
+        if: ${{ !cancelled() && steps.verified.outputs.passed == 'true' }}
         shell: pwsh
         run: |
           $env:SOULU_UI_TEST_PORT = '9223'
@@ -248,6 +253,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Test native permission overrides and actual content filtering
+        if: ${{ !cancelled() && steps.verified.outputs.passed == 'true' }}
         shell: pwsh
         run: |
           $env:SOULU_UI_TEST_PORT = '9223'
@@ -255,6 +261,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Verify internal tabs and native link context menu
+        if: ${{ !cancelled() && steps.verified.outputs.passed == 'true' }}
         shell: pwsh
         run: |
           $env:SOULU_UI_TEST_PORT = '9223'
@@ -267,6 +274,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Verify retained layout and native resize
+        if: ${{ !cancelled() && steps.verified.outputs.passed == 'true' }}
         shell: pwsh
         run: |
           $env:LOCALAPPDATA = Join-Path $env:RUNNER_TEMP 'soulu-preview36-layout'
@@ -274,6 +282,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Smoke-test visible installer controls with mouse on Windows
+        if: ${{ !cancelled() && steps.verified.outputs.passed == 'true' }}
         shell: pwsh
         run: |
           Add-Type @'

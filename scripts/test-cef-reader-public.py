@@ -14,7 +14,7 @@ s=importlib.util.module_from_spec(spec);spec.loader.exec_module(s)
 articles=[
  ('https://blog.mozilla.org/en/firefox/firefox-ai/ai-link-previews-firefox/', 'link previews'),
  ('https://web.dev/articles/multi-device-content?hl=en', 'content'),
- ('https://developer.chrome.com/blog/inside-browser-part1', 'browser'),
+ ('https://developer.chrome.com/blog/inside-browser-part1?hl=en', 'browser'),
 ]
 out=Path(sys.argv[2]);out.mkdir(parents=True,exist_ok=True)
 rows=[]
