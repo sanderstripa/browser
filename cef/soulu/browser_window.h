@@ -50,6 +50,7 @@ class BrowserWindow final : public CefBaseRefCounted {
   std::shared_ptr<SitePolicy> PolicyForTab(int id);
   bool AllowSite(int id, const std::string& origin, const std::string& permission);
   void ApplySiteSound();
+  void SyncSitePolicy(int id, const std::string& url);
   void OfferCredential(int id, CefRefPtr<CefFrame> frame,
                        const std::string& username, std::string password);
 

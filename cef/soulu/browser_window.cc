@@ -25,10 +25,18 @@
 #include "include/cef_cookie.h"
 #include "include/cef_parser.h"
 #include "include/wrapper/cef_helpers.h"
-#include "include/wrapper/cef_closure_task.h"
+#include <functional>
 
 namespace soulu {
 namespace {
+class FunctionTask final : public CefTask {
+ public:
+  explicit FunctionTask(std::function<void()> function):function_(std::move(function)){}
+  void Execute() override {auto function=std::move(function_);function();}
+ private:
+  std::function<void()> function_;
+  IMPLEMENT_REFCOUNTING(FunctionTask);
+};
 // A single request at a navigation boundary; no additional CEF renderer or HWND.
 class ThumbnailObserver final : public CefDevToolsMessageObserver {
  public:
@@ -481,7 +489,28 @@ bool BrowserWindow::AllowSite(int id,const std::string& origin,const std::string
 }
 void BrowserWindow::ApplySiteSound() {
   for(auto& tab:tabs_)if(tab.browser){auto policy=PolicyForTab(tab.id);
-    tab.browser->GetHost()->SetAudioMuted(policy&&policy->Rule(tab.url,"sound")!=0);}
+    tab.browser->GetHost()->SetAudioMuted(policy&&policy->Rule(tab.url,"sound")!=0);
+    SyncSitePolicy(tab.id,tab.url);}
+}
+void BrowserWindow::SyncSitePolicy(int id,const std::string& url) {
+  auto* tab=FindTab(id);auto policy=PolicyForTab(id);
+  if(!tab||!tab->browser||!policy||WebOrigin(url).empty())return;
+  auto context=tab->browser->GetHost()->GetRequestContext();
+  const std::pair<const char*,cef_content_setting_types_t> types[]={
+    {"geolocation",CEF_CONTENT_SETTING_TYPE_GEOLOCATION},
+    {"camera",CEF_CONTENT_SETTING_TYPE_MEDIASTREAM_CAMERA},
+    {"microphone",CEF_CONTENT_SETTING_TYPE_MEDIASTREAM_MIC},
+    {"notifications",CEF_CONTENT_SETTING_TYPE_NOTIFICATIONS},
+    {"downloads",CEF_CONTENT_SETTING_TYPE_AUTOMATIC_DOWNLOADS},
+    {"sound",CEF_CONTENT_SETTING_TYPE_SOUND}};
+  for(const auto& [name,type]:types){int rule=policy->Rule(url,name);
+    auto value=rule==0?CEF_CONTENT_SETTING_VALUE_ALLOW:rule==2?CEF_CONTENT_SETTING_VALUE_BLOCK:CEF_CONTENT_SETTING_VALUE_ASK;
+    if(std::string(name)=="sound"&&rule==1)value=CEF_CONTENT_SETTING_VALUE_ALLOW;
+    context->SetContentSetting(WebOrigin(url),WebOrigin(url),type,value);
+  }
+  // Native popup gating lives in OnBeforePopup: allow Chromium to deliver the
+  // request, retaining ordinary user-initiated target=_blank navigation.
+  context->SetContentSetting(WebOrigin(url),WebOrigin(url),CEF_CONTENT_SETTING_TYPE_POPUPS,CEF_CONTENT_SETTING_VALUE_ALLOW);
 }
 void BrowserWindow::ReleaseIncognito() {
   if(std::any_of(tabs_.begin(),tabs_.end(),[](const Tab& t){return t.incognito;}))return;
@@ -503,6 +532,11 @@ void BrowserWindow::OfferCredential(int id,CefRefPtr<CefFrame> frame,
     if(!password.empty())SecureZeroMemory(password.data(),password.size());return;}
   const auto profile=tab->profile_id,origin=WebOrigin(frame->GetURL());
   PasswordVault vault(profile);bool exists=vault.Contains(origin,username);
+  if(exists){auto rows=vault.List();for(size_t i=0;i<rows->GetSize();++i){auto row=rows->GetDictionary(i);
+    if(row&&row->GetString("origin")==origin&&row->GetString("username")==username){
+      std::string previous;bool same=vault.Reveal(row->GetString("id"),previous)&&previous==password;
+      if(!previous.empty())SecureZeroMemory(previous.data(),previous.size());
+      if(same){SecureZeroMemory(password.data(),password.size());return;}break;}}}
   const auto prompt=CefString(origin).ToWString()+L"\n"+
     (exists?L"Обновить сохранённый пароль после отправки формы входа?":L"Сохранить пароль после отправки формы входа?")+L"\nВход ещё может потребовать подтверждения на сайте.";
   if(MessageBoxW(hwnd_,prompt.c_str(),L"Пароли Soulu",MB_YESNO|MB_ICONQUESTION|MB_DEFBUTTON2)==IDYES &&
@@ -1304,9 +1338,9 @@ void BrowserWindow::HandleBridge(const std::string& request,
     const std::string target=data->GetString("target"),source=data->GetString("source");
     if(std::none_of(profiles_.begin(),profiles_.end(),[&](const Profile& p){return p.id==target;})) {callback->Failure(400,"Unknown target profile");return;}
     importing_=true;CefRefPtr<BrowserWindow> self=this;
-    CefPostTask(TID_FILE_BACKGROUND,base::BindOnce([self,callback,target,source](){
+    CefPostTask(TID_FILE_BACKGROUND,new FunctionTask([self,callback,target,source](){
       auto report=ImportPasswords(source,target);
-      CefPostTask(TID_UI,base::BindOnce([self,callback,report](){
+      CefPostTask(TID_UI,new FunctionTask([self,callback,report](){
         self->importing_=false;self->Reply(callback,report);
         if(self->close_after_import_)self->CloseAll();
       }));
@@ -1496,7 +1530,12 @@ void BrowserWindow::HandleBridge(const std::string& request,
     }
     else if(action=="browser.passwords.copy"&&data){
       std::string secret;
-      if(!vault.Reveal(data->GetString("id"),secret)){callback->Failure(500,"Unable to decrypt credential");return;}
+      if(data->GetString("field")=="username"){
+        auto rows=vault.List();for(size_t i=0;i<rows->GetSize();++i){auto row=rows->GetDictionary(i);
+          if(row&&row->GetString("id")==data->GetString("id")){secret=row->GetString("username");ok=true;break;}}
+        if(!ok){callback->Failure(400,"Credential not found");return;}ok=false;
+      }else if(data->GetString("field")!="password"||!vault.Reveal(data->GetString("id"),secret)){
+        callback->Failure(500,"Unable to decrypt credential");return;}
       std::wstring wide=CefString(secret).ToWString();
       if(!secret.empty())SecureZeroMemory(secret.data(),secret.size());
       HGLOBAL memory=GlobalAlloc(GMEM_MOVEABLE,(wide.size()+1)*sizeof(wchar_t));
@@ -1506,7 +1545,7 @@ void BrowserWindow::HandleBridge(const std::string& request,
         if(memory)GlobalFree(memory);}
       if(!wide.empty())SecureZeroMemory(wide.data(),wide.size()*sizeof(wchar_t));
       if(ok){DWORD sequence=GetClipboardSequenceNumber();HWND hwnd=hwnd_;
-        CefPostDelayedTask(TID_UI,base::BindOnce([sequence,hwnd](){
+        CefPostDelayedTask(TID_UI,new FunctionTask([sequence,hwnd](){
           if(GetClipboardSequenceNumber()==sequence&&OpenClipboard(hwnd)){
             if(GetClipboardSequenceNumber()==sequence)EmptyClipboard();CloseClipboard();}
         }),30000);}

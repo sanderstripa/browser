@@ -1,5 +1,6 @@
 :root{font-family:"Segoe UI Variable","Segoe UI",sans-serif;color:#17202b;background:#f3f5f8;color-scheme:light dark}
 *{box-sizing:border-box}body{margin:0;min-width:760px;min-height:560px;background:linear-gradient(145deg,#f8fafc,#eef2f6)}
+.credential-row{flex-wrap:wrap;gap:8px}.credential-row>span{flex:1 0 100%;overflow-wrap:anywhere}.credential-row input{min-width:100px;max-width:180px;height:34px;border:1px solid #17202b17;border-radius:9px;background:transparent;color:inherit}.profile-row b,.profile-row small{display:block}.profile-row small{font-size:11px;opacity:.65}.card>button{padding:8px 12px;border:1px solid #17202b17;border-radius:9px;background:transparent;color:inherit;cursor:pointer}.profile-row{gap:8px}.profile-row>span{min-width:0;overflow-wrap:anywhere}
 button,input,select{font:inherit;color:inherit}.settings-shell{display:grid;grid-template-columns:244px minmax(0,1fr);height:100vh}
 .settings-nav{display:flex;flex-direction:column;padding:24px 14px 18px;border-right:1px solid #17202b12;background:rgba(238,242,247,.76);backdrop-filter:blur(24px)}
 .brand{display:flex;align-items:center;padding:5px 12px 25px}.brand strong{font-size:18px;font-weight:750}

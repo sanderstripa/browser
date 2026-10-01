@@ -43,6 +43,8 @@ class BrowserClient final : public CefClient,
   bool OnShowPermissionPrompt(CefRefPtr<CefBrowser>, uint64_t, const CefString&,
       uint32_t, CefRefPtr<CefPermissionPromptCallback>) override;
   void OnLoadEnd(CefRefPtr<CefBrowser>, CefRefPtr<CefFrame>, int) override;
+  bool OnBeforeBrowse(CefRefPtr<CefBrowser>, CefRefPtr<CefFrame>,
+      CefRefPtr<CefRequest>, bool, bool) override;
   void OnBeforeContextMenu(CefRefPtr<CefBrowser>, CefRefPtr<CefFrame>,
       CefRefPtr<CefContextMenuParams>, CefRefPtr<CefMenuModel>) override;
   bool RunContextMenu(CefRefPtr<CefBrowser>, CefRefPtr<CefFrame>,

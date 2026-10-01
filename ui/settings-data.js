@@ -15,7 +15,7 @@
   function renderPasswords(){
     const query=$("passwordSearch").value.toLowerCase();$("passwordList").replaceChildren();
     for(const item of passwords.filter(row=>(row.origin+" "+row.username).toLowerCase().includes(query))){
-      const row=element("div",undefined,"profile-row"),text=element("span");
+      const row=element("div",undefined,"profile-row credential-row"),text=element("span");
       text.append(element("b",item.origin),element("small",item.username||"Без логина"));
       const secret=element("input");secret.type="password";secret.readOnly=true;secret.value="••••••••";secret.setAttribute("aria-label","Сохранённый пароль");
       let shown=false,timer=null;

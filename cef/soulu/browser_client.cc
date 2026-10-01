@@ -72,6 +72,8 @@ bool BrowserClient::OnShowPermissionPrompt(CefRefPtr<CefBrowser>,uint64_t,
     {CEF_PERMISSION_TYPE_GEOLOCATION,"geolocation"},{CEF_PERMISSION_TYPE_NOTIFICATIONS,"notifications"},
     {CEF_PERMISSION_TYPE_CAMERA_STREAM,"camera"},{CEF_PERMISSION_TYPE_MIC_STREAM,"microphone"},
     {CEF_PERMISSION_TYPE_MULTIPLE_DOWNLOADS,"downloads"}};
+  uint32_t known=0;for(const auto& item:supported)known|=item.first;
+  if(requested&~known)return false;
   for(const auto& [flag,name]:supported)if(requested&flag){handled|=flag;
     allowed=owner_->AllowSite(tab_id_,origin,name)&&allowed;}
   callback->Continue(allowed&&handled==requested&&handled!=0?CEF_PERMISSION_RESULT_ACCEPT:CEF_PERMISSION_RESULT_DENY);
@@ -79,6 +81,12 @@ bool BrowserClient::OnShowPermissionPrompt(CefRefPtr<CefBrowser>,uint64_t,
 }
 void BrowserClient::OnLoadEnd(CefRefPtr<CefBrowser>,CefRefPtr<CefFrame> frame,int) {
   if(frame->IsMain()&&role_!=BrowserRole::kShell)owner_->ApplySiteSound();
+}
+bool BrowserClient::OnBeforeBrowse(CefRefPtr<CefBrowser> browser,CefRefPtr<CefFrame> frame,
+    CefRefPtr<CefRequest> request,bool,bool) {
+  CEF_REQUIRE_UI_THREAD();if(router_)router_->OnBeforeBrowse(browser,frame);
+  if(role_!=BrowserRole::kShell&&frame->IsMain())owner_->SyncSitePolicy(tab_id_,request->GetURL());
+  return false;
 }
 
 void BrowserClient::OnBeforeContextMenu(CefRefPtr<CefBrowser>, CefRefPtr<CefFrame>,
@@ -223,7 +231,8 @@ bool BrowserClient::OnBeforePopup(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFr
     CefRefPtr<CefDictionaryValue>& extra_info, bool*) {
   CEF_REQUIRE_UI_THREAD();
   if (role_ == BrowserRole::kShell) return true;
-  if(!gesture&&!owner_->AllowSite(tab_id_,browser->GetMainFrame()->GetURL(),"popups"))return true;
+  const bool popup_request=!gesture||disposition==CEF_WOD_NEW_POPUP||disposition==CEF_WOD_NEW_WINDOW;
+  if(popup_request&&!owner_->AllowSite(tab_id_,browser->GetMainFrame()->GetURL(),"popups"))return true;
   const int id = owner_->PreparePopup(tab_id_, url,
       disposition == CEF_WOD_NEW_BACKGROUND_TAB, info);
   if (!id) return true;
