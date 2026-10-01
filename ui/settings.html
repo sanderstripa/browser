@@ -154,7 +154,7 @@
           <label class="field"><span>Исходный профиль</span><select id="passwordSource"></select></label>
           <label class="field"><span>Целевой профиль Soulu</span><select id="passwordTarget"></select></label>
           <button id="importPasswords">Импортировать</button><p class="note" id="importReport" aria-live="polite"></p>
-        </article><p class="note" id="dataMessage" aria-live="polite"></p>
+        </article>
       </div>
 
       <div class="settings-section" data-page="updates">
@@ -169,6 +169,7 @@
           <div class="update-actions"><label><input class="switch" id="automaticUpdates" type="checkbox"><span data-t="automaticUpdates">Автоматически проверять обновления</span></label><button class="secondary" id="checkUpdates" data-t="checkUpdates">Проверить</button><button class="primary-update" id="installUpdate" data-t="updateRestart" disabled>Обновить и перезапустить</button></div>
         </article>
       </div>
+      <p class="note" id="dataMessage" aria-live="polite"></p>
     </section>
   </main>
   <script src="cef-bridge.js"></script>
