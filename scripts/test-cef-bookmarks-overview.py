@@ -103,6 +103,7 @@ with tempfile.TemporaryDirectory(prefix='soulu-navigation-', ignore_cleanup_erro
             s.evaluate(shell,"document.getElementById('sidebarButton').click()")
             wait(lambda:s.evaluate(shell,"!document.querySelector('.bookmarks-menu').hidden"))
             s.evaluate(shell,"[...document.querySelectorAll('.bookmark-actions button')].find(b=>b.textContent.startsWith('Импортировать')).click()")
+            assert s.evaluate(shell,"(async()=>{const input=document.querySelector('.bookmarks-menu input[type=file]');window.__souluEmit('state',await window.browserShell.getState());return input===document.querySelector('.bookmarks-menu input[type=file]')})()"), 'State update destroyed the active import input'
             doc=s.command(shell,'DOM.getDocument')
             node=s.command(shell,'DOM.querySelector',{'nodeId':doc['root']['nodeId'],'selector':'.bookmarks-menu input[type=file]'})
             s.command(shell,'DOM.setFileInputFiles',{'nodeId':node['nodeId'],'files':[str(imported)]})
