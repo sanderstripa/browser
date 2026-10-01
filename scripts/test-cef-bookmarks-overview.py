@@ -36,7 +36,7 @@ def shell_socket():
     target=wait(lambda:next((t for t in s.targets() if '/ui/index.html' in t.get('url','')),None))
     return s.websocket.create_connection(target['webSocketDebuggerUrl'],timeout=30,origin=s.BASE)
 
-with tempfile.TemporaryDirectory(prefix='soulu-navigation-') as isolated:
+with tempfile.TemporaryDirectory(prefix='soulu-navigation-', ignore_cleanup_errors=True) as isolated:
     os.environ['LOCALAPPDATA']=isolated
     process=s.launch(sys.argv[1])
     try:

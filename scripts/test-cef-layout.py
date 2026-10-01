@@ -138,12 +138,18 @@ def check(label, sidebar=False, screenshot=False):
         content = child_rect(host)
         left = round(276 * scale) if sidebar else 0
         layout = evaluate(shell, 'document.body.dataset.layout')
-        toolbar_height = 82 if layout == 'classic' else 48
+        base_height = 82 if layout == 'classic' else 48
+        bar_visible = evaluate(shell, 'document.body.dataset.bookmarksBar === "true"')
+        toolbar_height = base_height + (28 if bar_visible else 0)
         top = round(toolbar_height * scale)
         assert content == [left, top, width - left, height - top], (label, content, width, height)
         assert toolbar == [0, 0, width, height if sidebar else top], (label, toolbar)
         dom = evaluate(shell, '({w:innerWidth,h:innerHeight,dpr:devicePixelRatio,toolbar:document.querySelector(document.body.dataset.layout==="classic"?".classic-toolbar":".compact-toolbar").getBoundingClientRect().height})')
-        assert abs(dom['toolbar'] - toolbar_height) <= 1, (label, dom)
+        # Compact mode keeps the bar as a sibling of its 48px header.
+        header_height = toolbar_height if layout == 'classic' else base_height
+        assert abs(dom['toolbar'] - header_height) <= 1, (label, dom)
+        if bar_visible:
+            assert evaluate(shell, 'document.querySelector(".bookmarks-bar").getBoundingClientRect().height') == 28
         viewport = evaluate(page, '({w:innerWidth,h:innerHeight,dpr:devicePixelRatio})')
         assert abs(viewport['w'] * viewport['dpr'] - content[2]) <= 2, (label, viewport, content)
         assert abs(viewport['h'] * viewport['dpr'] - content[3]) <= 2, (label, viewport, content)
