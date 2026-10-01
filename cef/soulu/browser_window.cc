@@ -254,6 +254,14 @@ void BrowserWindow::LoadSettings() {
     for (const auto& key : keys) settings_->SetValue(key, saved->GetValue(key)->Copy());
   }
   if (auto saved = root->GetDictionary("vpn")) vpn_settings_ = saved->Copy(false);
+  if (settings_->GetString("bookmarksBarPosition") == "below")
+    settings_->SetString("bookmarksBarPosition", "above");
+  if (settings_->GetString("bookmarksBarMode") == "never") {
+    settings_->SetString("bookmarksBarPosition", "hidden");
+    settings_->SetString("bookmarksBarMode", "always");
+  } else if (settings_->GetString("bookmarksBarMode") == "auto") {
+    settings_->SetString("bookmarksBarMode", "always");
+  }
   // Earlier previews persisted the disabled default. Apply the new default
   // once to existing profiles; subsequent user choices remain untouched.
   if (!settings_->HasKey("matteDefaultV15")) {
@@ -907,12 +915,14 @@ bool BrowserWindow::SaveBookmarks(CefRefPtr<CefListValue> rows) const {
 
 bool BrowserWindow::BookmarksBarVisible() const {
   const auto mode=settings_->GetString("bookmarksBarMode").ToString();
+  if(settings_->GetString("bookmarksBarPosition")=="hidden") return false;
   if(mode=="always") return true;
   if(mode=="auto") return bookmarks_auto_visible_;
-  if(mode!="newTab") return false;
+  if(mode!="newTab" && mode!="home") return false;
   const auto* tab=const_cast<BrowserWindow*>(this)->ActiveTab();
   if(!tab) return false;
-  if(tab->url=="about:blank") return true;
+  if(mode=="newTab") return tab->url=="about:blank";
+  if(tab->url=="about:blank") return settings_->GetString("startPageMode")!="custom";
   const std::string configured=settings_->GetString("startPageUrl");
   if(settings_->GetString("startPageMode")!="custom" || configured.empty()) return false;
   CefURLParts parts;
@@ -1078,8 +1088,8 @@ CefRefPtr<CefDictionaryValue> BrowserWindow::State() const {
   }
   state->SetList("profiles", profiles);
   auto update = CefDictionaryValue::Create();
-  update->SetString("soulu", "0.9.0-cef-preview.37");
-  update->SetString("recommended", "0.9.0-cef-preview.37");
+  update->SetString("soulu", "0.9.0-cef-preview.38");
+  update->SetString("recommended", "0.9.0-cef-preview.38");
   update->SetString("cef", EngineVersion(0, 3));
   update->SetString("chromium", EngineVersion(4, 4));
   update->SetBool("available", false);
@@ -1196,8 +1206,8 @@ void BrowserWindow::HandleBridge(const std::string& request,
   }
   else if (action == "browser.update.check") {
     auto update = CefDictionaryValue::Create();
-    update->SetString("soulu", "0.9.0-cef-preview.37");
-    update->SetString("recommended", "0.9.0-cef-preview.37");
+    update->SetString("soulu", "0.9.0-cef-preview.38");
+    update->SetString("recommended", "0.9.0-cef-preview.38");
     update->SetString("cef", EngineVersion(0, 3));
     update->SetString("chromium", EngineVersion(4, 4));
     update->SetBool("available", false);
@@ -1206,6 +1216,7 @@ void BrowserWindow::HandleBridge(const std::string& request,
   }
   else if (action == "browser.switchTab") SwitchTab(payload->GetInt());
   else if (action == "browser.closeTab") CloseTab(payload->GetInt());
+  else if (action == "browser.bookmarks.sidebar") { sidebar_visible_ = payload && payload->GetType()==VTYPE_BOOL && payload->GetBool(); Layout(); EmitState(); }
   else if (action == "browser.toggleSidebar") { sidebar_visible_ = !sidebar_visible_; Layout(); EmitState(); }
   else if (action == "browser.popover") { popover_visible_ = payload->GetBool(); Layout(); }
   else if (action == "browser.setRightPanel") { right_panel_width_ = payload->GetInt(); Layout(); }

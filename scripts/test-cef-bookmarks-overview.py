@@ -55,21 +55,31 @@ with tempfile.TemporaryDirectory(prefix='soulu-navigation-', ignore_cleanup_erro
         assert json.loads(saved.read_text(encoding='utf-8'))[1]['parentId']==1
         assert s.evaluate(shell,"window.browserShell.replaceBookmarks([{id:3,type:'folder',parentId:3}]).then(()=>false,()=>true)") is True
         assert len(s.evaluate(shell,'window.browserShell.getBookmarks()'))==3
-        s.evaluate(shell,'window.browserShell.setSettings('+json.dumps({'startPageMode':'custom','startPageUrl':home_url,'bookmarksBarMode':'newTab'})+')')
+        s.evaluate(shell,'window.browserShell.setSettings('+json.dumps({'startPageMode':'custom','startPageUrl':home_url,'bookmarksBarMode':'home'})+')')
         content=s.page_socket()
         s.navigate(content,home_url+'/')
         wait(lambda:any(t['url']==home_url+'/' for t in s.evaluate(shell,'window.browserShell.getState()')['tabs']))
         assert s.evaluate(shell,'window.browserShell.getState()')['bookmarksBarVisible'], 'Canonical home URL not recognised'
         s.navigate(content,home_url+'/away')
         wait(lambda:not s.evaluate(shell,'window.browserShell.getState()')['bookmarksBarVisible'])
+        s.evaluate(shell,"window.browserShell.setSettings({bookmarksBarMode:'newTab'})")
+        s.navigate(content,home_url+'/')
+        wait(lambda:any(t['url']==home_url+'/' for t in s.evaluate(shell,'window.browserShell.getState()')['tabs']))
+        assert not s.evaluate(shell,'window.browserShell.getState()')['bookmarksBarVisible'], 'New-tab mode also showed on home page'
+        s.navigate(content,'about:blank')
+        wait(lambda:s.evaluate(shell,'window.browserShell.getState()')['bookmarksBarVisible'])
         content.close()
         for layout in ('classic','compact'):
             for position in ('above','below'):
                 s.evaluate(shell,'window.browserShell.setSettings('+json.dumps({'layout':layout,'bookmarksBarMode':'always','bookmarksBarPosition':position})+')')
                 wait(lambda:s.evaluate(shell,"document.body.dataset.bookmarksBar === 'true'"))
                 assert s.evaluate(shell,"document.querySelector('.bookmarks-bar').getBoundingClientRect().height")==28
+        s.evaluate(shell,"window.browserShell.setSettings({bookmarksBarPosition:'above'})")
         s.evaluate(shell,"document.getElementById('compactSidebarButton').click()")
         wait(lambda:s.evaluate(shell,"!document.querySelector('.bookmarks-menu').hidden && document.querySelector('.bookmarks-menu').getBoundingClientRect().height > 300"))
+        assert s.evaluate(shell,'window.browserShell.getState()')['sidebarVisible']
+        assert s.evaluate(shell,"document.querySelector('.bookmarks-menu').getBoundingClientRect().left")==0
+        assert s.evaluate(shell,"document.querySelector('.bookmarks-menu').getBoundingClientRect().bottom")==s.evaluate(shell,'innerHeight')
         assert s.evaluate(shell,"document.querySelector('.bookmark-actions').getBoundingClientRect().bottom < innerHeight"), 'Popover actions clipped to toolbar viewport'
         s.evaluate(shell,"document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))")
         positions=s.evaluate(shell,"(()=>{const p=id=>{const r=document.querySelector('.bookmarks-bar [data-bookmark-id=\"'+id+'\"]').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}};return {from:p(3),to:p(1)}})()")
@@ -83,8 +93,14 @@ with tempfile.TemporaryDirectory(prefix='soulu-navigation-', ignore_cleanup_erro
         s.evaluate(shell,'window.browserShell.newTab()')
         wait(lambda:len(s.evaluate(shell,'window.browserShell.getState()')['tabs'])==2)
         before=windows(process.pid)
-        s.evaluate(shell,'window.browserShell.setOverview(true)')
+        assert s.evaluate(shell,"document.querySelector('.classic-toolbar .navigation-toolbar-button').parentElement.classList.contains('window-controls')")
+        s.evaluate(shell,"document.querySelector('.compact-toolbar .navigation-toolbar-button').click()")
         wait(lambda:s.evaluate(shell,"!document.querySelector('.tab-overview').hidden"))
+        assert not s.evaluate(shell,"[...document.querySelectorAll('.overview-head button')].some(b=>b.textContent==='Готово')")
+        s.evaluate(shell,"document.querySelector('.compact-toolbar .navigation-toolbar-button').click()")
+        wait(lambda:not s.evaluate(shell,'window.browserShell.getState()')['overviewVisible'])
+        s.evaluate(shell,"document.querySelector('.compact-toolbar .navigation-toolbar-button').click()")
+        wait(lambda:s.evaluate(shell,'window.browserShell.getState()')['overviewVisible'])
         assert s.evaluate(shell,"getComputedStyle(document.querySelector('.overview-grid')).display")=='grid'
         assert s.evaluate(shell,"document.querySelectorAll('.overview-card').length")==2
         assert windows(process.pid)==before, 'Overview created a top-level HWND'
@@ -100,7 +116,7 @@ with tempfile.TemporaryDirectory(prefix='soulu-navigation-', ignore_cleanup_erro
         imported.write_text(json.dumps({'roots':{'bookmark_bar':{'type':'folder','name':'Imported','children':[{'type':'url','name':'Site','url':'https://import.test'}]}}}),encoding='utf-8')
         s.evaluate(shell,"window.confirm=()=>true;window.alert=()=>{}")
         for _ in range(2):
-            s.evaluate(shell,"document.getElementById('sidebarButton').click()")
+            s.evaluate(shell,"window.souluNavigation.openBookmarks()")
             wait(lambda:s.evaluate(shell,"!document.querySelector('.bookmarks-menu').hidden"))
             s.evaluate(shell,"[...document.querySelectorAll('.bookmark-actions button')].find(b=>b.textContent.startsWith('Импортировать')).click()")
             assert s.evaluate(shell,"(async()=>{const input=document.querySelector('.bookmarks-menu input[type=file]');window.__souluEmit('state',await window.browserShell.getState());return input===document.querySelector('.bookmarks-menu input[type=file]')})()"), 'State update destroyed the active import input'

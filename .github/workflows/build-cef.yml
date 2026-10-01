@@ -10,7 +10,7 @@ on:
         type: boolean
   push:
     branches: [main]
-    tags: [preview-37]
+    tags: [preview-38]
     paths:
       - "cef/**"
       - "installer/**"
@@ -33,8 +33,8 @@ jobs:
     runs-on: windows-2025
     timeout-minutes: 90
     env:
-      PREVIEW_VERSION: 0.9.0-cef-preview.37
-      PREVIEW_NUMBER: 37
+      PREVIEW_VERSION: 0.9.0-cef-preview.38
+      PREVIEW_NUMBER: 38
       PYTHONUTF8: 1
       PYTHONDONTWRITEBYTECODE: 1
     steps:
@@ -470,7 +470,7 @@ jobs:
           if-no-files-found: error
 
       - name: Publish Soulu release
-        if: success() && (github.ref == 'refs/tags/preview-37' || (github.ref == 'refs/heads/main' && inputs.publish)) && steps.verified.outputs.passed == 'true'
+        if: success() && (github.ref == 'refs/tags/preview-38' || (github.ref == 'refs/heads/main' && inputs.publish)) && steps.verified.outputs.passed == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: preview-${{ env.PREVIEW_NUMBER }}

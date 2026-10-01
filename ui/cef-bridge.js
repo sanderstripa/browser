@@ -39,6 +39,7 @@
     checkUpdates: () => invoke("browser.update.check"),
     switchTab: id => invoke("browser.switchTab", id),
     closeTab: id => invoke("browser.closeTab", id),
+    setBookmarksSidebar: value => invoke("browser.bookmarks.sidebar", value),
     toggleSidebar: () => invoke("browser.toggleSidebar"),
     setRightPanel: width => invoke("browser.setRightPanel", width),
     setSuggestionsHeight: height => invoke("browser.setSuggestionsHeight", height),
