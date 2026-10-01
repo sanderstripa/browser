@@ -18,6 +18,23 @@ std::filesystem::path Environment(const wchar_t* name) {
   wchar_t buffer[32768]={};auto n=GetEnvironmentVariableW(name,buffer,32768);
   return n&&n<32768?std::filesystem::path(buffer):std::filesystem::path();
 }
+std::filesystem::path InstalledBrowser(const std::string& browser) {
+  const std::wstring executable=browser=="Chrome"?L"chrome.exe":browser=="Edge"?L"msedge.exe":L"firefox.exe";
+  for(auto hive:{HKEY_CURRENT_USER,HKEY_LOCAL_MACHINE}){
+    wchar_t buffer[32768]={};DWORD size=sizeof(buffer);
+    auto key=L"Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\"+executable;
+    if(RegGetValueW(hive,key.c_str(),nullptr,RRF_RT_REG_SZ,nullptr,buffer,&size)==ERROR_SUCCESS){
+      std::filesystem::path path(buffer);std::error_code error;
+      if(path.is_absolute()&&std::filesystem::is_regular_file(path,error))return path;
+    }
+  }
+  const std::wstring relative=browser=="Chrome"?L"Google/Chrome/Application/chrome.exe":
+    browser=="Edge"?L"Microsoft/Edge/Application/msedge.exe":L"Mozilla Firefox/firefox.exe";
+  for(auto name:{L"ProgramW6432",L"PROGRAMFILES",L"PROGRAMFILES(X86)",L"LOCALAPPDATA"}){
+    auto root=Environment(name);std::error_code error;
+    if(!root.empty()&&std::filesystem::is_regular_file(root/relative,error))return root/relative;
+  }return {};
+}
 std::vector<Source> Sources() {
   std::vector<Source> out;std::error_code error;
   auto local=Environment(L"LOCALAPPDATA"),roaming=Environment(L"APPDATA");
@@ -129,12 +146,9 @@ class Nss {
   using Decrypt=int(*)(Item*,Item*,void*);using Free=void(*)(Item*,int);
  public:
   bool Open(const std::filesystem::path& profile) {
-    for(auto name:{L"ProgramW6432",L"PROGRAMFILES",L"PROGRAMFILES(X86)",L"LOCALAPPDATA"}){
-      auto root=Environment(name);if(root.empty())continue;
-      auto dll=root/(std::wstring(name)==L"LOCALAPPDATA"?L"Mozilla Firefox/nss3.dll":L"Mozilla Firefox/nss3.dll");
-      library_=LoadLibraryExW(dll.c_str(),nullptr,LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR|LOAD_LIBRARY_SEARCH_SYSTEM32);
-      if(library_)break;
-    }
+    auto firefox=InstalledBrowser("Firefox");if(firefox.empty())return false;
+    auto dll=firefox.parent_path()/L"nss3.dll";
+    library_=LoadLibraryExW(dll.c_str(),nullptr,LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR|LOAD_LIBRARY_SEARCH_SYSTEM32);
     if(!library_)return false;
     auto init=reinterpret_cast<Init>(GetProcAddress(library_,"NSS_Init"));
     shutdown_=reinterpret_cast<Shutdown>(GetProcAddress(library_,"NSS_Shutdown"));
@@ -162,6 +176,15 @@ CefRefPtr<CefListValue> DiscoverPasswordSources() {
     auto row=CefDictionaryValue::Create();row->SetString("id",source.id);
     row->SetString("browser",source.browser);row->SetString("name",source.name);
     row->SetString("status",source.browser=="Firefox"?"NSS / primary-password profiles may be protected":"DPAPI / AES-GCM; App-Bound records unsupported");
+    rows->SetDictionary(rows->GetSize(),row);
+  }return rows;
+}
+CefRefPtr<CefListValue> DiscoverImportBrowsers() {
+  auto rows=CefListValue::Create();auto sources=Sources();
+  for(const auto browser:{std::string("Chrome"),std::string("Edge"),std::string("Firefox")}){
+    auto row=CefDictionaryValue::Create();row->SetString("browser",browser);
+    row->SetBool("installed",!InstalledBrowser(browser).empty());
+    row->SetInt("profiles",static_cast<int>(std::count_if(sources.begin(),sources.end(),[&](const Source& s){return s.browser==browser;})));
     rows->SetDictionary(rows->GetSize(),row);
   }return rows;
 }

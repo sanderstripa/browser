@@ -1332,6 +1332,7 @@ void BrowserWindow::HandleBridge(const std::string& request,
     bookmarks_=marks;SaveBookmarks(marks);return Reply(callback,State());
   }
   else if(action=="browser.import.sources")return Reply(callback,Wrap(DiscoverPasswordSources()));
+  else if(action=="browser.import.browsers")return Reply(callback,Wrap(DiscoverImportBrowsers()));
   else if(action=="browser.import.passwords") {
     auto data=payload&&payload->GetType()==VTYPE_DICTIONARY?payload->GetDictionary():nullptr;
     if(!data||importing_||VisibleProfileId()=="__incognito__") {callback->Failure(409,"Import is unavailable");return;}

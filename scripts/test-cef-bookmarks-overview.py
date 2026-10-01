@@ -98,8 +98,8 @@ with tempfile.TemporaryDirectory(prefix='soulu-navigation-', ignore_cleanup_erro
                 expected=value=='true' if key=='bookmarksIconsOnly' else value
                 wait(lambda:s.evaluate(shell,'window.browserShell.getState()')['settings'][key]==expected)
                 wait(lambda:s.evaluate(shell,'document.querySelector('+json.dumps(trigger)+').getAttribute("aria-expanded")==="false"'))
-        settings_file=Path(isolated)/'Soulu'/'User Data'/'settings.json'
-        assert json.loads(settings_file.read_text(encoding='utf-8'))['settings']['bookmarksBarMode']=='always'
+        settings_file=Path(isolated)/'Soulu'/'User Data'/'Profiles'/'personal'/'soulu-settings.json'
+        assert json.loads(settings_file.read_text(encoding='utf-8'))['bookmarksBarMode']=='always'
         s.evaluate(shell,"document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))")
         positions=s.evaluate(shell,"(()=>{const p=id=>{const r=document.querySelector('.bookmarks-bar [data-bookmark-id=\"'+id+'\"]').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}};return {from:p(3),to:p(1)}})()")
         s.command(shell,'Input.dispatchMouseEvent',{'type':'mouseMoved',**positions['from']})

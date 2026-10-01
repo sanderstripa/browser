@@ -38,6 +38,7 @@
     switchProfile: id => invoke("browser.profile.switch", id),
     deleteProfile: id => invoke("browser.profile.delete", id),
     passwordSources: () => invoke("browser.import.sources"),
+    passwordBrowsers: () => invoke("browser.import.browsers"),
     importPasswords: value => invoke("browser.import.passwords", value),
     getSiteRules: () => invoke("browser.sites.get"),
     setSiteRule: value => invoke("browser.sites.set", value),

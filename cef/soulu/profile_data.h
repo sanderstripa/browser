@@ -52,6 +52,7 @@ class SitePolicy {
 bool BlockResource(const std::string& top_url, const std::string& url,
                    int resource_type, bool enabled);
 CefRefPtr<CefListValue> DiscoverPasswordSources();
+CefRefPtr<CefListValue> DiscoverImportBrowsers();
 CefRefPtr<CefDictionaryValue> ImportPasswords(const std::string& source_id,
                                               const std::string& target);
 std::vector<std::string> PendingProfileDeletions();

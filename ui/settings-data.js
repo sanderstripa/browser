@@ -85,9 +85,10 @@
     $("passwordSecret").value="";renderPasswords();message("Сохранено");
   }catch(error){message(error.message);}};
   $("discoverPasswords").onclick=async()=>{try{
-    const sources=await api.passwordSources();$("passwordSource").replaceChildren();
+    const [sources,browsers]=await Promise.all([api.passwordSources(),api.passwordBrowsers?api.passwordBrowsers():Promise.resolve([])]);$("passwordSource").replaceChildren();
     for(const source of sources)$("passwordSource").append(new Option(source.browser+" — "+source.name,source.id));
-    $("importReport").textContent=sources.length?"Найдено профилей: "+sources.length:"Локальные хранилища паролей не обнаружены";
+    $("importReport").textContent=(sources.length?"Найдено профилей: "+sources.length:"Локальные хранилища паролей не обнаружены")+
+      (browsers.length?". "+browsers.map(row=>`${row.browser}: ${row.installed?"установлен":"не установлен"}, профилей ${row.profiles}`).join("; "):"");
   }catch(error){message(error.message);}};
   $("importPasswords").onclick=async()=>{
     const source=$("passwordSource").value,target=$("passwordTarget").value;if(!source||!target)return;
