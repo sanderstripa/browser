@@ -29,7 +29,7 @@ the setup wrapper and two shortcuts use that same identity. The installer uses
 large/small Windows icon sizes; the installer now does too.
 
 Shortcuts use `soulu-icon-v44.ico` to avoid the v24 shell-cache entry. Installation
-replaces all shipped aliases, removes the old v24 ICO and JPEG, recreates
+replaces all shipped aliases and the old v24 ICO's content, removes the JPEG, recreates
 desktop/Start shortcuts and sends shell change notifications. Windows can retain
 a separately pinned old shortcut or an icon in a running Explorer process;
 unpin/re-pin or Explorer refresh may be needed on an upgraded machine. The

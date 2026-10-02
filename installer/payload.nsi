@@ -25,7 +25,9 @@ Section
   IfErrors install_failed
   SetOutPath "$INSTDIR\ui"
   File /oname=soulu-icon-v44.ico "${BUILD_DIR}\ui\soulu-icon.ico"
-  Delete "$INSTDIR\ui\soulu-icon-v24.ico"
+  ; Existing pinned shortcuts may still name v24. Replace its bytes too rather
+  ; than breaking their icon target; newly created shortcuts use the new path.
+  File /oname=soulu-icon-v24.ico "${BUILD_DIR}\ui\soulu-icon.ico"
   Delete "$INSTDIR\ui\soulu-icon.jpg"
   SetOutPath "$INSTDIR"
   WriteUninstaller "$INSTDIR\Uninstall Soulu.exe"
@@ -41,6 +43,8 @@ Section
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "Publisher" "Soulu"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "DisplayVersion" "0.9.0-cef-preview.44"
   System::Call 'shell32::SHChangeNotify(i 0x00002000, i 0x0005, w "$INSTDIR\Soulu.exe", p 0)'
+  System::Call 'shell32::SHChangeNotify(i 0x00002000, i 0x0005, w "$INSTDIR\ui\soulu-icon-v24.ico", p 0)'
+  System::Call 'shell32::SHChangeNotify(i 0x00002000, i 0x0005, w "$INSTDIR\ui\soulu-icon-v44.ico", p 0)'
   System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0, p 0, p 0)'
   IfErrors install_failed
   SetErrorLevel 0

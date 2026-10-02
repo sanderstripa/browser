@@ -417,6 +417,12 @@ jobs:
           $env:LOCALAPPDATA = Join-Path $env:RUNNER_TEMP 'soulu-installer-smoke'
           $installedExe = Join-Path $env:LOCALAPPDATA "Programs/Soulu/Soulu.exe"
           if (Test-Path (Split-Path $installedExe)) { Remove-Item (Split-Path $installedExe) -Recurse -Force }
+          # Simulate stale icon files from an existing installation. Existing
+          # pinned v24 icon paths must still resolve, but contain the new mark.
+          $legacyUi = Join-Path (Split-Path $installedExe) 'ui'
+          New-Item -ItemType Directory -Force $legacyUi | Out-Null
+          [IO.File]::WriteAllBytes((Join-Path $legacyUi 'soulu-icon-v24.ico'),[byte[]](1,2,3))
+          [IO.File]::WriteAllBytes((Join-Path $legacyUi 'soulu-icon.jpg'),[byte[]](1,2,3))
 
           $process = Start-Process $installer -PassThru
           $deadline = (Get-Date).AddSeconds(30)
@@ -491,6 +497,11 @@ jobs:
             $openHwnd = [MouseTest]::FindButton($process.MainWindowHandle, "Готово")
           }
           if ($openHwnd -eq [IntPtr]::Zero) { throw "Native Open button handle was not found" }
+          $canonicalHash=(Get-FileHash 'browser/ui/soulu-icon.ico').Hash
+          foreach($name in @('soulu-icon-v24.ico','soulu-icon-v44.ico','soulu-icon.ico','soulu-app-icon.ico','soulu-shortcut-icon.ico','soulu-installer-icon.ico','browser-icon.ico','browser-app-icon.ico')){
+            if((Get-FileHash (Join-Path $legacyUi $name)).Hash -ne $canonicalHash){throw "Stale installed icon: $name"}
+          }
+          if(Test-Path (Join-Path $legacyUi 'soulu-icon.jpg')){throw 'Legacy opaque logo was not removed'}
           $desktopLink=Join-Path ([Environment]::GetFolderPath('Desktop')) 'Soulu.lnk'
           $startLink=Join-Path $env:APPDATA 'Microsoft/Windows/Start Menu/Programs/Soulu/Soulu.lnk'
           $shortcutShell=New-Object -ComObject WScript.Shell
