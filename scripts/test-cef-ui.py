@@ -64,12 +64,11 @@ try:
     evaluate(shell, "window.browserShell.openSettingsWindow()")
     settings = find_target("/ui/settings.html")
     assert wait_for(lambda: evaluate(settings, "document.body.classList.contains('ready')"), "settings ready")
+    evaluate(settings, "window.souluSettings.openSection('interface')")
     # These are real change/click handlers from the settings page, not a
     # direct write to settings.json or a synthetic state injected into shell.
     evaluate(settings, """(() => {
-      const theme = document.querySelector('#theme');
-      theme.value = 'dark';
-      theme.dispatchEvent(new Event('change', {bubbles:true}));
+      document.querySelector('[name="settings-theme"][value="dark"]').click();
       return true;
     })()""")
     wait_for(lambda: evaluate(shell, "document.body.dataset.theme === 'dark'"), "dark shell theme")
@@ -120,21 +119,18 @@ try:
         wait_for(lambda selector=selector: evaluate(shell, f"getComputedStyle(document.querySelector('{selector}')).display !== 'none'"), f"{key} restored")
     # Verify light and dark are distinct on the toolbar, not only in Settings.
     evaluate(settings, """(() => {
-      const theme = document.querySelector('#theme');
-      theme.value = 'light';
-      theme.dispatchEvent(new Event('change', {bubbles:true}));
+      document.querySelector('[name="settings-theme"][value="light"]').click();
       return true;
     })()""")
     wait_for(lambda: evaluate(shell, "document.body.dataset.theme === 'light'"), "light shell theme")
     light = evaluate(shell, "getComputedStyle(document.querySelector('.compact-toolbar')).backgroundColor")
     assert light != styles["background"], "Toolbar gradient did not change with theme"
     evaluate(settings, """(() => {
-      const theme = document.querySelector('#theme');
-      theme.value = 'dark';
-      theme.dispatchEvent(new Event('change', {bubbles:true}));
+      document.querySelector('[name="settings-theme"][value="dark"]').click();
       return true;
     })()""")
     wait_for(lambda: evaluate(shell, "document.body.dataset.theme === 'dark'"), "dark restored")
+    assert evaluate(settings, "window.souluSettings.apply()"), "Apply failed"
     persisted = evaluate(shell, """(async () => await window.browserShell.getSettings())()""")
     assert persisted["theme"] == "dark" and persisted["mattePanel"] is True
     assert persisted["vpnToolbarVisible"] is True

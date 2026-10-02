@@ -1,4 +1,5 @@
 #include "examples/soulu/browser_window.h"
+#include "examples/soulu/app_version.h"
 #include "include/cef_app.h"
 #include "include/cef_command_line.h"
 #include "include/cef_devtools_message_observer.h"
@@ -1350,8 +1351,8 @@ CefRefPtr<CefDictionaryValue> BrowserWindow::State() const {
   }
   state->SetList("profiles", profiles);
   auto update = CefDictionaryValue::Create();
-  update->SetString("soulu", "0.9.0-cef-preview.45");
-  update->SetString("recommended", "0.9.0-cef-preview.45");
+  update->SetString("soulu", kSouluVersion);
+  update->SetString("recommended", kSouluVersion);
   update->SetString("cef", EngineVersion(0, 3));
   update->SetString("chromium", EngineVersion(4, 4));
   update->SetBool("available", false);
@@ -1703,8 +1704,8 @@ void BrowserWindow::HandleBridge(const std::string& request,
   }
   else if (action == "browser.update.check") {
     auto update = CefDictionaryValue::Create();
-    update->SetString("soulu", "0.9.0-cef-preview.45");
-    update->SetString("recommended", "0.9.0-cef-preview.45");
+    update->SetString("soulu", kSouluVersion);
+    update->SetString("recommended", kSouluVersion);
     update->SetString("cef", EngineVersion(0, 3));
     update->SetString("chromium", EngineVersion(4, 4));
     update->SetBool("available", false);
@@ -1799,7 +1800,7 @@ void BrowserWindow::HandleBridge(const std::string& request,
   }
   else if (action == "browser.bookmarks.open") Navigate(payload->GetString());
   else if (action == "browser.settings.openWindow") OpenSettingsTab();
-  else if (action == "browser.settings.get") return Reply(callback, settings_->Copy(false));
+  else if (action == "browser.settings.get") return Reply(callback, EffectiveSettings()->Copy(false));
   else if (action == "browser.settings.set") {
     if (payload && payload->GetType() == VTYPE_DICTIONARY) {
       auto patch = payload->GetDictionary();
@@ -2106,14 +2107,14 @@ LRESULT CALLBACK BrowserWindow::WindowProc(HWND hwnd, UINT message, WPARAM wpara
       return HTCLIENT;
     }
     case WM_ERASEBKGND: {
-      const std::string theme = self->settings_->GetString("theme");
+      const std::string theme = self->EffectiveSettings()->GetString("theme");
       const bool dark = theme == "dark" ||
           (theme == "system" && IsWindowsDarkMode());
       RECT client = {};
       GetClientRect(hwnd, &client);
       HBRUSH background = CreateSolidBrush(dark ? RGB(8, 9, 11) : RGB(255, 255, 255));
       FillRect(reinterpret_cast<HDC>(wparam), &client,
-          self->settings_->GetBool("mattePanel") ? static_cast<HBRUSH>(GetStockObject(BLACK_BRUSH)) : background);
+          self->EffectiveSettings()->GetBool("mattePanel") ? static_cast<HBRUSH>(GetStockObject(BLACK_BRUSH)) : background);
       DeleteObject(background);
       return 1;
     }

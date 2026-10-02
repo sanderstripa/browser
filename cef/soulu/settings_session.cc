@@ -95,10 +95,10 @@ bool BrowserWindow::ApplySettingsSession(std::string& error) {
   }
   const std::pair<const char*,std::vector<std::string>> enums[]={
     {"theme",{"system","light","dark"}},{"language",{"ru","en"}},
-    {"layout",{"compact","classic"}},{"searchEngine",{"google","bing","duckduckgo"}},
+    {"layout",{"compact","classic"}},{"searchEngine",{"google","yandex","bing","duckduckgo"}},
     {"addressPosition",{"left","center"}},{"extensionsPosition",{"left","right"}},
     {"downloadsMode",{"always","dynamic"}},{"addressOpenMode",{"current","newIfOccupied"}},
-    {"bookmarksBarMode",{"always","newTab","auto","never"}},
+    {"bookmarksBarMode",{"always","newTab","home","auto","never"}},
     {"bookmarksBarPosition",{"above","hidden"}}};
   for(const auto& [key,allowed]:enums){const std::string value=next->GetString(key);
     if(std::find(allowed.begin(),allowed.end(),value)==allowed.end()){
@@ -155,6 +155,16 @@ bool BrowserWindow::HandleSettingsBridge(int id,const std::string& request,
       tab->browser->GetMainFrame()->GetURL().ToString().find("/ui/settings.html")==std::string::npos){
     callback->Failure(403,"Настройки доступны в обычном активном профиле.");return true;}
   auto payload=root->GetDictionary("payload");
+  if(action=="settings.capabilities"){
+    auto result=CefDictionaryValue::Create();bool is_default=true;
+    for(const wchar_t* scheme:{L"http",L"https"}){
+      wchar_t progid[256]={};DWORD size=sizeof(progid);
+      const std::wstring key=std::wstring(L"Software\\Microsoft\\Windows\\Shell\\Associations\\UrlAssociations\\")+scheme+L"\\UserChoice";
+      if(RegGetValueW(HKEY_CURRENT_USER,key.c_str(),L"ProgId",RRF_RT_REG_SZ,nullptr,progid,&size)!=ERROR_SUCCESS||
+          std::wstring(progid)!=L"Soulu.Url")is_default=false;
+    }
+    result->SetBool("defaultBrowser",is_default);Reply(callback,result);return true;
+  }
   if(action=="settings.begin"){
     if(settings_tab_&&settings_tab_!=id&&settings_dirty_){callback->Failure(409,"Закройте другое окно настроек.");return true;}
     ResetSettingsPreview();settings_tab_=id;settings_profile_=active_profile_id_;
