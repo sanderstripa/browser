@@ -15,6 +15,15 @@ import winreg
 spec=importlib.util.spec_from_file_location('storage',Path(__file__).with_name('test-cef-storage.py'))
 s=importlib.util.module_from_spec(spec);spec.loader.exec_module(s)
 checks=[]
+def system_proxy():
+    values=[]
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER,r'Software\Microsoft\Windows\CurrentVersion\Internet Settings') as k:
+            for name in ['ProxyEnable','ProxyServer','AutoConfigURL']:
+                try:values.append(winreg.QueryValueEx(k,name))
+                except FileNotFoundError:values.append(None)
+    except FileNotFoundError:pass
+    return values
 os.environ['NO_PROXY']='localhost,127.0.0.1,::1'
 os.environ.pop('SOULU_REGRESSION_SKIP_FIRST_RUN',None)
 def wait(fn,timeout=30):
@@ -29,6 +38,7 @@ def check(condition,name):
     checks.append(name);print('PASS:',name,flush=True)
 def main():
     exe=str(Path(sys.argv[1]).resolve());output=Path(sys.argv[2]) if len(sys.argv)>2 else None
+    original_proxy=system_proxy()
     with tempfile.TemporaryDirectory(prefix='soulu-first-run-',ignore_cleanup_errors=True) as temp:
         root=Path(temp);local=root/'local';roaming=root/'roaming';local.mkdir();roaming.mkdir()
         env=dict(os.environ,LOCALAPPDATA=str(local),APPDATA=str(roaming),SOULU_UI_TEST_PORT=str(s.DEBUG_PORT))
@@ -124,7 +134,10 @@ def main():
             check(flow()['step']==3,'Partial result remains visible before continuing')
             call(page,'import');check(flow()['importReport']['imported']==1,'Repeated import action returns saved report without importing again')
             click(page,'Продолжить');check(flow()['step']==4,'Partial import can continue')
-            call(page,'progress',{'step':4,'adblock':True,'askPermissions':False});call(page,'privacy')
+            for label in ['Блокировать рекламу','Проверять разрешения сайтов']:
+                s.evaluate(page,"document.querySelector('input[aria-label="+json.dumps(label)+"]').click()")
+                wait(lambda:not s.evaluate(page,"document.querySelector('main')?.getAttribute('aria-busy')==='true'"))
+            click(page,'Продолжить')
             policy=json.loads((profile/'soulu-site-rules.json').read_text())
             check(policy['blocking']['enabled'] and all(policy['defaults'][k]==2 for k in ['camera','microphone','geolocation','notifications']),'Privacy writes existing site policy with deny when prompt off')
             call(page,'progress',{'step':5,'adblock':True,'askPermissions':False});stop()
@@ -204,6 +217,7 @@ def main():
             check(s.evaluate(shell,'vpn.settingsGet()')['link']==key,'Saved VPN key survives browser restart')
             s.evaluate(shell,'browserShell.switchProfile('+json.dumps(third)+')');time.sleep(.3)
             check(not any('/ui/onboarding.html' in t.get('url','') for t in s.targets()),'Explicitly skipped profile stays skipped on restart')
+            check(system_proxy()==original_proxy,'Onboarding VPN leaves Windows system proxy unchanged')
         finally:
             if process:stop()
     if output:output.parent.mkdir(parents=True,exist_ok=True);output.write_text(json.dumps({'passed':True,'checks':checks},indent=2),encoding='utf-8')

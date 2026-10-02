@@ -38,6 +38,8 @@ Native radio/checkbox semantics, labelled password input, switch roles, visible 
 
 ## Verification
 
+`scripts/test-cef-default-links.py` verifies deferred first-run links, normal relaunch handling, rejected file URLs and return to the normal profile from incognito.
+
 `scripts/test-cef-onboarding.py` exercises the actual CEF process, isolated profile files, local password fixtures, partial results, resume, privacy, VPN persistence, completion/skip, existing-session migration, multiple profiles, incognito and small/DPI viewports. `test-cef-data-security.py` retains the underlying encrypted importer/vault tests. Ordinary regression suites explicitly opt into dismissing first-run with a fixture helper, while first-run tests leave that flag unset. Layout tests seed an existing installation rather than asserting old first-launch behavior.
 
 The Windows workflow gates release publication on onboarding and existing mandatory native suites, and checks that the release build SHA equals current origin/main. CEF remains 154.0.32 / Chromium 154.0.8037.58. Authenticated third-party accounts, remote VPN connectivity and the user's Windows default selection require their real credentials/interaction; automated fixture success does not assert those personal states.

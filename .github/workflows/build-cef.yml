@@ -137,6 +137,13 @@ jobs:
           python browser/scripts/test-cef-onboarding.py $exe.FullName browser/artifacts/onboarding-evidence.json
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+      - name: Test default-browser command-line navigation in native CEF
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem cef-build -Recurse -Filter Soulu.exe | Where-Object { $_.FullName -match 'Release' } | Select-Object -First 1
+          python browser/scripts/test-cef-default-links.py $exe.FullName browser/artifacts/default-links-evidence.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - name: Validate native runtime before main packaging
         if: inputs.native_only
         shell: pwsh
@@ -674,3 +681,4 @@ jobs:
             browser/artifacts/engine-version.json
             browser/artifacts/data-security.json
             browser/artifacts/onboarding-evidence.json
+            browser/artifacts/default-links-evidence.json
