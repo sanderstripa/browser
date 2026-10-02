@@ -1,166 +1,88 @@
 (() => {
-  const $ = s => document.querySelector(s);
-  const $$ = s => [...document.querySelectorAll(s)];
-  let settings = {};
-  let browserState = { profiles: [], update: null };
-  const copy = {
-    ru: {
-      settings:"Настройки",appearance:"Оформление",toolbar:"Панель",search:"Поиск",startup:"Запуск",downloads:"Загрузки",accounts:"Аккаунты",passwords:"Пароли",
-      panelMode:"Режим панели",mainMode:"Основная",classicMode:"Классическая",mainDefault:"Основная — компактная панель Soulu и режим по умолчанию.",
-      theme:"Тема",themeHint:"Оформление интерфейса",system:"Системная",light:"Светлая",dark:"Тёмная",matte:"Матовая прозрачность",matteHint:"Размытие фона за панелью браузера",language:"Язык",languageHint:"Язык меню и настроек",
-      visibleWidgets:"Элементы панели",widgetsHint:"Отключённые элементы исчезают сразу. Вернуть их можно здесь.",sidebar:"Боковая панель",back:"Назад",favorites:"Избранное",newTab:"Новая вкладка",
-      addressPosition:"Положение адресной строки",center:"По центру",left:"Слева",extensionsPosition:"Положение расширений",leftOfAddress:"Слева от адреса",rightOfAddress:"Справа от адреса",downloadIcon:"Иконка загрузок",dynamic:"Динамически",always:"Всегда",
-      searchEngine:"Поисковая система",addressBehavior:"Открывать адрес",currentTab:"В текущей вкладке",newIfOccupied:"В новой, если текущая занята",startPage:"Стартовая страница",blank:"Пустая",custom:"Свой адрес",startUrl:"Адрес стартовой страницы",openStartPageAfterLastTab:"После закрытия последней вкладки открывать стартовую страницу",
-      askLocation:"Спрашивать место сохранения",downloadPath:"Папка загрузок",vpnHint:"VPN выключен по умолчанию. Кнопку на панели можно скрыть в разделе «Панель».",vpnButton:"Показывать кнопку VPN",
-      accountsHint:"Вход в Google выполняется в общей сессии браузера. Синхронизация Chrome пока не включена.",passwordsHint:"Хранилище паролей будет подключено к нативной CEF-реализации на следующем этапе."
-    },
-    en: {
-      settings:"Settings",appearance:"Appearance",toolbar:"Toolbar",search:"Search",startup:"Startup",downloads:"Downloads",accounts:"Accounts",passwords:"Passwords",
-      panelMode:"Toolbar mode",mainMode:"Main",classicMode:"Classic",mainDefault:"Main is Soulu's compact toolbar and the default mode.",
-      theme:"Theme",themeHint:"Interface appearance",system:"System",light:"Light",dark:"Dark",matte:"Matte transparency",matteHint:"Blur and a soft toolbar gradient",language:"Language",languageHint:"Language for menus and settings",
-      visibleWidgets:"Toolbar items",widgetsHint:"Disabled items disappear immediately. You can restore them here.",sidebar:"Sidebar",back:"Back",favorites:"Favorites",newTab:"New tab",
-      addressPosition:"Address position",center:"Centered",left:"Left",extensionsPosition:"Extensions position",leftOfAddress:"Left of address",rightOfAddress:"Right of address",downloadIcon:"Downloads icon",dynamic:"Dynamic",always:"Always",
-      searchEngine:"Search engine",addressBehavior:"Open address",currentTab:"In current tab",newIfOccupied:"In a new tab when occupied",startPage:"Start page",blank:"Blank",custom:"Custom address",startUrl:"Start page address",openStartPageAfterLastTab:"Open the start page after closing the last tab",
-      askLocation:"Ask where to save",downloadPath:"Downloads folder",vpnHint:"VPN is off by default. Its toolbar button can be hidden in Toolbar.",vpnButton:"Show VPN button",
-      accountsHint:"Google sign-in uses the shared browser session. Chrome Sync is not enabled.",passwordsHint:"Password storage will be connected to the native CEF implementation in a later step."
+  'use strict';
+  const $=id=>document.getElementById(id), el=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
+  const clone=v=>structuredClone(v), equal=(a,b)=>JSON.stringify(sort(a))===JSON.stringify(sort(b));
+  function sort(v){if(Array.isArray(v))return v.map(sort);if(v&&typeof v==='object')return Object.fromEntries(Object.keys(v).sort().map(k=>[k,sort(v[k])]));return v;}
+  const invoke=(action,payload=null)=>new Promise((resolve,reject)=>window.cefQuery({request:JSON.stringify({action:'settings.'+action,payload}),persistent:false,onSuccess:v=>resolve(v?JSON.parse(v):null),onFailure:(_,message)=>reject(Error(message))}));
+  let loaded=null,persisted=null,staged=null,state={},section='',busy=false,queue=Promise.resolve(),index=[];
+  const t=(ru,en)=>staged?.settings.language==='en'?en:ru;
+  const icons={all:'<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',general:'<path d="m9 3 1-2h4l1 2 3 2 3 1v4l-2 2v3l-3 3h-3l-2 2H7l-1-3-3-2v-4l2-2V7l3-3z"/><circle cx="12" cy="11" r="3"/>',interface:'<path d="M3 4h18v13H3zM8 21h8m-4-4v4"/><path d="M7 8h10M7 12h5"/>',tabs:'<path d="M3 7V4h7l3 3h8v14H3z"/><path d="M3 10h18"/>',search:'<circle cx="10" cy="10" r="7"/><path d="m15 15 6 6"/>',bookmarks:'<path d="M6 3h12v18l-6-4-6 4z"/>',sites:'<circle cx="12" cy="12" r="10"/><ellipse cx="12" cy="12" rx="4" ry="10"/><path d="M2 12h20M4 6h16M4 18h16"/>',profiles:'<circle cx="12" cy="7" r="4"/><path d="M4 21v-3a8 8 0 0 1 16 0v3z"/>',downloads:'<path d="M12 2v14m-6-6 6 6 6-6M3 21h18"/>',vpn:'<path d="m12 2 9 4v6c0 5-5 8-9 10-4-2-9-5-9-10V6z"/><path d="m8 12 3 3 5-6"/>',updates:'<path d="M20 8a9 9 0 1 0 1 7M20 2v6h-6"/>'};
+  function icon(id){const n=document.createElementNS('http://www.w3.org/2000/svg','svg');n.setAttribute('viewBox','0 0 24 24');n.setAttribute('aria-hidden','true');n.innerHTML=icons[id];return n;}
+  const opt=(value,ru,en=ru)=>({value,ru,en});
+  const row=(key,ru,en,type='toggle',options=[],hint='',enHint='',store='settings',tags='')=>({key,ru,en,type,options,hint,enHint,store,tags});
+  const action=(key,ru,en)=>row(key,ru,en,'action');
+  const group=(ru,en,rows)=>({ru,en,rows});
+  const pageOptions=[opt('soulu','Страница Soulu','Soulu page'),opt('blank','Пустая страница','Blank page'),opt('custom','Указанный адрес','Custom address')];
+  const permissionNames=[['geolocation','Геолокация','Location'],['camera','Камера','Camera'],['microphone','Микрофон','Microphone'],['notifications','Уведомления','Notifications'],['sound','Звук','Sound'],['popups','Всплывающие окна','Pop-ups'],['downloads','Автоматические загрузки','Automatic downloads']];
+  const sections=[
+    {id:'general',ru:'Общие',en:'General',hint:'Язык и основные настройки Soulu.',enHint:'Language and basic Soulu settings.',groups:[group('Язык и система','Language and system',[row('language','Язык интерфейса','Interface language','select',[opt('ru','Русский'),opt('en','English')],'Язык меню, настроек и элементов интерфейса Soulu.','Language of Soulu menus, settings and interface.'),action('defaultBrowser','Браузер по умолчанию','Default browser')])]},
+    {id:'interface',ru:'Интерфейс',en:'Interface',hint:'Внешний вид и элементы браузера.',enHint:'Appearance and browser controls.',groups:[group('Внешний вид','Appearance',[row('theme','Тема','Theme','segments',[opt('system','Системная','System'),opt('light','Светлая','Light'),opt('dark','Тёмная','Dark')],'','', 'settings','тёмная темная светлая dark light'),row('mattePanel','Матовая прозрачность','Matte transparency','toggle',[],'Размытие и прозрачность в верхней панели Soulu.','Blur and transparency in the Soulu toolbar.'),row('layout','Режим панели','Toolbar mode','segments',[opt('compact','Основная','Main'),opt('classic','Классическая','Classic')])]),group('Элементы панели','Toolbar items',[...[
+      ['showSidebar','Боковая панель','Sidebar'],['showBack','Назад','Back'],['showFavorites','Закладки','Bookmarks'],['showNewTab','Новая вкладка','New tab'],['showDownloads','Загрузки','Downloads'],['vpnToolbarVisible','Кнопка VPN','VPN button']].map(a=>row(...a)),row('addressPosition','Расположение адресной строки','Address position','select',[opt('left','Слева','Left'),opt('center','По центру','Centered')]),row('downloadsMode','Кнопка загрузок','Downloads button','select',[opt('always','Всегда показывать','Always show'),opt('dynamic','Во время загрузки','During downloads')])])]},
+    {id:'tabs',ru:'Вкладки и страницы',en:'Tabs and pages',hint:'Вкладки, запуск и страницы браузера.',enHint:'Tabs, startup and browser pages.',groups:[group('Вкладки','Tabs',[row('openStartPageAfterLastTab','После закрытия последней вкладки открывать страницу запуска','Open the startup page after closing the last tab','toggle',[],'Вместо закрытия последней вкладки откроется выбранная страница запуска.','The selected startup page replaces the last tab.')]),...[
+      ['startup','При запуске Soulu','When Soulu starts'],['newTab','Новая вкладка','New tab'],['home','Домашняя страница','Home page']].map(([key,ru,en])=>group(ru,en,[row(key+'Mode',ru,en,'select',key==='startup'?[opt('continue','Продолжить с предыдущего места','Continue where you left off'),...pageOptions]:pageOptions),row(key+'Url','Адрес страницы','Page address','url')])),group('Страница Soulu','Soulu page',[row('homeShowLogo','Показывать логотип','Show logo'),row('homeShowSearch','Показывать поиск','Show search'),row('homeShowShortcuts','Показывать быстрые ссылки','Show shortcuts'),row('homeShowBackground','Мягкий фон страницы','Soft page background'),action('shortcuts','Настроить быстрые ссылки','Edit shortcuts')])]},
+    {id:'search',ru:'Поиск',en:'Search',hint:'Поисковая система и адресная строка.',enHint:'Search engine and address bar.',groups:[group('Адресная строка','Address bar',[row('searchEngine','Поисковая система','Search engine','select',[opt('google','Google'),opt('bing','Bing'),opt('duckduckgo','DuckDuckGo')]),row('addressOpenMode','Открывать введённый адрес','Open entered address','select',[opt('current','В текущей вкладке','In current tab'),opt('newIfOccupied','В новой, если текущая занята','In new tab when occupied')])])]},
+    {id:'bookmarks',ru:'Закладки',en:'Bookmarks',hint:'Панель и отображение закладок.',enHint:'Bookmarks bar and display.',groups:[group('Панель закладок','Bookmarks bar',[row('bookmarksBarMode','Панель закладок','Bookmarks bar','select',[opt('always','Всегда показывать','Always show'),opt('newTab','На странице новой вкладки','On the new tab page'),opt('auto','При наведении','On hover')]),row('bookmarksBarPosition','Расположение панели','Bar position','select',[opt('above','Над содержимым','Above content'),opt('hidden','Не показывать','Hidden')]),row('bookmarksIconsOnly','Показывать только иконки','Show icons only')])]},
+    {id:'sites',ru:'Веб-сайты',en:'Websites',hint:'Разрешения, данные и содержимое сайтов.',enHint:'Permissions, data and site content.',groups:[group('Разрешения','Permissions',permissionNames.map(([key,ru,en])=>row(key,ru,en,'select',key==='sound'?[opt(0,'Разрешать','Allow'),opt(1,'Приглушать','Mute'),opt(2,'Блокировать','Block')]:[opt(0,'Разрешать','Allow'),opt(1,'Спрашивать','Ask'),opt(2,'Блокировать','Block')],'','', 'permissions'))),group('Исключения сайтов','Site exceptions',[action('exceptions','Исключения разрешений','Permission exceptions')]),group('Блокировка рекламы','Ad blocking',[row('contentBlocking','Блокировать рекламу','Block ads','toggle',[],'Базовая блокировка сторонних ресурсов рекламных доменов.','Basic blocking of third-party resources from advertising domains.','blocking'),action('adblockExceptions','Разрешить рекламу на выбранных сайтах','Allow ads on selected sites')]),group('Режим чтения','Reader mode',[
+      row('theme','Тема чтения','Reader theme','select',[opt('light','Светлая','Light'),opt('sepia','Сепия','Sepia'),opt('dark','Тёмная','Dark')],'','','reader','reader режим чтения'),row('font','Шрифт','Font','select',[opt('system','Системный','System'),opt('sans','Без засечек','Sans-serif'),opt('serif','С засечками','Serif')],'','','reader'),row('size','Размер текста','Text size','select',[14,16,18,20,22,24,26,28,30,32].map(v=>opt(v,String(v))),'','','reader'),row('width','Ширина текста','Text width','select',[opt(0,'Узкая','Narrow'),opt(1,'Средняя','Medium'),opt(2,'Широкая','Wide')],'','','reader'),row('spacing','Межстрочный интервал','Line spacing','select',[opt(0,'Обычный','Normal'),opt(1,'Свободный','Relaxed'),opt(2,'Широкий','Wide')],'','','reader'),row('images','Показывать изображения','Show images','toggle',[],'','','reader')]),group('Данные сайтов','Site data',[action('siteData','Данные текущего сайта','Current site data')])]},
+    {id:'profiles',ru:'Профили и данные',en:'Profiles and data',hint:'Профили, пароли и импорт данных.',enHint:'Profiles, passwords and data import.',groups:[group('Профили','Profiles',[action('profileList','Текущий профиль и другие профили','Current and other profiles'),action('createProfile','Создать профиль','Create profile')]),group('Пароли','Passwords',[action('passwords','Открыть менеджер паролей','Open password manager')]),group('Импорт данных','Import data',[action('import','Импортировать из другого браузера','Import from another browser')]),group('Инкогнито','Incognito',[action('incognito','Открыть вкладку инкогнито','Open incognito tab')])]},
+    {id:'downloads',ru:'Загрузки',en:'Downloads',hint:'Папка загрузок и сохранение файлов.',enHint:'Download folder and saving files.',groups:[group('Сохранение файлов','Saving files',[row('downloadPath','Папка загрузок','Downloads folder','text'),action('chooseFolder','Изменить папку','Change folder'),row('askDownloadLocation','Всегда спрашивать, куда сохранять файлы','Always ask where to save files'),action('openFolder','Открыть папку загрузок','Open downloads folder')])]},
+    {id:'vpn',ru:'VPN',en:'VPN',hint:'Подключение и конфигурация VPN.',enHint:'VPN connection and configuration.',groups:[group('Соединение','Connection',[action('vpnStatus','Состояние VPN','VPN status')]),group('Конфигурация','Configuration',[row('protocol','Протокол','Protocol','segments',[opt('vless','VLESS'),opt('sudoku','Sudoku')],'','','vpn'),row('link','Ключ подключения','Connection key','textarea',[],'','','vpn'),action('parseVpn','Распознать ключ','Parse key')])]},
+    {id:'updates',ru:'Обновления',en:'Updates',hint:'Версия Soulu и компоненты браузера.',enHint:'Soulu version and browser components.',groups:[group('Компоненты','Components',[action('versions','Версии компонентов','Component versions')])]}
+  ];
+  function get(r){if(r.store==='permissions')return staged.rules.defaults[r.key];if(r.store==='blocking')return staged.rules.blocking.enabled;return staged[r.store][r.key];}
+  function set(r,value){if(r.store==='permissions')staged.rules.defaults[r.key]=Number(value);else if(r.store==='blocking')staged.rules.blocking.enabled=value;else staged[r.store][r.key]=r.store==='reader'&&['size','width','spacing'].includes(r.key)?Number(value):value;changed();}
+  const dirty=()=>persisted&&!equal(persisted,staged);
+  function report(error){$('dataMessage').textContent=error.message||error;$('dataMessage').classList.add('error');}
+  function status(){const d=dirty();$('applySettings').disabled=!d||busy;$('cancelSettings').disabled=busy||!persisted;$('saveClose').disabled=busy;document.querySelector('main').setAttribute('aria-busy',String(busy));if(!$('dataMessage').classList.contains('error'))$('dataMessage').textContent=d?t('Есть неприменённые изменения','You have unapplied changes'):'';}
+  function syncStage(){const snapshot=clone(staged);queue=queue.then(()=>invoke('stage',snapshot));queue=queue.catch(report);return queue;}
+  function changed(){if(busy)return;document.body.dataset.theme=staged.settings.theme;status();syncStage().catch(()=>{});updateConditional();if(document.documentElement.lang!==staged.settings.language)render();}
+  function updateConditional(){for(const kind of ['startup','newTab','home']){const n=$('control-settings-'+kind+'Url');if(n)n.hidden=staged.settings[kind+'Mode']!=='custom';}const n=$('control-settings-bookmarksIconsOnly');if(n)n.querySelector('input').disabled=staged.settings.bookmarksBarPosition==='hidden';}
+  function button(text,fn,cls){const b=el('button',text,cls);b.type='button';b.onclick=()=>Promise.resolve().then(fn).catch(report);return b;}
+  function render(){if(!staged)return;const english=staged.settings.language==='en';document.documentElement.lang=english?'en':'ru';document.title=t('Настройки','Settings');document.body.dataset.theme=staged.settings.theme;$('settingsTitle').textContent=t('Настройки','Settings');$('settingsSearch').placeholder=t('Поиск в настройках','Search settings');$('settingsSearch').setAttribute('aria-label',$('settingsSearch').placeholder);$('clearSearch').title=t('Очистить поиск','Clear search');$('clearSearch').setAttribute('aria-label',$('clearSearch').title);$('closeAction').setAttribute('aria-label',t('Закрыть','Close'));$('sectionNav').setAttribute('aria-label',t('Разделы настроек','Settings sections'));$('settingsContent').setAttribute('aria-label',t('Настройки','Settings'));
+    for(const [id,ru,en] of [['applySettings','Применить','Apply'],['cancelSettings','Отмена','Cancel'],['closeTitle','Сохранить изменения?','Save changes?'],['closeHint','Изменения настроек ещё не применены.','Your settings changes have not been applied.'],['discardClose','Не сохранять','Discard'],['cancelClose','Отмена','Cancel'],['saveClose','Сохранить','Save']])$(id).textContent=t(ru,en);
+    $('homeCards').replaceChildren();$('sectionNav').replaceChildren();const all=button('',()=>openSection(''),'nav-item');all.append(icon('all'));all.title=t('Все настройки','All settings');all.setAttribute('aria-label',all.title);$('sectionNav').append(all);
+    index=[];
+    for(const s of sections){const b=button('',()=>openSection(s.id),'category-card icon-'+s.id);const tile=el('span',undefined,'icon-tile');tile.append(icon(s.id));const text=el('span',undefined,'category-copy');text.append(el('strong',t(s.ru,s.en)),el('small',t(s.hint,s.enHint)));b.append(tile,text,el('span','›','chevron'));$('homeCards').append(b);
+      const nav=button('',()=>openSection(s.id),'nav-item');nav.dataset.section=s.id;nav.append(icon(s.id));nav.title=t(s.ru,s.en);nav.setAttribute('aria-label',nav.title);nav.classList.toggle('active',section===s.id);if(section===s.id)nav.setAttribute('aria-current','page');$('sectionNav').append(nav);
+      for(const g of s.groups)for(const r of g.rows)index.push({section:s.id,key:r.store+'-'+r.key,title:t(r.ru,r.en),path:t(s.ru,s.en)+' → '+t(g.ru,g.en),hay:[s.ru,s.en,g.ru,g.en,r.ru,r.en,r.tags,...r.options.flatMap(o=>[o.ru,o.en])].join(' ').toLowerCase().replaceAll('ё','е')});
     }
-  };
-  Object.assign(copy.ru, {profiles:"Профили",updates:"Обновления",profilesHint:"У каждого профиля отдельные cookies, кэш, сессии сайтов и хранилища.",profileName:"Название профиля",createProfile:"Создать профиль",incognito:"Режим инкогнито",incognitoHint:"Данные вкладок инкогнито не записываются на диск.",openIncognito:"Открыть вкладку",souluUpdates:"Обновления Soulu",recommended:"Рекомендуемая",automaticUpdates:"Автоматически проверять обновления",checkUpdates:"Проверить",updateRestart:"Обновить и перезапустить"});
-  Object.assign(copy.en, {profiles:"Profiles",updates:"Updates",profilesHint:"Every profile has separate cookies, cache, site sessions and storage.",profileName:"Profile name",createProfile:"Create profile",incognito:"Incognito mode",incognitoHint:"Incognito tab data is never written to disk.",openIncognito:"Open tab",souluUpdates:"Soulu updates",recommended:"Recommended",automaticUpdates:"Automatically check for updates",checkUpdates:"Check",updateRestart:"Update and restart"});
-
-  const sectionHints = {
-    ru:{appearance:"Настройте вид браузера и основной панели.",toolbar:"Выберите состав и расположение элементов.",search:"Поиск и поведение адресной строки.",startup:"Что Soulu открывает при запуске.",downloads:"Папка и поведение загрузок.",vpn:"Параметры встроенного VPN.",profiles:"Независимые пространства для личной и рабочей жизни.",accounts:"Учётные записи и веб-сессии.",passwords:"Сохранённые данные входа.",updates:"Версии Soulu, CEF и Chromium."},
-    en:{appearance:"Customize the browser and main toolbar.",toolbar:"Choose toolbar items and placement.",search:"Search and address bar behavior.",startup:"What Soulu opens on launch.",downloads:"Download folder and behavior.",vpn:"Built-in VPN preferences.",profiles:"Independent spaces for personal and work use.",accounts:"Accounts and web sessions.",passwords:"Saved sign-in details.",updates:"Soulu, CEF and Chromium versions."}
-  };
-  const titles = {appearance:"appearance",toolbar:"toolbar",search:"search",startup:"startup",downloads:"downloads",vpn:"VPN",profiles:"profiles",accounts:"accounts",passwords:"passwords",updates:"updates"};
-  copy.ru.sites="Сайты и разрешения";copy.en.sites="Sites and permissions";titles.sites="sites";
-  copy.ru.profiles="Профили и данные";copy.en.profiles="Profiles and data";
-  sectionHints.ru.sites="Разрешения, исключения и отдельная блокировка рекламы.";
-  sectionHints.en.sites="Permissions, site exceptions and content blocking.";
-
-  function translate() {
-    const lang = settings.language === "en" ? "en" : "ru";
-    document.documentElement.lang = lang;
-    document.title = lang === "en" ? "Soulu Settings" : "Настройки Soulu";
-    $$("[data-t]").forEach(el => { const v=copy[lang][el.dataset.t]; if(v) el.textContent=v; });
-    $$("[data-t-placeholder]").forEach(el => { const v=copy[lang][el.dataset.tPlaceholder]; if(v) el.placeholder=v; });
-    const active=$(".nav-item.active")?.dataset.section || "appearance";
-    $("#sectionTitle").textContent = titles[active] === "VPN" ? "VPN" : copy[lang][titles[active]];
-    $("#sectionHint").textContent = sectionHints[lang][active];
+    renderSection();showSearch();status();
   }
-
-  function fill() {
-    document.body.dataset.theme = settings.theme || "system";
-    $$('[name="layout"]').forEach(x => x.checked = x.value === (settings.layout || "compact"));
-    const values={theme:"system",language:"ru",addressPosition:"center",extensionsPosition:"left",downloadsMode:"dynamic",searchEngine:"google",addressOpenMode:"current",startupMode:"soulu",startupUrl:"",newTabMode:"soulu",newTabUrl:"",homeMode:"soulu",homeUrl:"",downloadPath:""};
-    for(const [id,fallback] of Object.entries(values)){const el=$("#"+id);if(el)el.value=settings[id] ?? fallback;}
-    for(const kind of ["startup","newTab","home"])$("#"+kind+"Url").disabled=settings[kind+"Mode"]!=="custom";
-    $("#mattePanel").checked = settings.mattePanel !== false;
-    $("#askDownloadLocation").checked = settings.askDownloadLocation !== false;
-    $$("[data-setting]").forEach(el => el.checked = settings[el.dataset.setting] !== false);
-    $("#automaticUpdates").checked = settings.automaticUpdates !== false;
-    renderProfiles();
-    renderUpdate(browserState.update);
-    translate();
-    document.body.classList.add("ready");
+  function renderSection(){const content=$('sectionContent');content.replaceChildren();const s=sections.find(x=>x.id===section);if(!s)return;const h=el('header',undefined,'section-heading');const words=el('div');words.append(el('h2',t(s.ru,s.en)),el('p',t(s.hint,s.enHint)));h.append(icon(s.id),words);content.append(h);
+    for(const g of s.groups){const card=el('article',undefined,'card');card.append(el('h3',t(g.ru,g.en)));
+      for(const r of g.rows){const n=el('div',undefined,'row'+(r.type==='textarea'?' long':''));n.id='control-'+r.store+'-'+r.key;n.tabIndex=-1;const text=el('span');text.append(el('b',t(r.ru,r.en)));if(r.hint)text.append(el('small',t(r.hint,r.enHint)));n.append(text);
+        if(r.type==='action'){if(r.key==='versions'){const grid=el('div',undefined,'version-grid');for(const [name,value] of [['Soulu',state.update?.soulu],['CEF',state.update?.cef],['Chromium',state.update?.chromium]]){const cell=el('div');cell.append(el('span',name),el('strong',value||'—'));grid.append(cell);}n.classList.add('long');n.append(grid,el('p',t('Автоматическая проверка и установка обновлений пока недоступны.','Automatic update checks and installation are not available.'),'note'));}else n.append(button(t('Открыть','Open'),()=>runAction(r.key)));}
+        else if(r.type==='segments'){const box=el('div',undefined,'segments');box.setAttribute('role','radiogroup');box.setAttribute('aria-label',t(r.ru,r.en));for(const o of r.options){const label=el('label'),input=el('input');input.type='radio';input.name=r.store+'-'+r.key;input.value=o.value;input.checked=get(r)===o.value;input.onchange=()=>set(r,o.value);if(r.key==='layout')label.append(el('span',undefined,'layout-diagram '+o.value));label.append(input,el('span',t(o.ru,o.en)));box.append(label);}n.append(box);}
+        else{const input=el(r.type==='select'?'select':r.type==='textarea'?'textarea':'input');input.id=r.store==='settings'?r.key:r.store+'-'+r.key;input.setAttribute('aria-label',t(r.ru,r.en));if(r.type==='select'){for(const o of r.options)input.append(new Option(t(o.ru,o.en),o.value));if(r.store==='reader'&&r.key==='size'&&!r.options.some(o=>o.value===get(r)))input.append(new Option(String(get(r)),get(r)));input.value=get(r);}else{input.type=r.type==='toggle'?'checkbox':r.type==='url'?'url':'text';if(r.type==='toggle')input.checked=get(r)!==false;else input.value=get(r)||'';if(r.type==='url')input.placeholder='https://example.com';if(r.key==='downloadPath'){input.placeholder=t('Папка загрузок Windows','Windows downloads folder');input.title=input.value;}}
+          input.onchange=()=>set(r,r.type==='toggle'?input.checked:input.value);if(['text','url','textarea'].includes(r.type))input.oninput=input.onchange;if(r.store==='settings'&&r.type==='toggle')input.dataset.setting=r.key;n.append(input);}
+        card.append(n);
+      }content.append(card);
+    }updateConditional();
   }
-
-  async function parseVpnLink() {
-    try {
-      const parsed=window.souluParseVpnKey($("#vpnLink").value,document.querySelector('[name="vpnProtocol"]:checked')?.value||"vless");
-      const {protocol,link:raw,address,region}=parsed;
-      const host=address.replace(/^\[/,"").replace(/\](:\d+)?$/,"").replace(/:\d+$/,"");
-      const resolved=await window.vpn.resolve(host).catch(()=>null);
-      const ip=resolved?.ip||host;
-      $("#vpnAddress").textContent=ip+(address.includes(":")?" · "+address:""); $("#vpnRegion").textContent=region; $("#vpnMessage").textContent="Ключ распознан";
-      return {protocol,link:raw,address,ip,region};
-    } catch(error){$("#vpnAddress").textContent="—";$("#vpnRegion").textContent="—";$("#vpnMessage").textContent=error.message;return null;}
+  function openSection(id,target){section=id;$('settingsSearch').value='';document.querySelector('main').dataset.view=id?'section':'home';document.querySelector('aside').hidden=!id;$('homeCards').hidden=!!id;$('sectionContent').hidden=!id;$('searchResults').hidden=true;render();$('settingsContent').scrollTop=0;if(target){const n=$('control-'+target);if(n){n.scrollIntoView({block:'center',behavior:'smooth'});n.classList.add('setting-highlight');n.focus({preventScroll:true});setTimeout(()=>n.classList.remove('setting-highlight'),2200);}}else $('settingsContent').focus({preventScroll:true});}
+  function showSearch(){const query=$('settingsSearch').value.trim().toLowerCase().replaceAll('ё','е');$('clearSearch').hidden=!query;$('searchResults').hidden=!query;$('homeCards').hidden=!!query||!!section;$('sectionContent').hidden=!!query||!section;if(!query)return;const box=$('searchResults');box.replaceChildren();const results=index.filter(x=>query.split(/\s+/).every(word=>x.hay.includes(word)));for(const r of results){const b=button('',()=>openSection(r.section,r.key),'result');const text=el('span');text.append(el('strong',r.title),el('small',r.path));b.append(icon(r.section),text);box.append(b);}if(!results.length)box.append(el('p',t('Ничего не найдено','No settings found'),'note'));}
+  function validate(){for(const kind of ['startup','newTab','home'])if(staged.settings[kind+'Mode']==='custom'){const raw=staged.settings[kind+'Url'].trim();try{if(!raw||/\s/.test(raw))throw Error();const u=new URL(raw.includes('://')?raw:'https://'+raw);if(!['http:','https:'].includes(u.protocol)||!u.hostname||u.username||u.password)throw Error();}catch{openSection('tabs','settings-'+kind+'Url');throw Error(t('Укажите корректный HTTP/HTTPS-адрес страницы.','Enter a valid HTTP/HTTPS page address.'));}}if(!equal(staged.vpn,persisted.vpn)){const parsed=window.souluParseVpnKey(staged.vpn.link,staged.vpn.protocol);Object.assign(staged.vpn,parsed);}}
+  async function apply(){if(!dirty()||busy)return !dirty();try{validate();busy=true;status();await queue;await invoke('stage',clone(staged));const result=await invoke('apply');persisted=result.persisted;loaded=clone(persisted);if(!result.ok){report(result.error);return false;}staged=clone(persisted);$('dataMessage').classList.remove('error');render();return true;}catch(error){report(error);return false;}finally{busy=false;status();}}
+  async function cancel(){if(busy)return;busy=true;status();try{await queue.catch(()=>{});persisted=await invoke('cancel');loaded=clone(persisted);staged=clone(persisted);queue=Promise.resolve();$('dataMessage').classList.remove('error');render();}catch(error){report(error);}finally{busy=false;status();}}
+  function requestClose(){if(busy)return;if(dirty()){if(!$('closeDialog').open)$('closeDialog').showModal();}else invoke('close').catch(report);}
+  function dialog(title,build){$('actionTitle').textContent=title;$('actionMessage').textContent='';$('actionContent').replaceChildren();build($('actionContent'));if(!$('actionDialog').open)$('actionDialog').showModal();}
+  async function runAction(key){if(key==='defaultBrowser')return invoke('defaultBrowser');if(key==='chooseFolder'){const path=await invoke('chooseFolder');if(path){staged.settings.downloadPath=path;changed();renderSection();}return;}if(key==='openFolder')return invoke('openFolder');if(key==='incognito')return window.browserShell.newIncognito();if(key==='parseVpn'){const parsed=window.souluParseVpnKey(staged.vpn.link,staged.vpn.protocol);Object.assign(staged.vpn,parsed);changed();dialog(t('Ключ распознан','Key parsed'),box=>{for(const [ru,en,value] of [['Протокол','Protocol',parsed.protocol],['Сервер','Server',parsed.address],['Название из ключа','Label from key',parsed.region]])box.append(el('p',t(ru,en)+': '+value));box.append(el('p',t('Конфигурация будет сохранена после применения.','The configuration will be saved when you apply changes.'),'note'));});return;}
+    if(key==='vpnStatus'){const result=await window.vpn.send('status');dialog(t('Состояние VPN','VPN status'),box=>{box.append(el('p',result?.error||t(result?.connected?'Подключён':'Отключён',result?.connected?'Connected':'Disconnected')));});return;}
+    if(key==='siteData'){dialog(t('Данные сайтов','Site data'),box=>box.append(el('p',t('Чтобы очистить данные конкретного сайта, откройте сайт и выберите «Данные сайта» в информации о сайте. Список всех хранилищ и очистка всех сайтов пока недоступны.','To clear data for a specific site, open it and choose Site data in site information. Listing all stores and clearing all sites are not available.'),'note')));return;}
+    if(key==='shortcuts')return editShortcuts();
+    if(key==='exceptions'||key==='adblockExceptions')return editExceptions(key==='adblockExceptions');
+    if(window.souluSettingsData)return window.souluSettingsData.action(key);
   }
-
-  function renderProfiles() {
-    const box = $("#profileList");
-    if (!box) return;
-    box.replaceChildren();
-    for(const profile of browserState.profiles||[]){
-      const row=document.createElement("div");row.className="profile-row"+(profile.active?" active":"");
-      const span=document.createElement("span"),name=document.createElement("b"),id=document.createElement("small");
-      name.textContent=profile.name;id.textContent=profile.id;span.append(name,id);
-      const button=document.createElement("button");button.disabled=profile.active;
-      button.textContent=profile.active?"✓":"Открыть";
-      button.onclick = async () => {
-        browserState = await window.browserShell.switchProfile(profile.id);
-        settings = browserState.settings || settings;
-        fill();
-      };
-      const remove=document.createElement("button");remove.textContent="Удалить…";
-      remove.disabled=(browserState.profiles||[]).length<2;
-      remove.onclick=async()=>{try{browserState=await window.browserShell.deleteProfile(profile.id);settings=browserState.settings||settings;fill();}
-        catch(error){alert(error.message);}};
-      row.append(span,button,remove);box.append(row);
-    }
-  }
-
-  function renderUpdate(update) {
-    if (!update) return;
-    $("#souluVersion").textContent = update.soulu || "—";
-    $("#recommendedVersion").textContent = update.recommended || "—";
-    $("#cefVersion").textContent = update.cef || "—";
-    $("#chromiumVersion").textContent = update.chromium || "—";
-    const lang = settings.language === "en" ? "en" : "ru";
-    $("#updateStatus").textContent = update.available
-      ? (update.security ? (lang === "en" ? "Critical security update" : "Критическое обновление безопасности") : (lang === "en" ? "Update available" : "Доступно обновление"))
-      : (lang === "en" ? "Soulu is up to date" : "Установлена актуальная версия");
-    $("#updatePill").textContent = update.available ? (lang === "en" ? "Update" : "Обновление") : "OK";
-    $("#updatePill").classList.toggle("security", Boolean(update.security));
-    $("#updateDot").classList.toggle("visible", Boolean(update.available));
-    $("#installUpdate").disabled = !update.available;
-  }
-
-  async function patch(value) {
-    const previous = {...settings};
-    settings = {...settings, ...value};
-    fill();
-    try {
-      settings = await window.browserShell.setSettings(value);
-      fill();
-    } catch (error) {
-      settings = previous;
-      fill();
-      alert(error.message);
-      console.error("Soulu setting was not applied", error);
-    }
-  }
-
-  $$(".nav-item").forEach(button => button.onclick = () => {
-    $$(".nav-item").forEach(x => x.classList.toggle("active", x === button));
-    $$(".settings-section").forEach(x => x.classList.toggle("active", x.dataset.page === button.dataset.section));
-    translate();
-  });
-  $$('[name="layout"]').forEach(el => el.onchange=()=>patch({layout:el.value}));
-  for(const id of ["theme","language","addressPosition","extensionsPosition","downloadsMode","searchEngine","addressOpenMode","startupMode","startupUrl","newTabMode","newTabUrl","homeMode","homeUrl","downloadPath"]){
-    const el=$("#"+id); if(el) el.onchange=()=>patch({[id]:el.value});
-  }
-  $("#mattePanel").onchange=e=>patch({mattePanel:e.target.checked});
-  $("#askDownloadLocation").onchange=e=>patch({askDownloadLocation:e.target.checked});
-  $("#automaticUpdates").onchange=e=>patch({automaticUpdates:e.target.checked});
-  $$("[data-setting]").forEach(el=>el.onchange=e=>patch({[el.dataset.setting]:e.target.checked}));
-  $("#createProfile").onclick=async()=>{
-    const name=$("#profileName").value.trim();
-    if(!name)return;
-    browserState=await window.browserShell.createProfile(name);
-    settings=browserState.settings||settings;
-    $("#profileName").value="";
-    fill();
-  };
-  $("#openIncognito").onclick=()=>window.browserShell.newIncognito();
-  $("#checkUpdates").onclick=async()=>{browserState.update=await window.browserShell.checkUpdates();renderUpdate(browserState.update);};
-  $("#parseVpn").onclick=parseVpnLink;
-  $("#saveVpn").onclick=async()=>{const parsed=await parseVpnLink();if(!parsed)return;$("#vpnMessage").textContent="Сохраняю конфигурацию…";try{const saved=await window.vpn.settingsSet(parsed);if(saved?.ok===false)throw new Error(saved.error||"Не удалось сохранить конфигурацию");$("#vpnMessage").textContent="Конфигурация сохранена и готова к подключению внутри Soulu.";}catch(error){$("#vpnMessage").textContent=`Ошибка VPN: ${error.message}`;}};
-  $$('[name="vpnProtocol"]').forEach(el=>el.onchange=()=>{$("#vpnMessage").textContent="";parseVpnLink();});
-  window.vpn.settingsGet().then(value=>{if(!value)return;const p=value.protocol||"vless";const radio=document.querySelector(`[name="vpnProtocol"][value="${p}"]`);if(radio)radio.checked=true;$("#vpnLink").value=value.link||"";if(value.link)parseVpnLink();}).catch(()=>{});
-
-  window.browserShell.onState(state => {browserState=state;settings=state.settings||settings;fill();});
-  window.browserShell.onSettings?.(value => {settings={...settings,...value};fill();});
-  Promise.all([window.browserShell.getSettings(),window.browserShell.getState()]).then(([value,state])=>{settings=value||{};browserState=state||browserState;fill();});
+  function editShortcuts(){dialog(t('Быстрые ссылки','Shortcuts'),box=>{const rows=staged.settings.homeShortcuts||[];rows.forEach((item,i)=>{const n=el('div',undefined,'profile-row');n.append(el('span',item.name+' · '+item.url),button(t('Удалить','Remove'),()=>{staged.settings.homeShortcuts=rows.filter((_,j)=>j!==i);changed();editShortcuts();}));box.append(n);});const name=el('input'),url=el('input');name.type='text';url.type='url';name.placeholder=t('Название','Name');url.placeholder='https://example.com';name.setAttribute('aria-label',name.placeholder);url.setAttribute('aria-label',t('Адрес сайта','Site address'));box.append(name,url,button(t('Добавить','Add'),()=>{const u=new URL(url.value);if(!['http:','https:'].includes(u.protocol)||u.username||u.password||!name.value.trim())throw Error(t('Проверьте название и адрес.','Check the name and address.'));if(rows.length>=12)throw Error(t('Можно добавить до 12 ссылок.','You can add up to 12 shortcuts.'));staged.settings.homeShortcuts=[...rows,{name:name.value.trim(),url:u.href}];changed();editShortcuts();}));});}
+  function editExceptions(blocking){dialog(t(blocking?'Исключения блокировки рекламы':'Исключения разрешений',blocking?'Ad blocking exceptions':'Permission exceptions'),box=>{const search=el('input');search.type='search';search.placeholder=t('Поиск по домену','Search domains');search.setAttribute('aria-label',search.placeholder);const list=el('div');box.append(search,list);const data=blocking?staged.rules.blocking.sites:staged.rules.sites;
+      function draw(){list.replaceChildren();for(const domain of Object.keys(data).sort().filter(d=>d.includes(search.value.toLowerCase()))){const n=el('div',undefined,'profile-row');n.append(el('span',domain+(blocking?' · '+t(data[domain]?'Блокировать':'Разрешать',data[domain]?'Block':'Allow'):'')),button(t('Изменить','Edit'),()=>editDomain(domain,blocking)),button(t('Удалить исключение','Remove exception'),()=>{delete data[domain];changed();draw();}));list.append(n);}if(!list.children.length)list.append(el('p',t('Исключений нет','No exceptions'),'note'));}
+      search.oninput=draw;draw();const input=el('input');input.type='text';input.placeholder='example.com';input.setAttribute('aria-label',t('Домен','Domain'));box.append(input,button(t('Добавить сайт','Add site'),()=>{const u=new URL(input.value.includes('://')?input.value:'https://'+input.value);if(!['http:','https:'].includes(u.protocol)||!u.hostname||u.username||u.password)throw Error(t('Укажите HTTP/HTTPS-сайт','Enter an HTTP/HTTPS site'));editDomain(u.hostname.toLowerCase().replace(/\.$/,''),blocking);}),button(t('Сбросить все исключения','Reset all exceptions'),()=>{if(confirm(t('Сбросить все исключения этой группы?','Reset all exceptions in this group?'))){for(const k of Object.keys(data))delete data[k];changed();draw();}}));});}
+  function editDomain(domain,blocking){dialog(domain,box=>{if(blocking){const select=el('select');select.append(new Option(t('По умолчанию','Default'),'default'),new Option(t('Разрешать рекламу','Allow ads'),'false'),new Option(t('Блокировать рекламу','Block ads'),'true'));select.value=staged.rules.blocking.sites[domain]===undefined?'default':String(staged.rules.blocking.sites[domain]);select.setAttribute('aria-label',t('Блокировка рекламы','Ad blocking'));select.onchange=()=>{if(select.value==='default')delete staged.rules.blocking.sites[domain];else staged.rules.blocking.sites[domain]=select.value==='true';changed();};box.append(select);}else for(const [key,ru,en] of permissionNames){const n=el('label',undefined,'row'),select=el('select');select.append(new Option(t('По умолчанию','Default'),'-1'));(key==='sound'?[t('Разрешать','Allow'),t('Приглушать','Mute'),t('Блокировать','Block')]:[t('Разрешать','Allow'),t('Спрашивать','Ask'),t('Блокировать','Block')]).forEach((text,i)=>select.append(new Option(text,i)));select.value=staged.rules.sites[domain]?.[key]??-1;select.onchange=()=>{const rules=staged.rules.sites[domain]||{};if(select.value==='-1')delete rules[key];else rules[key]=Number(select.value);if(Object.keys(rules).length)staged.rules.sites[domain]=rules;else delete staged.rules.sites[domain];changed();};n.append(el('span',t(ru,en)),select);box.append(n);}box.append(button(t('Все исключения','All exceptions'),()=>editExceptions(blocking)));});}
+  $('settingsSearch').oninput=showSearch;$('clearSearch').onclick=()=>{$('settingsSearch').value='';showSearch();$('settingsSearch').focus();};$('applySettings').onclick=apply;$('cancelSettings').onclick=cancel;
+  $('closeAction').onclick=()=>{$('actionDialog').close();$('actionContent').replaceChildren();};$('actionDialog').addEventListener('close',()=>{$('actionContent').replaceChildren();});$('cancelClose').onclick=()=>{$('closeDialog').close();invoke('abortClose').catch(report);};$('closeDialog').addEventListener('cancel',()=>invoke('abortClose').catch(report));$('discardClose').onclick=async()=>{await cancel();if(!dirty()){$('closeDialog').close();await invoke('close');}};$('saveClose').onclick=async()=>{if(await apply()){$('closeDialog').close();await invoke('close');}};
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!document.querySelector('dialog[open]')){e.preventDefault();requestClose();}if(e.target.closest('#sectionNav')&&['ArrowDown','ArrowUp','Home','End'].includes(e.key)){e.preventDefault();const buttons=[...$('sectionNav').children],i=buttons.indexOf(e.target);buttons[e.key==='Home'?0:e.key==='End'?buttons.length-1:(i+(e.key==='ArrowDown'?1:-1)+buttons.length)%buttons.length].focus();}});
+  window.souluSettingsRequestClose=requestClose;
+  window.souluSettings={t,el,button,dialog,report,invoke,dirty,apply,cancel,get state(){return state;},get staged(){return staged;},get persisted(){return persisted;},get loaded(){return loaded;},reload:async()=>{persisted=await invoke('begin');loaded=clone(persisted);staged=clone(persisted);state=await window.browserShell.getState();render();},openSection};
+  window.browserShell.onState(next=>{state=next;if(persisted&&next.activeProfileId!==persisted.profile){staged=null;persisted=null;document.body.classList.remove('ready');$('sectionContent').replaceChildren();$('homeCards').replaceChildren();report(t('Активный профиль изменился. Откройте настройки из него.','The active profile changed. Open settings from that profile.'));} });
+  Promise.all([invoke('begin'),window.browserShell.getState()]).then(([snapshot,next])=>{loaded=clone(snapshot);persisted=clone(snapshot);staged=clone(snapshot);state=next;render();document.body.classList.add('ready');document.querySelector('main').setAttribute('aria-busy','false');}).catch(report);
 })();
-

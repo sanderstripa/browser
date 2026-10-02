@@ -388,14 +388,14 @@ void BrowserWindow::LoadSettings() {
   }
 }
 
-void BrowserWindow::SaveSettings() const {
+bool BrowserWindow::SaveSettings() const {
   auto root = CefDictionaryValue::Create();
   root->SetDictionary("settings", settings_->Copy(false));
   root->SetDictionary("vpn", vpn_settings_->Copy(false));
   const auto profile = std::find_if(profiles_.begin(), profiles_.end(),
       [this](const Profile& p){return p.id==active_profile_id_;});
   if(profile!=profiles_.end()) {
-    WriteJson(ProfileRoot(profile->id)/L"soulu-settings.json",Wrap(settings_));
+    if(!WriteJson(ProfileRoot(profile->id)/L"soulu-settings.json",Wrap(settings_)))return false;
     // VPN remains owned by the legacy global file. Preserve its settings
     // migration template rather than copying the active profile into it.
     auto legacy=ReadJson(UserDataDirectory()/L"settings.json");
@@ -405,7 +405,7 @@ void BrowserWindow::SaveSettings() const {
       root->SetDictionary("settings",initial_settings_->Copy(false));
     root->SetDictionary("vpn",vpn_settings_->Copy(false));
   }
-  WriteJson(UserDataDirectory()/L"settings.json",Wrap(root));
+  return WriteJson(UserDataDirectory()/L"settings.json",Wrap(root));
 }
 
 void BrowserWindow::LoadProfileSettings() {
@@ -703,7 +703,7 @@ void BrowserWindow::OfferCredential(int id,CefRefPtr<CefFrame> frame,
 
 void BrowserWindow::ApplyWindowAppearance() {
   if (!hwnd_) return;
-  const std::string theme = settings_->GetString("theme");
+  const std::string theme = EffectiveSettings()->GetString("theme");
   const BOOL dark = theme == "dark" || (theme == "system" && IsWindowsDarkMode());
   DwmSetWindowAttribute(hwnd_, 20, &dark, sizeof(dark));
 
@@ -711,7 +711,7 @@ void BrowserWindow::ApplyWindowAppearance() {
   DwmSetWindowAttribute(hwnd_,33,&corner,sizeof(corner));
   DwmSetWindowAttribute(hwnd_,34,&noBorder,sizeof(noBorder));
   DwmSetWindowAttribute(hwnd_,38,&noBackdrop,sizeof(noBackdrop));
-  const bool matte=settings_->GetBool("mattePanel");
+  const bool matte=EffectiveSettings()->GetBool("mattePanel");
   const auto compose=reinterpret_cast<SetComposition>(GetProcAddress(GetModuleHandleW(L"user32.dll"),"SetWindowCompositionAttribute"));
   AccentPolicy policy={0,0,0,0};
   CompositionData data={19,&policy,sizeof(policy)};
@@ -812,6 +812,8 @@ CefRefPtr<CefDictionaryValue> BrowserWindow::SendVpnHelper(
 }
 
 void BrowserWindow::SwitchProfile(const std::string& id) {
+  if(settings_dirty_&&id!=active_profile_id_)return;
+  settings_preview_=nullptr;settings_tab_=0;settings_loaded_=nullptr;settings_staged_=nullptr;
   const auto it = std::find_if(profiles_.begin(), profiles_.end(),
       [&id](const Profile& profile) { return profile.id == id; });
   if (it == profiles_.end()) return;
@@ -1015,6 +1017,8 @@ void BrowserWindow::CloseTab(int id) {
   auto it = std::find_if(tabs_.begin(), tabs_.end(),
       [id](const Tab& tab) { return tab.id == id; });
   if (it == tabs_.end()) return;
+  if (GuardSettingsClose(id)) return;
+  if (id==settings_tab_) {settings_tab_=0;settings_dirty_=false;ResetSettingsPreview();}
   if (it->browser) {
     it->browser->GetHost()->CloseBrowser(true);
     return;
@@ -1034,6 +1038,7 @@ void BrowserWindow::CloseTab(int id) {
 
 void BrowserWindow::BrowserClosed(CefRefPtr<CefBrowser> browser, int tab_id,
                                   bool shell) {
+  if(tab_id==settings_tab_){settings_tab_=0;settings_dirty_=false;ResetSettingsPreview();}
   if (shell) { if (surface_) surface_->Detach(); shell_ = nullptr; }
   else {
     auto* tab = FindTab(tab_id);
@@ -1215,7 +1220,7 @@ BrowserWindow::Geometry BrowserWindow::CurrentGeometry() const {
   g.scale = scale;
   g.width = std::max(1L, client.right - client.left);
   g.height = std::max(1L, client.bottom - client.top);
-  g.toolbar = px((settings_->GetString("layout") == "classic" ? 82 : 48) + (BookmarksBarVisible() ? 28 : 0));
+  g.toolbar = px((EffectiveSettings()->GetString("layout") == "classic" ? 82 : 48) + (BookmarksBarVisible() ? 28 : 0));
   g.sidebar = sidebar_visible_ ? px(276) : 0;
   g.panel = px(std::max(0, right_panel_width_));
   const auto* active=const_cast<BrowserWindow*>(this)->ActiveTab();
@@ -1287,8 +1292,8 @@ void BrowserWindow::Layout() {
 }
 
 void BrowserWindow::ApplyContentTheme() {
-  const bool dark = settings_->GetString("theme") == "dark" ||
-      (settings_->GetString("theme") == "system" && IsWindowsDarkMode());
+  const bool dark = EffectiveSettings()->GetString("theme") == "dark" ||
+      (EffectiveSettings()->GetString("theme") == "system" && IsWindowsDarkMode());
   for (auto& tab : tabs_) {
     if (!tab.browser || (tab.url != "about:blank" && tab.url != "soulu://home")) continue;
     auto frame = tab.browser->GetMainFrame();
@@ -1311,7 +1316,7 @@ CefRefPtr<CefDictionaryValue> BrowserWindow::State() const {
     row->SetInt("id", tab.id);
     const bool is_settings = tab.url.find("/ui/settings.html") != std::string::npos;
     row->SetString("title", is_settings
-        ? (settings_->GetString("language") == "en" ? "Settings" : "Настройки")
+        ? (EffectiveSettings()->GetString("language") == "en" ? "Settings" : "Настройки")
         : tab.title);
     row->SetString("url", tab.url == "about:blank" ? "" :
         (is_settings ? "soulu://settings" : tab.url));
@@ -1352,13 +1357,13 @@ CefRefPtr<CefDictionaryValue> BrowserWindow::State() const {
   update->SetBool("available", false);
   update->SetBool("security", false);
   state->SetDictionary("update", update);
-  state->SetDictionary("settings", settings_->Copy(false));
+  state->SetDictionary("settings", EffectiveSettings()->Copy(false));
   if (auto* tab = const_cast<BrowserWindow*>(this)->ActiveTab()) {
     auto page = CefDictionaryValue::Create();
     const bool is_settings =
         tab->url.find("/ui/settings.html") != std::string::npos;
     page->SetString("title", is_settings
-        ? (settings_->GetString("language") == "en" ? "Settings" : "Настройки")
+        ? (EffectiveSettings()->GetString("language") == "en" ? "Settings" : "Настройки")
         : tab->title);
     page->SetString("url", tab->url == "about:blank" ? "" :
         (is_settings ? "soulu://settings" : tab->url));
@@ -1629,15 +1634,18 @@ void BrowserWindow::HandleBridge(const std::string& request,
   }
   else if (action == "browser.newIncognito") NewTab("", true);
   else if (action == "browser.profile.create") {
+    if(settings_dirty_){callback->Failure(409,"Apply or cancel settings changes first");return;}
     std::string name = payload && payload->GetType() == VTYPE_STRING
         ? payload->GetString() : "Профиль";
     CreateProfile(name);
+    settings_preview_=nullptr;settings_tab_=0;settings_loaded_=nullptr;settings_staged_=nullptr;settings_dirty_=false;
     active_profile_id_ = profiles_.back().id;
     LoadProfileSettings();
     NewTab();
     return Reply(callback, State());
   }
   else if (action == "browser.profile.switch") {
+    if(settings_dirty_){callback->Failure(409,"Apply or cancel settings changes first");return;}
     SwitchProfile(payload->GetString());
     return Reply(callback, State());
   }
@@ -2017,6 +2025,7 @@ void BrowserWindow::HandleBridge(const std::string& request,
 }
 
 void BrowserWindow::CloseAll() {
+  if(GuardSettingsClose(settings_tab_,true))return;
   if(importing_){close_after_import_=true;return;}
   if (closing_) return;
   SaveSession();

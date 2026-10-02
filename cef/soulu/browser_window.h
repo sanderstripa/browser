@@ -24,6 +24,7 @@ class BrowserWindow final : public CefBaseRefCounted {
 
   bool IsHomeUi(const std::string& url) const;
   bool IsOnboardingUi(const std::string& url) const;
+  bool OpenDefaultBrowserSettings();
   void HandleOnboardingBridge(int id, const std::string& request,
       CefRefPtr<CefMessageRouterBrowserSide::Callback> callback);
   void HandleHomeBridge(int id, const std::string& request,
@@ -57,6 +58,9 @@ class BrowserWindow final : public CefBaseRefCounted {
   void CookieStoreFlushed();
   void RequestContextInitialized(CefRefPtr<CefRequestContext> context);
   bool IsTrustedUi(const std::string& url) const;
+  bool HandleSettingsBridge(int id, const std::string& request,
+      CefRefPtr<CefMessageRouterBrowserSide::Callback> callback);
+  bool GuardSettingsNavigation(int id, const std::string& url);
   bool IsIncognitoTab(int id);
   std::shared_ptr<SitePolicy> PolicyForTab(int id);
   bool AllowSite(int id, const std::string& origin, const std::string& permission);
@@ -117,7 +121,12 @@ class BrowserWindow final : public CefBaseRefCounted {
   bool SaveBookmarks(CefRefPtr<CefListValue> rows) const;
   void CaptureThumbnail();
   bool BookmarksBarVisible() const;
-  void SaveSettings() const;
+  bool SaveSettings() const;
+  CefRefPtr<CefDictionaryValue> EffectiveSettings() const;
+  CefRefPtr<CefDictionaryValue> SettingsSnapshot();
+  bool ApplySettingsSession(std::string& error);
+  void ResetSettingsPreview();
+  bool GuardSettingsClose(int id, bool all = false);
   void SwitchProfile(const std::string& id);
   void LoadProfileSettings();
   void ReleaseIncognito();
@@ -187,6 +196,14 @@ class BrowserWindow final : public CefBaseRefCounted {
   CefRefPtr<CefRequestContext> incognito_context_;
   CefRefPtr<CefDictionaryValue> settings_;
   CefRefPtr<CefDictionaryValue> initial_settings_;
+  CefRefPtr<CefDictionaryValue> settings_preview_;
+  CefRefPtr<CefDictionaryValue> settings_loaded_;
+  CefRefPtr<CefDictionaryValue> settings_staged_;
+  int settings_tab_ = 0;
+  std::string settings_profile_;
+  bool settings_dirty_ = false;
+  bool settings_close_all_ = false;
+  std::string settings_pending_url_;
   CefRefPtr<CefDictionaryValue> private_page_settings_;
   std::map<std::string, std::shared_ptr<SitePolicy>> policies_;
   CefRefPtr<CefDictionaryValue> vpn_settings_;

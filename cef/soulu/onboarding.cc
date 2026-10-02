@@ -50,6 +50,12 @@ void BrowserWindow::OpenExternal(const std::string& url) {
   else current_->NewTab(url);
   ShowWindow(current_->hwnd_,SW_RESTORE);SetForegroundWindow(current_->hwnd_);
 }
+bool BrowserWindow::OpenDefaultBrowserSettings() {
+  if(!RegisterDefaultBrowser())return false;
+  SHChangeNotify(SHCNE_ASSOCCHANGED,SHCNF_IDLIST,nullptr,nullptr);
+  return reinterpret_cast<INT_PTR>(ShellExecuteW(hwnd_,L"open",
+      L"ms-settings:defaultapps?registeredAppUser=Soulu",nullptr,nullptr,SW_SHOWNORMAL))>32;
+}
 bool BrowserWindow::IsOnboardingUi(const std::string& url) const {
   return url==InternalUrl("soulu://onboarding");
 }

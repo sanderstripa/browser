@@ -39,6 +39,7 @@ class BridgeHandler final : public CefMessageRouterBrowserSide::Handler {
     if (!owner_->IsTrustedUi(url)) {
       return false;
     }
+    if (owner_->HandleSettingsBridge(id_, request, callback)) return true;
     owner_->HandleBridge(request, callback);
     return true;
   }
@@ -102,6 +103,7 @@ void BrowserClient::OnLoadEnd(CefRefPtr<CefBrowser>,CefRefPtr<CefFrame> frame,in
 }
 bool BrowserClient::OnBeforeBrowse(CefRefPtr<CefBrowser> browser,CefRefPtr<CefFrame> frame,
     CefRefPtr<CefRequest> request,bool,bool) {
+  if (frame->IsMain() && owner_->GuardSettingsNavigation(tab_id_, request->GetURL())) return true;
   CEF_REQUIRE_UI_THREAD();if(router_)router_->OnBeforeBrowse(browser,frame);
   if(role_!=BrowserRole::kShell&&frame->IsMain()){
     owner_->ReaderDocumentNavigation(tab_id_);owner_->SyncSitePolicy(tab_id_,request->GetURL());

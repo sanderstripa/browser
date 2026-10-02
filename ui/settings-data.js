@@ -1,110 +1,19 @@
 (() => {
-  const api=window.browserShell,$=id=>document.getElementById(id);
-  if(!api?.getSiteRules)return;
-  let passwords=[],rules=null,domain="",profile="",loading=false;
-  const names={geolocation:"Геолокация",camera:"Камера",microphone:"Микрофон",
-    notifications:"Уведомления",sound:"Звук",popups:"Всплывающие окна",downloads:"Загрузки"};
-  const message=text=>$("dataMessage").textContent=text;
-  const element=(tag,text,cls)=>{const node=document.createElement(tag);if(text!==undefined)node.textContent=text;if(cls)node.className=cls;return node;};
-  const button=(text,action)=>{const node=element("button",text);node.type="button";node.onclick=()=>Promise.resolve().then(action).catch(error=>message(error.message));return node;};
-  function normalize(input){
-    const url=new URL(input.includes("://")?input:"https://"+input);
-    if(!["http:","https:"].includes(url.protocol)||!url.hostname)throw new Error("Укажите HTTP/HTTPS-сайт");
-    return url.hostname.toLowerCase().replace(/\.$/,"");
-  }
-  function renderPasswords(){
-    const query=$("passwordSearch").value.toLowerCase();$("passwordList").replaceChildren();
-    for(const item of passwords.filter(row=>(row.origin+" "+row.username).toLowerCase().includes(query))){
-      const row=element("div",undefined,"profile-row credential-row"),text=element("span");
-      text.append(element("b",item.origin),element("small",item.username||"Без логина"));
-      const secret=element("input");secret.type="password";secret.readOnly=true;secret.value="••••••••";secret.setAttribute("aria-label","Сохранённый пароль");
-      let shown=false,timer=null;
-      const reveal=button("Показать",async()=>{
-        if(shown){clearTimeout(timer);secret.type="password";secret.value="••••••••";shown=false;reveal.textContent="Показать";return;}
-        secret.value=await api.revealPassword(item.id);secret.type="text";shown=true;reveal.textContent="Скрыть";
-        timer=setTimeout(()=>{secret.type="password";secret.value="••••••••";shown=false;reveal.textContent="Показать";},15000);
-      });
-      row.append(text,secret,reveal,button("Копировать",async()=>{await api.copyPassword(item.id,"password");message("Пароль скопирован. Пока Soulu запущен, буфер очистится через 30 секунд, если вы не скопируете другое содержимое.");}),
-        button("Изменить",()=>{$("passwordOrigin").value=item.origin;$("passwordUsername").value=item.username;$("passwordSecret").value="";$("passwordSecret").focus();}),
-        button("Удалить",async()=>{if(confirm("Удалить этот сохранённый пароль?")){passwords=await api.removePassword(item.id);renderPasswords();}}));
-      $("passwordList").append(row);
-    }
-    if(!$("passwordList").children.length)$("passwordList").append(element("p","Записей нет","note"));
-  }
-  function permissionRows(container,site){
-    container.replaceChildren();
-    for(const [key,label] of Object.entries(names)){
-      const row=element("label",undefined,"row"),select=element("select");select.setAttribute("aria-label",label);
-      if(site)select.append(new Option("По умолчанию", "-1"));
-      const labels=key==="sound"?["Разрешить","Приглушить","Блокировать"]:["Разрешить","Спрашивать","Запретить"];
-      labels.forEach((text,i)=>select.append(new Option(text,String(i))));
-      const value=site?rules.sites?.[site]?.[key]:rules.defaults[key];select.value=String(value??-1);
-      select.onchange=async()=>{try{
-        if(select.value==="-1"){
-          // Native remove-one-permission preserves the domain's other rules.
-          rules=await api.setSiteRule({domain:site,permission:key,value:-1});
-        }else rules=await api.setSiteRule({domain:site||"",permission:key,value:Number(select.value)});
-        renderRules();
-      }catch(error){message(error.message);renderRules();}};
-      row.append(element("span",label),select);container.append(row);
-    }
-  }
-  function renderRules(){
-    if(!rules)return;permissionRows($("permissionDefaults"),"");
-    $("siteEditing").textContent=domain?"Правила: "+domain:"Выберите домен для изменения правил";
-    if(domain)permissionRows($("sitePermissions"),domain);else $("sitePermissions").replaceChildren();
-    $("contentBlocking").checked=Boolean(rules.blocking.enabled);
-    $("siteBlocking").disabled=!domain;
-    $("siteBlocking").value=rules.blocking.sites[domain]===undefined?"2":rules.blocking.sites[domain]?"1":"0";
-    const query=$("siteSearch").value.toLowerCase();$("siteList").replaceChildren();
-    const sites=new Set([...Object.keys(rules.sites),...Object.keys(rules.blocking.sites)]);
-    for(const site of [...sites].sort().filter(site=>site.includes(query))){
-      const row=element("div",undefined,"profile-row");
-      row.append(element("span",site),button("Изменить",()=>{domain=site;$("siteDomain").value=site;renderRules();}),
-        button("Сбросить разрешения",async()=>{rules=await api.resetSiteRules(site);renderRules();}));$("siteList").append(row);
-    }
-  }
-  async function refresh(state){
-    if(loading)return;loading=true;
-    try{
-      const current=state||await api.getState();
-      if(profile!==current.activeProfileId){$("passwordSecret").value="";$("passwordUsername").value="";$("passwordOrigin").value="";}
-      profile=current.activeProfileId;
-      const target=$("passwordTarget"),selected=target.value;target.replaceChildren();
-      for(const item of current.profiles||[])target.append(new Option(item.name,item.id));
-      target.value=(current.profiles||[]).some(p=>p.id===selected)?selected:profile;
-      [passwords,rules]=await Promise.all([api.getPasswords(),api.getSiteRules()]);
-      renderPasswords();renderRules();
-    }catch(error){message(error.message);}finally{loading=false;}
-  }
-  $("passwordSearch").oninput=renderPasswords;$("siteSearch").oninput=renderRules;
-  $("savePassword").onclick=async()=>{try{
-    const origin=new URL($("passwordOrigin").value).origin,username=$("passwordUsername").value;
-    if(passwords.some(p=>p.origin===origin&&p.username===username)&&!confirm("Обновить пароль существующей записи?"))return;
-    passwords=await api.addPassword({origin,username,password:$("passwordSecret").value});
-    $("passwordSecret").value="";renderPasswords();message("Сохранено");
-  }catch(error){message(error.message);}};
-  $("discoverPasswords").onclick=async()=>{try{
-    const [sources,browsers]=await Promise.all([api.passwordSources(),api.passwordBrowsers?api.passwordBrowsers():Promise.resolve([])]);$("passwordSource").replaceChildren();
-    for(const source of sources)$("passwordSource").append(new Option(source.browser+" — "+source.name,source.id));
-    $("importReport").textContent=(sources.length?"Найдено профилей: "+sources.length:"Локальные хранилища паролей не обнаружены")+
-      (browsers.length?". "+browsers.map(row=>`${row.browser}: ${row.installed?"установлен":"не установлен"}, профилей ${row.profiles}`).join("; "):"");
-  }catch(error){message(error.message);}};
-  $("importPasswords").onclick=async()=>{
-    const source=$("passwordSource").value,target=$("passwordTarget").value;if(!source||!target)return;
-    if(!confirm("Импортировать локальные пароли из выбранного браузера в выбранный профиль Soulu?"))return;
-    $("importPasswords").disabled=true;$("importReport").textContent="Импорт…";
-    try{const result=await api.importPasswords({source,target});
-      $("importReport").textContent=`Импортировано: ${result.imported}; пропущено: ${result.skipped}; ошибки: ${result.failed}; защищено / не поддерживается: ${result.protected}. ${result.message}`;
-      await refresh();
-    }catch(error){$("importReport").textContent=error.message;}finally{$("importPasswords").disabled=false;}
-  };
-  $("editSite").onclick=()=>{try{domain=normalize($("siteDomain").value.trim());renderRules();}catch(error){message(error.message);}};
-  $("resetSite").onclick=async()=>{try{domain=normalize($("siteDomain").value.trim());rules=await api.resetSiteRules(domain);renderRules();}catch(error){message(error.message);}};
-  $("resetAllSites").onclick=async()=>{try{rules=await api.resetSiteRules("");renderRules();}catch(error){message(error.message);}};
-  $("contentBlocking").onchange=async event=>{try{rules=await api.setContentBlocking({domain:"",value:event.target.checked?1:0});renderRules();}catch(error){message(error.message);}};
-  $("siteBlocking").onchange=async event=>{try{rules=await api.setContentBlocking({domain,value:Number(event.target.value)});renderRules();}catch(error){message(error.message);}};
-  api.onState(state=>{if(state.activeProfileId!==profile)refresh(state);});
-  window.addEventListener("blur",()=>{for(const input of $("passwordList").querySelectorAll("input")){input.type="password";input.value="••••••••";}});
-  refresh();
+  'use strict';
+  const ui=window.souluSettings,api=window.browserShell,{t,el,button,dialog}=ui;
+  const message=error=>document.getElementById('actionMessage').textContent=error.message||error;
+  const actionButton=(ru,en,fn)=>button(t(ru,en),()=>Promise.resolve().then(fn).catch(message));
+  const input=(label,type='text',value='')=>{const box=el('label',undefined,'field'),n=el('input');box.append(el('span',label),n);n.type=type;n.value=value;n.setAttribute('aria-label',label);return {box,n};};
+  async function guardProfileAction(fn){if(ui.dirty())throw Error(t('Сначала примените или отмените изменения настроек.','Apply or cancel settings changes first.'));await fn();}
+  async function profiles(){const state=await api.getState();dialog(t('Профили','Profiles'),box=>{for(const p of state.profiles||[]){const n=el('div',undefined,'profile-row'),text=el('span');text.append(el('b',p.name),el('small',p.active?t('Текущий профиль','Current profile'):''));n.append(text,actionButton('Открыть','Open',()=>guardProfileAction(()=>api.switchProfile(p.id))),actionButton('Подробнее','Details',()=>details(p,state.profiles.length)));n.querySelector('button').disabled=p.active;box.append(n);}});}
+  function details(p,count){dialog(p.name,box=>{box.append(el('p',t('Отдельные cookies, пароли, закладки и настройки.','Separate cookies, passwords, bookmarks and settings.'),'note'));const remove=actionButton('Удалить профиль…','Delete profile…',()=>guardProfileAction(async()=>{if(!confirm(t('Будут удалены данные этого профиля с этого устройства. Продолжить?','This profile’s data will be removed from this device. Continue?')))return;await api.deleteProfile(p.id);document.getElementById('actionDialog').close();await ui.reload();}));remove.disabled=count<2||p.active;box.append(remove);if(remove.disabled)box.append(el('p',t('Нельзя удалить активный или единственный профиль.','The active or only profile cannot be deleted.'),'note'));});}
+  function createProfile(){dialog(t('Создать профиль','Create profile'),box=>{const name=input(t('Название профиля','Profile name'));box.append(name.box,actionButton('Создать','Create',()=>guardProfileAction(async()=>{if(!name.n.value.trim())throw Error(t('Введите название профиля.','Enter a profile name.'));await api.createProfile(name.n.value.trim());document.getElementById('actionDialog').close();})));});}
+  async function passwords(){let rows=await api.getPasswords();const secrets=new Set();dialog(t('Менеджер паролей','Password manager'),box=>{box.append(el('p',t('Пароли активного профиля защищены учётной записью Windows. В инкогнито пароли не сохраняются.','Passwords for the active profile are protected by your Windows account. Incognito does not save passwords.'),'note'));const search=input(t('Поиск по сайту или логину','Search site or username'),'search'),list=el('div');box.append(search.box,list);const origin=input(t('Адрес сайта','Site address'),'url'),username=input(t('Логин','Username')),secret=input(t('Пароль','Password'),'password');secret.n.autocomplete='new-password';username.n.autocomplete='off';
+    function draw(){for(const n of secrets){n.value='';}secrets.clear();list.replaceChildren();for(const item of rows.filter(row=>(row.origin+' '+row.username).toLowerCase().includes(search.n.value.toLowerCase()))){const n=el('div',undefined,'profile-row credential-row'),text=el('span'),value=el('input');text.append(el('b',item.origin),el('small',item.username||t('Без логина','No username')));value.type='password';value.value='••••••••';value.readOnly=true;value.setAttribute('aria-label',t('Сохранённый пароль','Saved password'));secrets.add(value);let timer;
+      const reveal=actionButton('Показать','Show',async()=>{if(value.type==='text'){value.type='password';value.value='••••••••';clearTimeout(timer);return;}value.value=await api.revealPassword(item.id);value.type='text';timer=setTimeout(()=>{value.type='password';value.value='••••••••';},15000);});
+      n.append(text,value,reveal,actionButton('Копировать','Copy',async()=>{await api.copyPassword(item.id,'password');message(t('Пароль скопирован. Пока Soulu запущен, буфер очистится через 30 секунд, если его содержимое не изменится.','Password copied. While Soulu runs, the clipboard clears after 30 seconds if its content stays unchanged.'));}),actionButton('Изменить','Edit',()=>{origin.n.value=item.origin;username.n.value=item.username;secret.n.value='';secret.n.focus();}),actionButton('Удалить','Delete',async()=>{if(confirm(t('Удалить этот сохранённый пароль?','Delete this saved password?'))){rows=await api.removePassword(item.id);draw();}}));list.append(n);}if(!list.children.length)list.append(el('p',t('Записей нет','No saved passwords'),'note'));}
+    search.n.oninput=draw;draw();box.append(el('h3',t('Добавить или обновить запись','Add or update an entry')),origin.box,username.box,secret.box,actionButton('Сохранить запись','Save entry',async()=>{const site=new URL(origin.n.value);if(!['http:','https:'].includes(site.protocol)||site.username||site.password)throw Error(t('Укажите HTTP/HTTPS-сайт.','Enter an HTTP/HTTPS site.'));if(rows.some(p=>p.origin===site.origin&&p.username===username.n.value)&&!confirm(t('Обновить пароль существующей записи?','Update the existing password?')))return;rows=await api.addPassword({origin:site.origin,username:username.n.value,password:secret.n.value});secret.n.value='';draw();message(t('Пароль сохранён','Password saved'));}));
+    const mask=()=>{for(const n of secrets){n.type='password';n.value='••••••••';}secret.n.value='';};window.addEventListener('blur',mask);document.getElementById('actionDialog').addEventListener('close',()=>{mask();window.removeEventListener('blur',mask);},{once:true});});}
+  async function importData(){const [sources,browsers,state]=await Promise.all([api.passwordSources(),api.passwordBrowsers(),api.getState()]);dialog(t('Импорт данных','Import data'),box=>{box.append(el('p',t('Импортируются локальные пароли. Закройте исходный браузер. Исходные файлы не изменяются, существующие пароли Soulu не перезаписываются. Защищённые App-Bound Encryption хранилища и Firefox с основным паролем могут быть недоступны.','Imports local passwords. Close the source browser. Source files remain unchanged and existing Soulu passwords are preserved. App-Bound Encryption stores and Firefox with a primary password may be unavailable.'),'note'));for(const b of browsers.filter(b=>b.installed))box.append(el('p',b.browser+' · '+t('Профилей: ','Profiles: ')+b.profiles));const source=el('select'),target=el('select');source.setAttribute('aria-label',t('Исходный профиль','Source profile'));target.setAttribute('aria-label',t('Целевой профиль','Target profile'));for(const s of sources)source.append(new Option(s.browser+' — '+s.name,s.id));for(const p of state.profiles)target.append(new Option(p.name,p.id));target.value=state.activeProfileId;const run=actionButton('Импортировать пароли','Import passwords',async()=>{if(!source.value||!target.value)return;if(!confirm(t('Импортировать пароли в выбранный профиль Soulu?','Import passwords into the selected Soulu profile?')))return;run.disabled=true;try{const r=await api.importPasswords({source:source.value,target:target.value});message(t(`Импортировано: ${r.imported}; пропущено: ${r.skipped}; ошибки: ${r.failed}; защищено / не поддерживается: ${r.protected}. ${r.message}`,`Imported: ${r.imported}; skipped: ${r.skipped}; failed: ${r.failed}; protected / unsupported: ${r.protected}. ${r.message}`));}finally{run.disabled=false;}});run.disabled=!sources.length;if(!sources.length)box.append(el('p',t('Поддерживаемые локальные профили не найдены.','No supported local profiles found.'),'note'));box.append(el('label',t('Исходный профиль','Source profile')),source,el('label',t('Целевой профиль','Target profile')),target,run);});}
+  window.souluSettingsData={action:key=>({profileList:profiles,createProfile,passwords,import:importData}[key]?.())};
 })();

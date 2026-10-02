@@ -9,6 +9,7 @@ set(SOULU_SRCS
   browser_client.cc
   browser_window.h
   browser_window.cc
+  settings_session.cc
   home_page.cc
   onboarding.cc
   home_weather.h
@@ -48,7 +49,7 @@ if(MSVC)
   target_compile_options(soulu_sqlite PRIVATE ${CEF_RUNTIME_LIBRARY_FLAG})
 endif()
 target_compile_definitions(soulu_sqlite PRIVATE SQLITE_OMIT_LOAD_EXTENSION SQLITE_DQS=0 SQLITE_SECURE_DELETE=1)
-target_link_libraries(${EXAMPLE_TARGET} shared soulu_sqlite crypt32 bcrypt dwmapi ws2_32 advapi32 shell32 windowsapp CoreMessaging)
+target_link_libraries(${EXAMPLE_TARGET} shared soulu_sqlite crypt32 bcrypt dwmapi ws2_32 advapi32 shell32 ole32 uuid windowsapp CoreMessaging)
 target_compile_definitions(${EXAMPLE_TARGET} PRIVATE UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN)
 if(MSVC)
   target_compile_options(${EXAMPLE_TARGET} PRIVATE /utf-8 /EHsc /Zc:__cplusplus)

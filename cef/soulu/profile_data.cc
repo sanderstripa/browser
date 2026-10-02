@@ -185,6 +185,27 @@ CefRefPtr<CefDictionaryValue> SitePolicy::Snapshot() const {
   std::lock_guard lock(mutex_);return data_->Copy(false);
 }
 bool SitePolicy::Save() const {return path_.empty()||WriteJson(path_,Value(data_));}
+bool SitePolicy::Replace(CefRefPtr<CefDictionaryValue> data) {
+  if (!data || !data->GetDictionary("defaults") || !data->GetDictionary("sites") ||
+      !data->GetDictionary("blocking") || !data->GetDictionary("blocking")->GetDictionary("sites")) return false;
+  const auto valid=[](CefRefPtr<CefDictionaryValue> rules){
+    CefDictionaryValue::KeyList keys;rules->GetKeys(keys);
+    for(const auto& key:keys)if(!PermissionName(key)||rules->GetType(key)!=VTYPE_INT||
+      rules->GetInt(key)<0||rules->GetInt(key)>2)return false;
+    return true;
+  };
+  auto defaults=data->GetDictionary("defaults");
+  if(defaults->GetSize()!=7||!valid(defaults))return false;
+  auto sites=data->GetDictionary("sites");CefDictionaryValue::KeyList keys;sites->GetKeys(keys);
+  for(const auto& key:keys)if(SiteDomain(key)!=key.ToString()||
+    !sites->GetDictionary(key)||!valid(sites->GetDictionary(key)))return false;
+  auto blocking=data->GetDictionary("blocking");
+  if(blocking->GetType("enabled")!=VTYPE_BOOL)return false;
+  auto exceptions=blocking->GetDictionary("sites");exceptions->GetKeys(keys);
+  for(const auto& key:keys)if(SiteDomain(key)!=key.ToString()||exceptions->GetType(key)!=VTYPE_BOOL)return false;
+  std::lock_guard lock(mutex_);auto old=data_;data_=data->Copy(false);
+  if(Save())return true;data_=old;return false;
+}
 bool SitePolicy::Set(const std::string& input,const std::string& name,int value) {
   if(!PermissionName(name)||value< -1||value>2||(input.empty()&&value<0))return false;
   auto domain=input.empty()?"":SiteDomain(input);if(!input.empty()&&domain.empty())return false;

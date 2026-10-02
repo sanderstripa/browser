@@ -40,6 +40,7 @@ class SitePolicy {
   int Rule(const std::string& url, const std::string& permission) const;
   bool Blocking(const std::string& url) const;
   CefRefPtr<CefDictionaryValue> Snapshot() const;
+  bool Replace(CefRefPtr<CefDictionaryValue> data);
   bool Set(const std::string& domain, const std::string& permission, int value);
   bool SetBlocking(const std::string& domain, int value);
   bool Reset(const std::string& domain);
