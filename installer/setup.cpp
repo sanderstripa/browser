@@ -251,7 +251,7 @@ LRESULT CALLBACK Proc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp){
       case kMain:Finish();break;
       case kClose:SendMessageW(hwnd,WM_CLOSE,0,0);break;
       case kMin:ShowWindow(hwnd,SW_MINIMIZE);break;
-      case kLaunch:launch=!launch;InvalidateRect(window,nullptr,FALSE);UpdateWindow(window);break;
+      case kLaunch:launch=!launch;InvalidateRect(launchButton,nullptr,FALSE);UpdateWindow(launchButton);break;
     }}return 0;
   case WM_APP+1:if(stage!=Stage::Installing)StartInstall();return 0;
   case WM_APP+2:KillTimer(hwnd,1);CleanupWorker(false);errorText=L"Не удалось запустить установку. Попробуй ещё раз.";ShowStage(Stage::Error);return 0;
@@ -260,7 +260,7 @@ LRESULT CALLBACK Proc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp){
     if(code==0&&GetFileAttributesW((installDir+L"\\Soulu.exe").c_str())!=INVALID_FILE_ATTRIBUTES)ShowStage(Stage::Finished);
     else{errorText=L"Установка не завершена. Закрой Soulu и повтори попытку.";ShowStage(Stage::Error);}
   }return 0;
-  case WM_CLOSE:CleanupWorker(true);DestroyWindow(hwnd);return 0;
+  case WM_CLOSE:cancelling.store(true);DestroyWindow(hwnd);return 0;
   case WM_DESTROY:PostQuitMessage(0);return 0;
  }
  return DefWindowProcW(hwnd,msg,wp,lp);
@@ -277,7 +277,7 @@ int WINAPI wWinMain(HINSTANCE instance,HINSTANCE,wchar_t*,int){
  cls.hCursor=LoadCursor(nullptr,IDC_ARROW);cls.hIcon=icon;cls.hIconSm=smallIcon;RegisterClassExW(&cls);
  scale=GetDpiForSystem()/96.0f;
  RECT work={};SystemParametersInfoW(SPI_GETWORKAREA,0,&work,0);
- window=CreateWindowExW(WS_EX_APPWINDOW,cls.lpszClassName,L"Soulu Setup",WS_POPUP|WS_MINIMIZEBOX|WS_SYSMENU,
+ window=CreateWindowExW(WS_EX_APPWINDOW,cls.lpszClassName,L"Soulu Setup",WS_POPUP|WS_MINIMIZEBOX|WS_SYSMENU|WS_CLIPCHILDREN,
    work.left+(work.right-work.left-Px(kWidth))/2,work.top+(work.bottom-work.top-Px(kHeight))/2,Px(kWidth),Px(kHeight),nullptr,nullptr,instance,nullptr);
  HRGN region=CreateRoundRectRgn(0,0,Px(kWidth)+1,Px(kHeight)+1,Px(34),Px(34));SetWindowRgn(window,region,TRUE);
  DWORD corner=2;DwmSetWindowAttribute(window,33,&corner,sizeof(corner));
@@ -286,9 +286,13 @@ int WINAPI wWinMain(HINSTANCE instance,HINSTANCE,wchar_t*,int){
  launchButton=Button(kLaunch,L"Запустить Soulu",258,431,220,42);ShowWindow(launchButton,SW_HIDE);
  ShowWindow(window,SW_SHOW);SetFocus(mainButton);UpdateWindow(window);
  MSG message;while(GetMessageW(&message,nullptr,0,0)>0){
-   if(message.message==WM_KEYDOWN&&message.wParam==VK_RETURN){if(GetFocus()==launchButton){SendMessageW(window,WM_COMMAND,MAKEWPARAM(kLaunch,BN_CLICKED),reinterpret_cast<LPARAM>(launchButton));}else Finish();continue;}
+   if(message.message==WM_KEYDOWN&&message.wParam==VK_RETURN){
+     HWND focused=GetFocus();int id=GetDlgCtrlID(focused);
+     if(id==kMain||id==kLaunch||id==kMin||id==kClose)SendMessageW(window,WM_COMMAND,MAKEWPARAM(id,BN_CLICKED),reinterpret_cast<LPARAM>(focused));
+     else Finish();continue;
+   }
    if(message.message==WM_KEYDOWN&&message.wParam==VK_ESCAPE){SendMessageW(window,WM_CLOSE,0,0);continue;}
    if(!IsDialogMessageW(window,&message)){TranslateMessage(&message);DispatchMessageW(&message);}
  }
- CleanupWorker(false);if(icon)DestroyIcon(icon);if(smallIcon)DestroyIcon(smallIcon);delete logo;if(logoStream)logoStream->Release();GdiplusShutdown(graphicsToken);return 0;
+ CleanupWorker(true);if(icon)DestroyIcon(icon);if(smallIcon)DestroyIcon(smallIcon);delete logo;if(logoStream)logoStream->Release();GdiplusShutdown(graphicsToken);return 0;
 }
