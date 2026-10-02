@@ -118,6 +118,8 @@ jobs:
         run: |
           cmake --build cef-build --config Release --target soulu --parallel 2
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $exe = Get-ChildItem cef-build -Recurse -Filter Soulu.exe | Where-Object { $_.FullName -match "Release" } | Select-Object -First 1
+          "build_dir=$($exe.Directory.FullName)" >> $env:GITHUB_ENV
 
       - name: Test native encrypted vault, import and site policy
         shell: pwsh

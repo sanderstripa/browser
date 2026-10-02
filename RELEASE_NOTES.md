@@ -1,10 +1,11 @@
-# Soulu Preview 44
+# Soulu Preview 45
 
-- New transparent blue Soulu symbol redrawn from the supplied reference, with an editable SVG master.
-- Consistent app, installer, uninstaller and shortcut icons at 16, 20, 24, 32, 40, 48, 64, 128 and 256 pixels. Narrow safe margins keep the symbol large in the Windows shell.
-- Compact three-screen native installer follows the supplied composition, wording, colors and proportions. Buttons and launch checkbox are drawn live rather than baked into screenshots.
-- Versioned shortcut icon refreshes the Windows shell cache. Obsolete opaque logo and installer screen images are removed.
-- Installation remains per-user, with optional launch, persistent completion screen and working uninstall.
-- CEF remains 154.0.32 / Chromium 154.0.8037.58.
+- Six-step first-run setup within the native browser shell, using the current production Soulu icon.
+- Independent profile status and resume; existing users keep their settings and sessions; incognito never starts setup.
+- Real detected supported password sources, executable browser icons and honest partial import results. Bookmarks/history remain explicitly unsupported by the current importer.
+- Existing advertising and permission controls, shared VPN key parsing and native helper storage without auto-connection.
+- Windows Default Apps integration with per-user HTTP/HTTPS registration and external-link handling.
+- One local blue landscape, neutral import imagery, keyboard controls and internal scrolling at small window sizes.
+- CEF remains 154.0.32 / Chromium 154.0.8037.58. Settings 2.0 is not included.
 
-See BRANDING.md for source assets, packaging, validation and Windows cache limitations.
+See ONBOARDING.md for architecture, capabilities and verification boundaries.
