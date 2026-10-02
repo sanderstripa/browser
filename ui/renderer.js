@@ -29,7 +29,7 @@ function bindAddress(form,input,box){
     }catch(error){if(n===token&&document.activeElement===input)drawSuggestions(box,[],q);}
   },140);};
   form.onsubmit=e=>{e.preventDefault();const value=input.value.trim();if(!value)return;editing=false;hideSuggestions(box);input.blur();window.browserShell.navigate(value);};
-  input.onfocus=()=>{clearTimeout(blurTimer);input.value=state.page?.url||'';editing=true;input.select();refresh();};
+  input.onfocus=()=>{clearTimeout(blurTimer);input.value=state.page?.url==='soulu://home'?'':state.page?.url||'';editing=true;input.select();refresh();};
   input.oninput=refresh;
   input.onblur=()=>{blurTimer=setTimeout(()=>{if(!input.isConnected||document.activeElement===input)return;editing=false;input.value=state.page?.url?state.page.label:'';hideSuggestions(box);},140);};
   input.onkeydown=e=>{const rows=[...box.querySelectorAll('.suggestion-row')];
@@ -179,7 +179,10 @@ window.vpn.onState(updateVpnState);
 window.browserShell.onState(renderState);
 window.browserShell.onSettings?.((settings)=>{state.settings={...state.settings,...settings};renderTabs();appearance();renderSettings();});
 window.browserShell.onDownloads(renderDownloads);
-window.browserShell.onFocusAddress(()=>{const input=state.settings.layout==="classic"?$("#classicAddress"):$("#compactAddress");input?.focus();input?.select();});
+window.browserShell.onFocusAddress(()=>{const input=state.settings.layout==="classic"?$("#classicAddress"):$("#compactAddress");if(input&&state.page?.url==='soulu://home'){
+  input.value='';input.dispatchEvent(new Event('input',{bubbles:true}));
+  const box=input.closest('form')?.addressSuggestions;if(box)hideSuggestions(box);
+}input?.focus();input?.select();});
 window.browserShell.onOpenSettings(()=>openPanel("settings"));
 window.browserShell.onOpenDownloads(async()=>{renderDownloads(await window.browserShell.getDownloads());openPanel("downloads");});
 window.browserShell.onOpenFavorites(async()=>{if(window.souluNavigation)return window.souluNavigation.openBookmarks();renderBookmarks(await window.browserShell.getBookmarks());openPanel("favorites");});
