@@ -1553,6 +1553,17 @@ void BrowserWindow::HandleBridge(const std::string& request,
   if(HandleSiteAction(action,payload,callback))return;
 
   if (action == "browser.state.get") return Reply(callback, State());
+  if(action=="browser.test.pageShortcut"){
+    wchar_t enabled[12]={};if(!GetEnvironmentVariableW(L"SOULU_UI_TEST_PORT",enabled,12)){callback->Failure(403,"Test mode required");return;}
+    const int key=payload&&payload->GetType()==VTYPE_INT?payload->GetInt():0;
+    if(key!='T'&&key!='L'&&key!=VK_HOME){callback->Failure(400,"Unsupported shortcut");return;}
+    if(auto* tab=ActiveTab();tab&&tab->browser){
+      CefKeyEvent event;event.type=KEYEVENT_RAWKEYDOWN;event.windows_key_code=key;
+      event.modifiers=key==VK_HOME?EVENTFLAG_ALT_DOWN:EVENTFLAG_CONTROL_DOWN;
+      tab->browser->GetHost()->SendKeyEvent(event);
+    }
+    ReplyEmpty(callback);return;
+  }
   if(action=="browser.test.findShortcut"){
     wchar_t enabled[12]={};if(!GetEnvironmentVariableW(L"SOULU_UI_TEST_PORT",enabled,12)){callback->Failure(403,"Test mode required");return;}
     if(auto* tab=ActiveTab();tab&&tab->browser){

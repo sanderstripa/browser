@@ -25,7 +25,8 @@ class BrowserWindow final : public CefBaseRefCounted {
   void HandleHomeBridge(int id, const std::string& request,
       CefRefPtr<CefMessageRouterBrowserSide::Callback> callback);
   bool HandlePageShortcut(int id, int key, bool control, bool alt);
-  void RefreshHomePages();
+  void RefreshHomePages(int id = 0);
+  void ContentPageLoaded(int id);
   bool ValidatePagePatch(CefRefPtr<CefDictionaryValue> patch) const;
   void AttachShell(CefRefPtr<CefBrowser> browser);
   void AttachContent(int tab_id, CefRefPtr<CefBrowser> browser);

@@ -94,7 +94,7 @@ bool BrowserClient::OnShowPermissionPrompt(CefRefPtr<CefBrowser>,uint64_t,
   return true;
 }
 void BrowserClient::OnLoadEnd(CefRefPtr<CefBrowser>,CefRefPtr<CefFrame> frame,int) {
-  if(frame->IsMain()&&role_!=BrowserRole::kShell){owner_->ReaderDocumentLoaded(tab_id_);owner_->ApplySiteSound();owner_->ApplyContentTheme();}
+  if(frame->IsMain()&&role_!=BrowserRole::kShell){owner_->ReaderDocumentLoaded(tab_id_);owner_->ApplySiteSound();owner_->ContentPageLoaded(tab_id_);}
 }
 bool BrowserClient::OnBeforeBrowse(CefRefPtr<CefBrowser> browser,CefRefPtr<CefFrame> frame,
     CefRefPtr<CefRequest> request,bool,bool) {

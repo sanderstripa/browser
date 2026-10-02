@@ -76,12 +76,21 @@ CefRefPtr<CefDictionaryValue> BrowserWindow::HomeState(const Tab& tab) const {
   data->SetInt("tabId",tab.id);
   return data;
 }
-void BrowserWindow::RefreshHomePages() {
-  for(const auto& tab:tabs_)if(tab.browser){
+void BrowserWindow::RefreshHomePages(int id) {
+  for(const auto& tab:tabs_)if(tab.browser && (!id || tab.id==id)){
     auto frame=tab.browser->GetMainFrame();
     if(frame&&IsHomeUi(frame->GetURL()))frame->ExecuteJavaScript(
       "window.souluHomeApply&&window.souluHomeApply("+Json(HomeState(tab))+")",frame->GetURL(),0);
   }
+}
+void BrowserWindow::ContentPageLoaded(int id) {
+  auto* tab=FindTab(id);if(!tab||!tab->browser)return;
+  auto frame=tab->browser->GetMainFrame();if(!frame)return;
+  if(IsHomeUi(frame->GetURL())){RefreshHomePages(id);return;}
+  if(frame->GetURL()!=InternalUrl("about:blank"))return;
+  const std::string theme=HomeState(*tab)->GetString("resolvedTheme");
+  frame->ExecuteJavaScript("document.body.dataset.theme='"+theme+"';document.documentElement.style.background='"+
+      (theme=="dark"?std::string("#08090b"):std::string("#fafafa"))+"';",frame->GetURL(),0);
 }
 void BrowserWindow::HandleHomeBridge(int id,const std::string& request,
     CefRefPtr<CefMessageRouterBrowserSide::Callback> callback) {
@@ -103,7 +112,7 @@ void BrowserWindow::HandleHomeBridge(int id,const std::string& request,
     if(url!="soulu://home"&&url!="about:blank"&&WebUrl(url).empty()){
       callback->Failure(400,"Only web addresses or search queries are allowed");return;
     }
-    tab->browser->GetMainFrame()->LoadURL(InternalUrl(url));ReplyEmpty(callback);return;
+    ReplyEmpty(callback);tab->browser->GetMainFrame()->LoadURL(InternalUrl(url));return;
   }
   if(action=="home.weather"){
     // Provider boundary. No fake weather, keys or silent geolocation requests.

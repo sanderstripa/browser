@@ -223,7 +223,7 @@ with tempfile.TemporaryDirectory(prefix='soulu-layout-', ignore_cleanup_errors=T
     process = subprocess.Popen([str(Path(sys.argv[1]).resolve())], env=env)
     try:
         shell = connect('/ui/index.html')
-        page = connect('/ui/start.html')
+        page = connect('/ui/home.html')
         window = wait(own_window)
         wait(lambda: u.IsWindowVisible(window))
         wait(lambda: evaluate(shell, 'Boolean(window.browserShell && document.querySelector(".browser-toolbar"))'))
@@ -251,7 +251,7 @@ with tempfile.TemporaryDirectory(prefix='soulu-layout-', ignore_cleanup_errors=T
         first_page = page
         evaluate(shell, 'window.browserShell.newTab()')
         wait(lambda: evaluate(shell, 'window.browserShell.getState().then(s=>s.tabs.length===2)'))
-        page = connect('/ui/start.html', exclude=old_targets)
+        page = connect('/ui/home.html', exclude=old_targets)
         check('new-tab')
         evaluate(shell, f'window.browserShell.switchTab({first_id})')
         page.close()

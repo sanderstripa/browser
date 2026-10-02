@@ -51,7 +51,7 @@ def main():
             process=subprocess.Popen([exe,'--no-proxy-server'],env=env)
             shell=socket(wait(lambda:next((t for t in s.targets() if '/ui/index.html' in t.get('url','')),None)))
             connections.append(shell)
-            wait(lambda:s.evaluate(shell,"typeof browserShell?.getState==='function'"))
+            wait(lambda:s.evaluate(shell,"typeof window.browserShell?.getState==='function'"))
             wait(lambda:state().get('tabs'))
         def state():return s.evaluate(shell,'browserShell.getState()')
         def call(method,payload=None):return s.evaluate(shell,'browserShell.'+method+'('+('' if payload is None else json.dumps(payload))+')')
@@ -67,6 +67,9 @@ def main():
                 return None
             return wait(find)
         def home(ws,action,payload=None):
+            if action=='home.navigate':
+                s.command(ws,'Runtime.evaluate',{'expression':"cefQuery({request:"+json.dumps(json.dumps({'action':action,'payload':payload}))+",onSuccess:()=>{},onFailure:()=>{}})",'awaitPromise':False})
+                return None
             return s.evaluate(ws,"new Promise((resolve,reject)=>cefQuery({request:"+json.dumps(json.dumps({'action':action,'payload':payload}))+",onSuccess:v=>resolve(v?JSON.parse(v):null),onFailure:(_,m)=>reject(Error(m))}))")
         def stop():
             nonlocal process
@@ -93,6 +96,14 @@ def main():
             s.evaluate(h,"document.querySelector('#weatherToggle').click()")
             check(s.evaluate(h,"document.querySelector('#weatherToggle').getAttribute('aria-expanded')==='true'"),'Weather compact expansion is accessible')
             s.command(h,'Network.emulateNetworkConditions',{'offline':False,'latency':0,'downloadThroughput':-1,'uploadThroughput':-1})
+            s.evaluate(h,"document.querySelector('#add').click();document.querySelector('#shortcutName').value='UI shortcut';document.querySelector('#shortcutUrl').value="+json.dumps(origin+'/ui')+";document.querySelector('#shortcutForm').requestSubmit()")
+            wait(lambda:len(home(h,'home.get')['homeShortcuts'])==1)
+            check(s.evaluate(h,"!document.querySelector('#editor').open"),'Shortcut dialog saves through real form')
+            s.evaluate(h,"document.querySelector('.shortcut-tools button').click();document.querySelector('#shortcutName').value='UI edited';document.querySelector('#shortcutForm').requestSubmit()")
+            wait(lambda:home(h,'home.get')['homeShortcuts'][0]['name']=='UI edited')
+            s.evaluate(h,"document.querySelectorAll('.shortcut-tools button')[1].click()")
+            wait(lambda:home(h,'home.get')['homeShortcuts']==[])
+            check(True,'Shortcut edit/delete controls persist changes')
             rows=[{'name':'<img src=x onerror=alert(1)>','url':origin+'/one'},{'name':'Second','url':origin+'/two'}]
             saved=home(h,'home.set',{'homeShortcuts':rows,'homeWeatherCity':'City'})
             check(len(saved['homeShortcuts'])==2,'Shortcut add persists')
@@ -130,9 +141,9 @@ def main():
             before=len(state()['tabs']);s.evaluate(shell,"Promise.all(Array.from({length:8},()=>browserShell.newTab()))")
             wait(lambda:len(state()['tabs'])==before+8);check(True,'Eight rapid new tabs produce exactly eight tabs')
             wait(lambda:s.evaluate(shell,"document.activeElement?.id==='compactAddress' || document.activeElement?.id==='classicAddress'"));check(True,'New tab keeps omnibox focus')
-            h=page();s.command(h,'Input.dispatchKeyEvent',{'type':'rawKeyDown','windowsVirtualKeyCode':84,'modifiers':2,'key':'t','code':'KeyT'})
+            h=page();s.evaluate(shell,"new Promise((resolve,reject)=>cefQuery({request:JSON.stringify({action:'browser.test.pageShortcut',payload:84}),onSuccess:resolve,onFailure:reject}))")
             wait(lambda:len(state()['tabs'])==before+9);check(True,'Native Ctrl+T creates one foreground tab')
-            s.command(h,'Input.dispatchKeyEvent',{'type':'rawKeyDown','windowsVirtualKeyCode':76,'modifiers':2,'key':'l','code':'KeyL'})
+            s.evaluate(shell,"new Promise((resolve,reject)=>cefQuery({request:JSON.stringify({action:'browser.test.pageShortcut',payload:76}),onSuccess:resolve,onFailure:reject}))")
             wait(lambda:s.evaluate(shell,"['compactAddress','classicAddress'].includes(document.activeElement?.id)"));check(True,'Native Ctrl+L focuses omnibox')
             one_tab();call('setSettings',{'openStartPageAfterLastTab':True,'startupMode':'custom','startupUrl':origin+'/startup','newTabMode':'soulu'})
             call('closeTab',state()['activeTabId']);wait(lambda:len(state()['tabs'])==1 and current_url()==origin+'/startup')
