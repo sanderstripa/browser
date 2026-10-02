@@ -42,16 +42,19 @@ buttons, minimize/close controls and launch checkbox with GDI+. It embeds only
 the new transparent logo and actual NSIS payload. Old baked-screen PNGs are
 deleted and cannot be pulled into the build.
 
-The logical window is 720 x 524, matching the reference panel's 524 x 381
-proportions, with a 17px corner radius. Welcome, installing and finished retain
+The window is 524 x 381 at 100% scaling, matching the supplied panel. Its
+720 x 524 design coordinates scale with monitor DPI; the visible corner radius
+is approximately 12px at 100%. Welcome, installing and finished retain
 the concept's wording and placement. The installing screen waits for actual
-payload exit status rather than presenting invented percentage progress.
+payload exit status rather than presenting invented percentage progress. Its
+background uses the concept's diffuse light without the welcome/finish ribbons.
 An error/retry state is retained solely for installation failures.
 
 The finish page remains open until Done; launch is checked by default and can
 be toggled by mouse/keyboard. Enter activates the focused launch toggle or the
-main action; Escape closes. Native owner-drawn buttons retain tab stops and
-accessible names. Per-monitor DPI changes reposition all controls. Background
+focused control; Escape closes. Native owner-drawn buttons retain tab stops and
+accessible names. Focus outlines appear only for keyboard navigation. Per-monitor
+DPI changes reposition all controls. Background
 dragging remains active during extraction. Buffered painting avoids black layers,
 text baked into images and checkbox erase patches. Cancellation joins payload
 preparation before releasing the job and temporary file.

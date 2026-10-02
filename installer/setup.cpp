@@ -21,6 +21,7 @@ using namespace Gdiplus;
 namespace {
 // Reference panels are 524 x 381. Keep that compact rectangular proportion.
 constexpr int kWidth=720,kHeight=524,kMain=1001,kMin=1002,kClose=1003,kLaunch=1004;
+constexpr float kReferenceScale=524.0f/720.0f;
 enum class Stage { Welcome, Installing, Finished, Error };
 HWND window=nullptr,mainButton=nullptr,launchButton=nullptr,minButton=nullptr,closeButton=nullptr;
 std::atomic<HANDLE> worker{nullptr};
@@ -29,6 +30,7 @@ std::thread preparation;
 HANDLE workerJob=nullptr;
 Stage stage=Stage::Welcome;
 bool launch=true;
+bool keyboardFocus=false;
 bool dragging=false;
 POINT dragOrigin={};
 RECT dragWindow={};
@@ -64,16 +66,21 @@ Bitmap* LoadPngResource(int id,IStream** keptStream){
 }
 void Background(Graphics& g){
  // Airy icy-blue surface and the low sweeping translucent ribbons in Image A.
- LinearGradientBrush base(PointF(40,0),PointF(680,524),Color(255,237,248,255),Color(255,248,248,255));
+ LinearGradientBrush base(PointF(40,0),PointF(680,524),Color(255,247,252,255),Color(255,248,249,255));
  g.FillRectangle(&base,0,0,kWidth,kHeight);
- GraphicsPath glow;glow.AddEllipse(RectF(-260,-270,880,750));
- PathGradientBrush light(&glow);light.SetCenterColor(Color(105,197,234,255));
+ GraphicsPath glow;glow.AddEllipse(RectF(-80,-420,850,800));
+ PathGradientBrush light(&glow);light.SetCenterColor(Color(82,197,234,255));
  Color edge(0,220,241,255);int count=1;light.SetSurroundColors(&edge,&count);g.FillPath(&light,&glow);
+ GraphicsPath lowerGlow;lowerGlow.AddEllipse(RectF(-450,145,900,690));
+ PathGradientBrush lowerLight(&lowerGlow);lowerLight.SetCenterColor(Color(120,186,221,255));
+ lowerLight.SetSurroundColors(&edge,&count);g.FillPath(&lowerLight,&lowerGlow);
+ if(stage!=Stage::Installing&&stage!=Stage::Error){
+ GraphicsState ribbons=g.Save();if(stage==Stage::Finished)g.TranslateTransform(0,40);
  GraphicsPath ribbon;
  ribbon.AddBezier(PointF(-40,305),PointF(150,372),PointF(249,554),PointF(526,398));
  ribbon.AddBezier(PointF(526,398),PointF(638,337),PointF(678,304),PointF(760,274));
  ribbon.AddLine(PointF(760,274),PointF(760,554));ribbon.AddLine(PointF(760,554),PointF(-40,554));ribbon.CloseFigure();
- LinearGradientBrush wave(PointF(0,310),PointF(720,524),Color(160,198,235,255),Color(78,226,212,255));
+ LinearGradientBrush wave(PointF(0,310),PointF(720,524),Color(110,198,235,255),Color(65,226,212,255));
  g.FillPath(&wave,&ribbon);
  GraphicsPath lower;
  lower.AddBezier(PointF(-30,429),PointF(178,352),PointF(263,469),PointF(415,452));
@@ -81,6 +88,8 @@ void Background(Graphics& g){
  lower.AddLine(PointF(750,387),PointF(750,550));lower.AddLine(PointF(750,550),PointF(-30,550));lower.CloseFigure();
  LinearGradientBrush pale(PointF(0,392),PointF(710,530),Color(174,248,253,255),Color(135,213,237,255));
  g.FillPath(&pale,&lower);
+ g.Restore(ribbons);
+ }
  GraphicsPath border;Round(border,RectF(.5f,.5f,kWidth-1.0f,kHeight-1.0f),17);
  Pen line(Color(255,186,207,239),1);g.DrawPath(&line,&border);
 }
@@ -88,9 +97,14 @@ void DrawControl(Graphics& g,int id,bool pressed,bool focused){
  const Color ink(255,10,19,65),muted(255,86,113,166);
  if(id==kMain){
    GraphicsPath pill;Round(pill,RectF(0,0,320,60),30);
-   LinearGradientBrush blue(PointF(0,0),PointF(320,60),Color(255,45,157,255),Color(255,47,58,255));
+   LinearGradientBrush blue(PointF(0,0),PointF(320,0),Color(255,0,80,255),Color(255,71,54,255));
    if(pressed){SolidBrush down(Color(255,27,74,230));g.FillPath(&down,&pill);}
-   else g.FillPath(&blue,&pill);
+   else{
+     g.FillPath(&blue,&pill);
+     LinearGradientBrush sheen(PointF(0,0),PointF(0,60),Color(145,125,211,255),Color(0,125,211,255));
+     Color colors[]={Color(145,125,211,255),Color(40,125,211,255),Color(0,125,211,255)};
+     REAL positions[]={0,.3f,1};sheen.SetInterpolationColors(colors,positions,3);g.FillPath(&sheen,&pill);
+   }
    Pen highlight(Color(105,255,255,255),1);g.DrawPath(&highlight,&pill);
    Text(g,stage==Stage::Finished?L"Готово":stage==Stage::Error?L"Повторить":L"Установить →",22,RectF(0,-1,320,60),Color(255,255,255,255));
    if(focused){GraphicsPath ring;Round(ring,RectF(4,4,312,52),26);Pen focus(Color(170,255,255,255),1);g.DrawPath(&focus,&ring);}
@@ -142,7 +156,7 @@ void DrawButton(DRAWITEMSTRUCT* item){
  g.ScaleTransform(scale,scale);g.SetSmoothingMode(SmoothingModeAntiAlias);g.SetTextRenderingHint(TextRenderingHintAntiAliasGridFit);
  // Same backdrop under each control: toggling cannot leave a flat patch.
  GraphicsState saved=g.Save();g.TranslateTransform(-origin.x/scale,-origin.y/scale);Background(g);g.Restore(saved);
- DrawControl(g,item->CtlID,(item->itemState&ODS_SELECTED)!=0,(item->itemState&ODS_FOCUS)!=0);
+ DrawControl(g,item->CtlID,(item->itemState&ODS_SELECTED)!=0,keyboardFocus&&(item->itemState&ODS_FOCUS)!=0);
  Graphics output(item->hDC);output.DrawImage(&buffer,0,0);
 }
 HWND Button(int id,const wchar_t* text,int x,int y,int width,int height){
@@ -232,7 +246,7 @@ LRESULT CALLBACK Proc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp){
   case WM_PAINT:{PAINTSTRUCT ps;HDC dc=BeginPaint(hwnd,&ps);Paint(dc);EndPaint(hwnd,&ps);return 0;}
   case WM_DRAWITEM:DrawButton(reinterpret_cast<DRAWITEMSTRUCT*>(lp));return TRUE;
   case WM_DPICHANGED:{
-    scale=HIWORD(wp)/96.0f;const RECT* suggested=reinterpret_cast<const RECT*>(lp);
+    scale=HIWORD(wp)/96.0f*kReferenceScale;const RECT* suggested=reinterpret_cast<const RECT*>(lp);
     SetWindowPos(hwnd,nullptr,suggested->left,suggested->top,Px(kWidth),Px(kHeight),SWP_NOZORDER|SWP_NOACTIVATE);
     UpdateGeometry();return 0;
   }
@@ -275,7 +289,7 @@ int WINAPI wWinMain(HINSTANCE instance,HINSTANCE,wchar_t*,int){
  logo=LoadPngResource(102,&logoStream);
  WNDCLASSEXW cls={sizeof(cls)};cls.lpfnWndProc=Proc;cls.hInstance=instance;cls.lpszClassName=L"SouluInstaller";
  cls.hCursor=LoadCursor(nullptr,IDC_ARROW);cls.hIcon=icon;cls.hIconSm=smallIcon;RegisterClassExW(&cls);
- scale=GetDpiForSystem()/96.0f;
+ scale=GetDpiForSystem()/96.0f*kReferenceScale;
  RECT work={};SystemParametersInfoW(SPI_GETWORKAREA,0,&work,0);
  window=CreateWindowExW(WS_EX_APPWINDOW,cls.lpszClassName,L"Soulu Setup",WS_POPUP|WS_MINIMIZEBOX|WS_SYSMENU|WS_CLIPCHILDREN,
    work.left+(work.right-work.left-Px(kWidth))/2,work.top+(work.bottom-work.top-Px(kHeight))/2,Px(kWidth),Px(kHeight),nullptr,nullptr,instance,nullptr);
@@ -286,6 +300,8 @@ int WINAPI wWinMain(HINSTANCE instance,HINSTANCE,wchar_t*,int){
  launchButton=Button(kLaunch,L"Запустить Soulu",258,431,220,42);ShowWindow(launchButton,SW_HIDE);
  ShowWindow(window,SW_SHOW);SetFocus(mainButton);UpdateWindow(window);
  MSG message;while(GetMessageW(&message,nullptr,0,0)>0){
+   if(message.message==WM_KEYDOWN&&message.wParam==VK_TAB){keyboardFocus=true;InvalidateRect(mainButton,nullptr,FALSE);InvalidateRect(launchButton,nullptr,FALSE);}
+   if(message.message==WM_LBUTTONDOWN)keyboardFocus=false;
    if(message.message==WM_KEYDOWN&&message.wParam==VK_RETURN){
      HWND focused=GetFocus();int id=GetDlgCtrlID(focused);
      if(id==kMain||id==kLaunch||id==kMin||id==kClose)SendMessageW(window,WM_COMMAND,MAKEWPARAM(id,BN_CLICKED),reinterpret_cast<LPARAM>(focused));
