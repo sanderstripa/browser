@@ -22,12 +22,16 @@ bool DownloadableLink(const std::string& url) {
 
 class BridgeHandler final : public CefMessageRouterBrowserSide::Handler {
  public:
-  explicit BridgeHandler(CefRefPtr<BrowserWindow> owner) : owner_(owner) {}
+  explicit BridgeHandler(CefRefPtr<BrowserWindow> owner, int id) : owner_(owner), id_(id) {}
   bool OnQuery(CefRefPtr<CefBrowser>, CefRefPtr<CefFrame> frame, int64_t,
                const CefString& request, bool,
                CefRefPtr<Callback> callback) override {
     if (!frame->IsMain()) return false;
     const std::string url = frame->GetURL();
+    if (owner_->IsHomeUi(url)) {
+      owner_->HandleHomeBridge(id_, request, callback);
+      return true;
+    }
     if (!owner_->IsTrustedUi(url)) {
       return false;
     }
@@ -36,6 +40,7 @@ class BridgeHandler final : public CefMessageRouterBrowserSide::Handler {
   }
  private:
   CefRefPtr<BrowserWindow> owner_;
+  int id_;
 };
 }
 
@@ -44,6 +49,8 @@ BrowserClient::BrowserClient(CefRefPtr<BrowserWindow> owner, BrowserRole role, i
       policy_(role!=BrowserRole::kShell?owner->PolicyForTab(tab_id):nullptr) {}
 
 bool BrowserClient::OnPreKeyEvent(CefRefPtr<CefBrowser>,const CefKeyEvent& event,CefEventHandle,bool*) {
+  if(event.type==KEYEVENT_RAWKEYDOWN && owner_->HandlePageShortcut(tab_id_, event.windows_key_code,
+      (event.modifiers&EVENTFLAG_CONTROL_DOWN)!=0, (event.modifiers&EVENTFLAG_ALT_DOWN)!=0)) return true;
   if(event.type==KEYEVENT_RAWKEYDOWN&&(event.modifiers&EVENTFLAG_CONTROL_DOWN)&&event.windows_key_code=='F') {
     owner_->RequestFind();return true;
   }
@@ -87,7 +94,7 @@ bool BrowserClient::OnShowPermissionPrompt(CefRefPtr<CefBrowser>,uint64_t,
   return true;
 }
 void BrowserClient::OnLoadEnd(CefRefPtr<CefBrowser>,CefRefPtr<CefFrame> frame,int) {
-  if(frame->IsMain()&&role_!=BrowserRole::kShell){owner_->ReaderDocumentLoaded(tab_id_);owner_->ApplySiteSound();}
+  if(frame->IsMain()&&role_!=BrowserRole::kShell){owner_->ReaderDocumentLoaded(tab_id_);owner_->ApplySiteSound();owner_->ApplyContentTheme();}
 }
 bool BrowserClient::OnBeforeBrowse(CefRefPtr<CefBrowser> browser,CefRefPtr<CefFrame> frame,
     CefRefPtr<CefRequest> request,bool,bool) {
@@ -209,7 +216,7 @@ void BrowserClient::OnAfterCreated(CefRefPtr<CefBrowser> browser) {
   // content tab, so excluding kContent made every settings control a no-op.
   CefMessageRouterConfig config;
   router_ = CefMessageRouterBrowserSide::Create(config);
-  bridge_ = std::make_unique<BridgeHandler>(owner_);
+  bridge_ = std::make_unique<BridgeHandler>(owner_, tab_id_);
   router_->AddHandler(bridge_.get(), false);
   if (role_ == BrowserRole::kShell) owner_->AttachShell(browser);
   else owner_->AttachContent(tab_id_, browser);

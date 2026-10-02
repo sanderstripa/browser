@@ -52,8 +52,9 @@
   function fill() {
     document.body.dataset.theme = settings.theme || "system";
     $$('[name="layout"]').forEach(x => x.checked = x.value === (settings.layout || "compact"));
-    const values={theme:"system",language:"ru",addressPosition:"center",extensionsPosition:"left",downloadsMode:"dynamic",searchEngine:"google",addressOpenMode:"current",startPageMode:"blank",startPageUrl:"",downloadPath:""};
+    const values={theme:"system",language:"ru",addressPosition:"center",extensionsPosition:"left",downloadsMode:"dynamic",searchEngine:"google",addressOpenMode:"current",startupMode:"soulu",startupUrl:"",newTabMode:"soulu",newTabUrl:"",homeMode:"soulu",homeUrl:"",downloadPath:""};
     for(const [id,fallback] of Object.entries(values)){const el=$("#"+id);if(el)el.value=settings[id] ?? fallback;}
+    for(const kind of ["startup","newTab","home"])$("#"+kind+"Url").disabled=settings[kind+"Mode"]!=="custom";
     $("#mattePanel").checked = settings.mattePanel !== false;
     $("#askDownloadLocation").checked = settings.askDownloadLocation !== false;
     $$("[data-setting]").forEach(el => el.checked = settings[el.dataset.setting] !== false);
@@ -138,6 +139,7 @@
     } catch (error) {
       settings = previous;
       fill();
+      alert(error.message);
       console.error("Soulu setting was not applied", error);
     }
   }
@@ -148,7 +150,7 @@
     translate();
   });
   $$('[name="layout"]').forEach(el => el.onchange=()=>patch({layout:el.value}));
-  for(const id of ["theme","language","addressPosition","extensionsPosition","downloadsMode","searchEngine","addressOpenMode","startPageMode","startPageUrl","downloadPath"]){
+  for(const id of ["theme","language","addressPosition","extensionsPosition","downloadsMode","searchEngine","addressOpenMode","startupMode","startupUrl","newTabMode","newTabUrl","homeMode","homeUrl","downloadPath"]){
     const el=$("#"+id); if(el) el.onchange=()=>patch({[id]:el.value});
   }
   $("#mattePanel").onchange=e=>patch({mattePanel:e.target.checked});

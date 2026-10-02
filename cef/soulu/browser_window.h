@@ -21,6 +21,12 @@ class BrowserWindow final : public CefBaseRefCounted {
  public:
   static void Create();
 
+  bool IsHomeUi(const std::string& url) const;
+  void HandleHomeBridge(int id, const std::string& request,
+      CefRefPtr<CefMessageRouterBrowserSide::Callback> callback);
+  bool HandlePageShortcut(int id, int key, bool control, bool alt);
+  void RefreshHomePages();
+  bool ValidatePagePatch(CefRefPtr<CefDictionaryValue> patch) const;
   void AttachShell(CefRefPtr<CefBrowser> browser);
   void AttachContent(int tab_id, CefRefPtr<CefBrowser> browser);
   void BrowserClosed(CefRefPtr<CefBrowser> browser, int tab_id, bool shell);
@@ -73,6 +79,7 @@ class BrowserWindow final : public CefBaseRefCounted {
     std::string profile_id = "personal";
     bool incognito = false;
     bool activate_on_attach = false;
+    bool focus_address_on_attach = false;
     bool loading = false;
     bool can_go_back = false;
     bool reader_active = false;
@@ -110,9 +117,16 @@ class BrowserWindow final : public CefBaseRefCounted {
   void ApplyWindowAppearance();
   CefRefPtr<CefDictionaryValue> SendVpnHelper(
       CefRefPtr<CefDictionaryValue> request) const;
-  void NewTab(const std::string& url = "about:blank", bool incognito = false,
+  void NewTab(const std::string& url = "", bool incognito = false,
               bool foreground = true, CefRefPtr<CefRequestContext> context = nullptr,
               const std::string& profile_id = "");
+  std::string PageUrl(const std::string& kind, CefRefPtr<CefDictionaryValue> settings) const;
+  std::string InternalUrl(const std::string& url) const;
+  CefRefPtr<CefDictionaryValue> PageSettings(const Tab& tab) const;
+  CefRefPtr<CefDictionaryValue> HomeState(const Tab& tab) const;
+  void SaveSession();
+  bool RestoreSession();
+  void ReplaceLastTab(bool incognito, const std::string& profile);
   void CloseTab(int id);
   void SwitchTab(int id);
   void Navigate(const std::string& value);
@@ -163,6 +177,7 @@ class BrowserWindow final : public CefBaseRefCounted {
   CefRefPtr<CefRequestContext> incognito_context_;
   CefRefPtr<CefDictionaryValue> settings_;
   CefRefPtr<CefDictionaryValue> initial_settings_;
+  CefRefPtr<CefDictionaryValue> private_page_settings_;
   std::map<std::string, std::shared_ptr<SitePolicy>> policies_;
   CefRefPtr<CefDictionaryValue> vpn_settings_;
   CefRefPtr<CefListValue> bookmarks_;
@@ -170,6 +185,7 @@ class BrowserWindow final : public CefBaseRefCounted {
   std::string active_profile_id_ = "personal";
   int next_tab_id_ = 1;
   int active_tab_id_ = 0;
+  std::map<std::string, int> last_normal_active_;
   int right_panel_width_ = 0;
   int suggestions_height_ = 0;
   bool sidebar_visible_ = false;

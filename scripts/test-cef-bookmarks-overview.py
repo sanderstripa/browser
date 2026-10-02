@@ -55,7 +55,7 @@ with tempfile.TemporaryDirectory(prefix='soulu-navigation-', ignore_cleanup_erro
         assert json.loads(saved.read_text(encoding='utf-8'))[1]['parentId']==1
         assert s.evaluate(shell,"window.browserShell.replaceBookmarks([{id:3,type:'folder',parentId:3}]).then(()=>false,()=>true)") is True
         assert len(s.evaluate(shell,'window.browserShell.getBookmarks()'))==3
-        s.evaluate(shell,'window.browserShell.setSettings('+json.dumps({'startPageMode':'custom','startPageUrl':home_url,'bookmarksBarMode':'home'})+')')
+        s.evaluate(shell,'window.browserShell.setSettings('+json.dumps({'homeMode':'custom','homeUrl':home_url,'bookmarksBarMode':'home'})+')')
         content=s.page_socket()
         s.navigate(content,home_url+'/')
         wait(lambda:any(t['url']==home_url+'/' for t in s.evaluate(shell,'window.browserShell.getState()')['tabs']))

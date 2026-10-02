@@ -76,8 +76,13 @@
 
       <div class="settings-section" data-page="startup">
         <article class="card rows">
-          <label class="row"><span><b data-t="startPage">Стартовая страница</b></span><select id="startPageMode"><option value="blank" data-t="blank">Пустая</option><option value="custom" data-t="custom">Свой адрес</option></select></label>
-          <label class="field"><span data-t="startUrl">Адрес стартовой страницы</span><input id="startPageUrl" placeholder="https://"></label>
+          <label class="row"><span><b data-t="startPage">Стартовая страница</b></span><select id="startupMode"><option value="continue">Продолжить с предыдущего места</option><option value="soulu">Soulu</option><option value="blank" data-t="blank">Пустая</option><option value="custom" data-t="custom">Свой адрес</option></select></label>
+          <label class="field"><span data-t="startUrl">Адрес стартовой страницы</span><input id="startupUrl" placeholder="https://"></label>
+          <label class="row"><span><b>Новая вкладка / New Tab</b></span><select id="newTabMode"><option value="soulu">Soulu</option><option value="blank" data-t="blank">Пустая</option><option value="custom" data-t="custom">Свой адрес</option></select></label>
+          <label class="field"><span>URL новой вкладки / New Tab URL</span><input id="newTabUrl" placeholder="https://"></label>
+          <label class="row"><span><b>Домашняя / Home · Alt+Home</b></span><select id="homeMode"><option value="soulu">Soulu</option><option value="blank" data-t="blank">Пустая</option><option value="custom" data-t="custom">Свой адрес</option></select></label>
+          <label class="field"><span>Home URL</span><input id="homeUrl" placeholder="https://"></label>
+          <p>Восстановление возвращает адреса и порядок обычных вкладок после штатного закрытия. Инкогнито не сохраняется.</p>
           <label class="row"><span><b data-t="openStartPageAfterLastTab">После закрытия последней вкладки открывать стартовую страницу</b></span><input class="switch" data-setting="openStartPageAfterLastTab" type="checkbox"></label>
         </article>
       </div>

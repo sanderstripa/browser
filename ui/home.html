@@ -1,0 +1,11 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: https: http:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>Soulu</title><link rel="stylesheet" href="home.css"><script defer src="home.js"></script></head>
+<body><main><h1 id="logo">Soulu</h1><form id="search"><label class="sr-only" for="query">Поиск или адрес / Search or address</label><input id="query" placeholder="Поиск или адрес" autocomplete="off" spellcheck="false"><button aria-label="Открыть / Go">→</button></form>
+<section id="shortcuts" aria-label="Быстрые ссылки / Shortcuts"><div id="links"></div><button id="add">+ Добавить ссылку</button></section>
+<section id="weather"><button id="weatherToggle" aria-expanded="false" aria-controls="weatherDetail">Погода · недоступна</button><div id="weatherDetail" hidden><p id="weatherMessage">Погодный сервис пока не подключён.</p><label>Город / City<input id="city" maxlength="100" autocomplete="off"></label><button id="saveCity">Сохранить</button></div></section>
+<p id="error" role="status"></p></main><button id="customize" aria-label="Настроить страницу / Customize">⚙</button>
+<dialog id="preferences"><form method="dialog"><h2>Страница Soulu</h2><div id="toggles"></div><button>Готово / Done</button></form></dialog>
+<dialog id="editor"><form id="shortcutForm"><h2 id="editorTitle">Быстрая ссылка</h2><label>Название / Name<input id="shortcutName" required maxlength="80"></label><label>URL<input id="shortcutUrl" required maxlength="4096" placeholder="https://example.com"></label><p id="editorError" role="status"></p><div class="actions"><button type="button" id="cancel">Отмена / Cancel</button><button>Сохранить / Save</button></div></form></dialog>
+</body></html>

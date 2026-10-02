@@ -30,6 +30,7 @@
 
   window.browserShell = {
     navigate: value => invoke("browser.navigate", value),
+    home: () => invoke("browser.home"),
     back: () => invoke("browser.back"),
     reload: () => invoke("browser.reload"),
     newTab: () => invoke("browser.newTab"),

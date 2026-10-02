@@ -320,6 +320,16 @@ BrowserWindow::BrowserWindow()
   settings_->SetBool("showNewTab", true);
   settings_->SetBool("showDownloads", true);
   settings_->SetString("downloadsMode", "dynamic");
+  settings_->SetString("startupMode", "soulu");
+  settings_->SetString("startupUrl", "");
+  settings_->SetString("newTabMode", "soulu");
+  settings_->SetString("newTabUrl", "");
+  settings_->SetString("homeMode", "soulu");
+  settings_->SetString("homeUrl", "");
+  for (const auto* key : {"homeShowLogo", "homeShowSearch", "homeShowWeather", "homeShowShortcuts", "homeShowBackground"})
+    settings_->SetBool(key, true);
+  settings_->SetString("homeWeatherCity", "");
+  settings_->SetList("homeShortcuts", CefListValue::Create());
   settings_->SetString("startPageMode", "blank");
   settings_->SetString("startPageUrl", "");
   settings_->SetBool("openStartPageAfterLastTab", false);
@@ -351,6 +361,10 @@ void BrowserWindow::LoadSettings() {
   if (!parsed || parsed->GetType() != VTYPE_DICTIONARY) return;
   auto root = parsed->GetDictionary();
   if (auto saved = root->GetDictionary("settings")) {
+    if (!saved->HasKey("startupMode") && saved->HasKey("startPageMode")) {
+      settings_->SetString("startupMode", saved->GetString("startPageMode"));
+      settings_->SetString("startupUrl", saved->GetString("startPageUrl"));
+    }
     CefDictionaryValue::KeyList keys; saved->GetKeys(keys);
     for (const auto& key : keys) settings_->SetValue(key, saved->GetValue(key)->Copy());
   }
@@ -396,6 +410,10 @@ void BrowserWindow::LoadProfileSettings() {
   settings_=initial_settings_->Copy(false);
   auto saved=ReadJson(ProfileRoot(active_profile_id_)/L"soulu-settings.json");
   if(saved&&saved->GetType()==VTYPE_DICTIONARY){
+    if (!saved->GetDictionary()->HasKey("startupMode") && saved->GetDictionary()->HasKey("startPageMode")) {
+      settings_->SetString("startupMode", saved->GetDictionary()->GetString("startPageMode"));
+      settings_->SetString("startupUrl", saved->GetDictionary()->GetString("startPageUrl"));
+    }
     CefDictionaryValue::KeyList keys;saved->GetDictionary()->GetKeys(keys);
     for(const auto& key:keys)settings_->SetValue(key,saved->GetDictionary()->GetValue(key)->Copy());
   }
@@ -631,6 +649,7 @@ void BrowserWindow::SyncSitePolicy(int id,const std::string& url) {
 }
 void BrowserWindow::ReleaseIncognito() {
   if(std::any_of(tabs_.begin(),tabs_.end(),[](const Tab& t){return t.incognito;}))return;
+  private_page_settings_=nullptr;
   incognito_context_=nullptr;policies_.erase("__incognito__");reader_preferences_.erase("__incognito__");
   auto retained=CefListValue::Create();
   for(size_t i=0;i<bookmarks_->GetSize();++i){auto row=bookmarks_->GetDictionary(i);
@@ -788,6 +807,7 @@ void BrowserWindow::SwitchProfile(const std::string& id) {
   if (tab == tabs_.end()) NewTab();
   else {
     active_tab_id_ = tab->id;
+    last_normal_active_[tab->profile_id]=tab->id;
     Layout();
     EmitState();
   }
@@ -865,14 +885,16 @@ void BrowserWindow::NewTab(const std::string& url, bool incognito,
   const int id = next_tab_id_++;
   Tab tab;
   tab.id = id;
-  tab.url = url;
+  if (incognito && !private_page_settings_) private_page_settings_ = settings_->Copy(false);
+  tab.url = url.empty() ? PageUrl("newTab", incognito ? private_page_settings_ : settings_) : url;
+  tab.focus_address_on_attach = foreground && (url.empty() || tab.url=="about:blank" || tab.url=="soulu://home");
   tab.incognito = incognito;
   tab.profile_id = profile_id.empty() ? (incognito ? "__incognito__" : active_profile_id_) : profile_id;
   if (url.find("/ui/settings.html") != std::string::npos)
     tab.title = settings_->GetString("language") == "en" ? "Settings" : "Настройки";
   tabs_.push_back(tab);
   const int previous_active = active_tab_id_;
-  if (foreground) { CaptureThumbnail(); active_tab_id_ = id; }
+  if (foreground) { CaptureThumbnail(); active_tab_id_ = id; if(!incognito)last_normal_active_[tab.profile_id]=id; }
 
   CefWindowInfo info;
   info.SetAsChild(hwnd_, CurrentGeometry().content);
@@ -888,7 +910,7 @@ void BrowserWindow::NewTab(const std::string& url, bool incognito,
           ? BrowserRole::kSettings : BrowserRole::kContent;
   const bool created = CefBrowserHost::CreateBrowser(
       info, new BrowserClient(this, role, id),
-      url == "about:blank" ? FileUrl(std::filesystem::u8path(ExecutableDirectory()) / "ui" / "start.html") : url, browser_settings,
+      InternalUrl(tab.url), browser_settings,
       [&](){auto extra=CefDictionaryValue::Create();extra->SetBool("souluIncognito",incognito);return extra;}(),
       context ? context : ContextForNewTab(incognito));
   if (!created) {
@@ -899,18 +921,14 @@ void BrowserWindow::NewTab(const std::string& url, bool incognito,
     return;
   }
   EmitState();
-  if (foreground && url == "about:blank") FocusAddress();
+  if (foreground && (url.empty() || tab.url == "about:blank" || tab.url == "soulu://home")) FocusAddress();
 }
 
 void BrowserWindow::AttachShell(CefRefPtr<CefBrowser> browser) {
   shell_ = browser;
   surface_->Attach(browser);
   InitializeProfiles();
-  std::string start_url = "about:blank";
-  const std::string custom_url = settings_->GetString("startPageUrl");
-  if (settings_->GetString("startPageMode") == "custom" && !custom_url.empty())
-    start_url = NormalizeAddress(custom_url);
-  NewTab(start_url);
+  if (!RestoreSession()) NewTab(PageUrl("startup", settings_));
   Layout();
   FocusAddress();
 }
@@ -922,6 +940,9 @@ void BrowserWindow::AttachContent(int tab_id, CefRefPtr<CefBrowser> browser) {
     return;
   }
   tab->browser = browser;
+  if(tab->focus_address_on_attach && active_tab_id_==tab_id){
+    tab->focus_address_on_attach=false;FocusAddress();
+  }
   ApplySiteSound();
   if (closing_) {
     browser->GetHost()->CloseBrowser(true);
@@ -929,6 +950,7 @@ void BrowserWindow::AttachContent(int tab_id, CefRefPtr<CefBrowser> browser) {
   }
   if (tab->activate_on_attach) {
     active_tab_id_ = tab_id;
+    if(!tab->incognito)last_normal_active_[tab->profile_id]=tab_id;
     tab->activate_on_attach = false;
   }
   Layout();
@@ -962,6 +984,7 @@ void BrowserWindow::SwitchTab(int id) {
   if(!tab->incognito&&tab->profile_id!=active_profile_id_){active_profile_id_=tab->profile_id;LoadProfileSettings();}
   if (active_tab_id_ != id) CaptureThumbnail();
   active_tab_id_ = id;
+  if(!tab->incognito)last_normal_active_[tab->profile_id]=id;
   Layout();
   EmitState();
 }
@@ -975,20 +998,14 @@ void BrowserWindow::CloseTab(int id) {
     return;
   }
   const bool active = id == active_tab_id_;
+  const bool incognito = it->incognito;
+  const std::string profile = it->profile_id;
   tabs_.erase(it);
-  ReleaseIncognito();
-  if (active) active_tab_id_ = 0;
-  if (!closing_ && active_tab_id_ == 0) {
-    if (settings_->GetBool("openStartPageAfterLastTab")) {
-      std::string start_url = "about:blank";
-      const std::string custom_url = settings_->GetString("startPageUrl");
-      if (settings_->GetString("startPageMode") == "custom" && !custom_url.empty())
-        start_url = NormalizeAddress(custom_url);
-      NewTab(start_url);
-    } else {
-      NewTab();
-    }
+  if (active) {
+    active_tab_id_ = 0;
+    ReplaceLastTab(incognito, profile);
   }
+  ReleaseIncognito();
   Layout();
   EmitState();
 }
@@ -1000,29 +1017,15 @@ void BrowserWindow::BrowserClosed(CefRefPtr<CefBrowser> browser, int tab_id,
     auto* tab = FindTab(tab_id);
     // A popup/DevTools browser must never remove its opener's tab.
     if (!tab || !tab->browser || !tab->browser->IsSame(browser)) return;
+    const bool incognito = tab->incognito;
+    const std::string profile = tab->profile_id;
     tabs_.erase(std::remove_if(tabs_.begin(), tabs_.end(),
-                               [tab_id](const Tab& tab) { return tab.id == tab_id; }),
-                tabs_.end());
-    ReleaseIncognito();
+        [tab_id](const Tab& tab) { return tab.id == tab_id; }), tabs_.end());
     if (active_tab_id_ == tab_id) {
-      const std::string visible = active_profile_id_;
-      auto next = std::find_if(tabs_.begin(), tabs_.end(),
-          [&visible](const Tab& item) {
-            return !item.incognito && item.profile_id == visible;
-          });
-      active_tab_id_ = next == tabs_.end() ? 0 : next->id;
+      active_tab_id_ = 0;
+      ReplaceLastTab(incognito, profile);
     }
-    if (!closing_ && active_tab_id_ == 0) {
-      if (settings_->GetBool("openStartPageAfterLastTab")) {
-        std::string start_url = "about:blank";
-        const std::string custom_url = settings_->GetString("startPageUrl");
-        if (settings_->GetString("startPageMode") == "custom" && !custom_url.empty())
-          start_url = NormalizeAddress(custom_url);
-        NewTab(start_url);
-      } else {
-        NewTab();
-      }
-    }
+    ReleaseIncognito();
   }
   if (closing_ && !shell_ && tabs_.empty()) FinishClose();
   else { Layout(); EmitState(); }
@@ -1042,11 +1045,11 @@ void BrowserWindow::Navigate(const std::string& value) {
   auto* tab = ActiveTab();
   if (!tab) return;
   if (settings_->GetString("addressOpenMode") == "newIfOccupied" &&
-      tab->url != "about:blank" && tab->url != url) {
+      tab->url != "about:blank" && tab->url != "soulu://home" && tab->url != url) {
     NewTab(url);
     return;
   }
-  if (tab->browser) tab->browser->GetMainFrame()->LoadURL(url);
+  if (tab->browser) tab->browser->GetMainFrame()->LoadURL(InternalUrl(url));
 }
 
 std::string BrowserWindow::NormalizeAddress(const std::string& input) const {
@@ -1069,7 +1072,7 @@ void BrowserWindow::UpdateTitle(int id, const std::string& title) {
 }
 void BrowserWindow::UpdateAddress(int id, const std::string& url) {
   if (auto* tab = FindTab(id)) {
-    const std::string next = url.find("/ui/start.html") != std::string::npos ? "about:blank" : url;
+    const std::string next = url == InternalUrl("about:blank") ? "about:blank" : (url == InternalUrl("soulu://home") ? "soulu://home" : url);
     if (next != tab->url) {tab->thumbnail.clear();++tab->document_generation;tab->reader_active=false;tab->reader_article=nullptr;}
     tab->url = next;
   }
@@ -1150,14 +1153,12 @@ bool BrowserWindow::BookmarksBarVisible() const {
   if(mode!="newTab" && mode!="home") return false;
   const auto* tab=const_cast<BrowserWindow*>(this)->ActiveTab();
   if(!tab) return false;
-  const bool blank=tab->url.empty() || tab->url=="about:blank";
-  if(mode=="newTab") return blank;
-  if(blank) return settings_->GetString("startPageMode")!="custom";
-  const std::string configured=settings_->GetString("startPageUrl");
-  if(settings_->GetString("startPageMode")!="custom" || configured.empty()) return false;
+  if(mode=="newTab" && (tab->url.empty()||tab->url=="about:blank"))return true;
+  const auto config=PageSettings(*tab);
+  const auto expected=PageUrl(mode=="newTab"?"newTab":"home",config);
+  if(tab->url==expected)return true;
   CefURLParts parts;
-  const std::string home=NormalizeAddress(configured);
-  return CefParseURL(home,parts) && tab->url==CefString(&parts.spec).ToString();
+  return CefParseURL(expected,parts) && tab->url==CefString(&parts.spec).ToString();
 }
 
 void BrowserWindow::StoreThumbnail(int id, const std::string& url, const std::string& data) {
@@ -1267,11 +1268,12 @@ void BrowserWindow::ApplyContentTheme() {
   const bool dark = settings_->GetString("theme") == "dark" ||
       (settings_->GetString("theme") == "system" && IsWindowsDarkMode());
   for (auto& tab : tabs_) {
-    if (!tab.browser || tab.url != "about:blank") continue;
+    if (!tab.browser || (tab.url != "about:blank" && tab.url != "soulu://home")) continue;
     auto frame = tab.browser->GetMainFrame();
     if (frame && frame->GetURL().ToString().find("/ui/start.html") != std::string::npos)
       frame->ExecuteJavaScript(std::string("document.body.dataset.theme='") + (dark ? "dark" : "light") + "';document.documentElement.style.background='" + (dark ? "#08090b" : "#fafafa") + "';", frame->GetURL(), 0);
   }
+  RefreshHomePages();
 }
 
 CefRefPtr<CefDictionaryValue> BrowserWindow::State() const {
@@ -1321,8 +1323,8 @@ CefRefPtr<CefDictionaryValue> BrowserWindow::State() const {
   }
   state->SetList("profiles", profiles);
   auto update = CefDictionaryValue::Create();
-  update->SetString("soulu", "0.9.0-cef-preview.42");
-  update->SetString("recommended", "0.9.0-cef-preview.42");
+  update->SetString("soulu", "0.9.0-cef-preview.43");
+  update->SetString("recommended", "0.9.0-cef-preview.43");
   update->SetString("cef", EngineVersion(0, 3));
   update->SetString("chromium", EngineVersion(4, 4));
   update->SetBool("available", false);
@@ -1529,6 +1531,9 @@ bool BrowserWindow::HandleSiteAction(const std::string& action,CefRefPtr<CefValu
 }
 
 void BrowserWindow::SetSetting(const std::string& key, CefRefPtr<CefValue> value) {
+  if (key == "startPageMode" || key == "startPageUrl") {
+    settings_->SetValue(key == "startPageMode" ? "startupMode" : "startupUrl", value->Copy());
+  }
   settings_->SetValue(key, value->Copy());
   SaveSettings();
   if (key == "layout" || key.find("bookmarks") == 0) Layout();
@@ -1584,8 +1589,12 @@ void BrowserWindow::HandleBridge(const std::string& request,
   else if (action == "browser.reload") {
     if (auto* t = ActiveTab(); t && t->browser) t->loading ? t->browser->StopLoad() : t->browser->Reload();
   }
-  else if (action == "browser.newTab") NewTab();
-  else if (action == "browser.newIncognito") NewTab("about:blank", true);
+  else if (action == "browser.newTab") NewTab("", VisibleProfileId()=="__incognito__");
+  else if (action == "browser.home") {
+    if (auto* tab=ActiveTab(); tab && tab->browser)
+      tab->browser->GetMainFrame()->LoadURL(InternalUrl(PageUrl("home", PageSettings(*tab))));
+  }
+  else if (action == "browser.newIncognito") NewTab("", true);
   else if (action == "browser.profile.create") {
     std::string name = payload && payload->GetType() == VTYPE_STRING
         ? payload->GetString() : "Профиль";
@@ -1653,8 +1662,8 @@ void BrowserWindow::HandleBridge(const std::string& request,
   }
   else if (action == "browser.update.check") {
     auto update = CefDictionaryValue::Create();
-    update->SetString("soulu", "0.9.0-cef-preview.42");
-    update->SetString("recommended", "0.9.0-cef-preview.42");
+    update->SetString("soulu", "0.9.0-cef-preview.43");
+    update->SetString("recommended", "0.9.0-cef-preview.43");
     update->SetString("cef", EngineVersion(0, 3));
     update->SetString("chromium", EngineVersion(4, 4));
     update->SetBool("available", false);
@@ -1752,8 +1761,11 @@ void BrowserWindow::HandleBridge(const std::string& request,
   else if (action == "browser.settings.get") return Reply(callback, settings_->Copy(false));
   else if (action == "browser.settings.set") {
     if (payload && payload->GetType() == VTYPE_DICTIONARY) {
-      auto patch = payload->GetDictionary(); CefDictionaryValue::KeyList keys; patch->GetKeys(keys);
+      auto patch = payload->GetDictionary();
+      if(!ValidatePagePatch(patch)){callback->Failure(400,"Invalid page mode or HTTP(S) URL");return;}
+      CefDictionaryValue::KeyList keys; patch->GetKeys(keys);
       for (const auto& key : keys) SetSetting(key, patch->GetValue(key));
+      RefreshHomePages();
       Emit("settings", Wrap(settings_->Copy(false)));
       EmitState();
     }
@@ -1932,7 +1944,7 @@ void BrowserWindow::HandleBridge(const std::string& request,
     if (command == 1) OpenSettingsTab();
     else if (command == 2) Emit("openDownloads", EmptyValue());
     else if (command == 3) NewTab();
-    else if (command == 4) NewTab("about:blank", true);
+    else if (command == 4) NewTab("", true);
   }
   else if (action == "browser.pageMenu") {
     POINT point = {}; GetCursorPos(&point);
@@ -1974,6 +1986,7 @@ void BrowserWindow::HandleBridge(const std::string& request,
 void BrowserWindow::CloseAll() {
   if(importing_){close_after_import_=true;return;}
   if (closing_) return;
+  SaveSession();
   closing_ = true;
   // Destroying an Alloy child can synchronously call BrowserClosed and erase
   // tabs_. Close a snapshot so no browser is skipped by iterator invalidation.
