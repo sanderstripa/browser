@@ -10,6 +10,7 @@ import sqlite3
 import sys
 import tempfile
 import time
+import winreg
 
 spec=importlib.util.spec_from_file_location('storage',Path(__file__).with_name('test-cef-storage.py'))
 s=importlib.util.module_from_spec(spec);spec.loader.exec_module(s)
@@ -55,9 +56,9 @@ def main():
         def ui(ws):return wait(lambda:call(ws,'get'))
         def click(ws,text):
             s.evaluate(ws,"[...document.querySelectorAll('button')].find(n=>n.textContent==="+json.dumps(text)+").click()")
-            wait(lambda:not s.evaluate(ws,"document.querySelector('main').getAttribute('aria-busy')==='true'"))
+            wait(lambda:not s.evaluate(ws,"document.querySelector('main')?.getAttribute('aria-busy')==='true'"))
         try:
-            shell=start();page=socket('/ui/onboarding.html');wait(lambda:s.evaluate(page,"document.querySelector('main').getAttribute('aria-busy')==='false'"))
+            shell=start();page=socket('/ui/onboarding.html');wait(lambda:s.evaluate(page,"document.querySelector('main')?.getAttribute('aria-busy')==='false'"))
             check(ui(page)['flow']['status']=='not_started','New normal profile launches first-run')
             check(len(s.evaluate(shell,'browserShell.getState()')['tabs'])==1,'Onboarding uses one native tab')
             check(s.evaluate(page,"document.querySelector('.brand img').getAttribute('src')==='branding/soulu-128.png'"),'Production brand asset used')
@@ -66,10 +67,16 @@ def main():
             s.command(page,'Input.dispatchKeyEvent',{'type':'keyDown','key':'Tab','windowsVirtualKeyCode':9})
             s.command(page,'Input.dispatchKeyEvent',{'type':'keyUp','key':'Tab','windowsVirtualKeyCode':9})
             check(s.evaluate(page,"document.activeElement.textContent==='Начать'"),'Tab reaches first primary action')
+            s.command(page,'Input.dispatchKeyEvent',{'type':'keyDown','key':'Tab','windowsVirtualKeyCode':9})
+            s.command(page,'Input.dispatchKeyEvent',{'type':'keyUp','key':'Tab','windowsVirtualKeyCode':9})
+            check(s.evaluate(page,"document.activeElement.textContent==='Не сейчас'"),'Tab follows the visible action order')
             s.command(page,'Input.dispatchKeyEvent',{'type':'keyDown','key':'Tab','windowsVirtualKeyCode':9,'modifiers':8})
             s.command(page,'Input.dispatchKeyEvent',{'type':'keyUp','key':'Tab','windowsVirtualKeyCode':9,'modifiers':8})
-            check(s.evaluate(page,"document.activeElement!==document.querySelector('#actions button:last-child')"),'Shift+Tab moves focus backwards')
-            click(page,'Начать');check(flow()['step']==2,'Welcome primary advances')
+            check(s.evaluate(page,"document.activeElement.textContent==='Начать'"),'Shift+Tab moves focus backwards')
+            s.command(page,'Input.dispatchKeyEvent',{'type':'keyDown','key':'Enter','code':'Enter','windowsVirtualKeyCode':13,'text':'\r'})
+            s.command(page,'Input.dispatchKeyEvent',{'type':'keyUp','key':'Enter','windowsVirtualKeyCode':13})
+            wait(lambda:flow()['step']==2)
+            check(flow()['step']==2,'Enter activates welcome primary')
             check(ui(page)['sources']==[],'No readable supported source produces honest empty state')
             check(all(r['browser'] in ['Chrome','Edge','Firefox'] for r in ui(page)['sources']),'Only supported importer catalogs are exposed')
             check(s.evaluate(page,"!document.querySelector('#art').textContent.match(/Chrome|Edge|Firefox/)"),'Neutral import hero has no browser brands')
@@ -107,7 +114,7 @@ def main():
             check(ui(page)['sources']==[],'Unsupported browser is excluded')
             for path in fixtures.values():path.with_suffix('.inactive').rename(path)
             check({r['browser'] for r in ui(page)['sources']}=={'Chrome','Edge','Firefox'},'Multiple supported sources are discovered without multi-import claims')
-            s.command(page,'Page.reload');wait(lambda:s.evaluate(page,"document.querySelector('main').getAttribute('aria-busy')==='false'"))
+            s.command(page,'Page.reload');wait(lambda:s.evaluate(page,"document.querySelector('main')?.getAttribute('aria-busy')==='false'"))
             click(page,'Далее');check(flow()['step']==3,'Selected source advances to types')
             check(s.evaluate(page,"document.querySelectorAll('.type input:disabled').length===2"),'Unsupported bookmarks/history categories are disabled')
             click(page,'Назад');check(flow()['source']=='Chrome:Default','Back retains selected source')
@@ -126,6 +133,9 @@ def main():
             click(page,'Добавить');check(flow()['step']==5 and s.evaluate(page,"document.querySelector('#message').textContent.length>0"),'Empty VPN is rejected')
             s.evaluate(page,"document.querySelector('#vpnKey').value='unsupported://host';document.querySelector('#vpnKey').dispatchEvent(new Event('input'))")
             click(page,'Добавить');check(flow()['step']==5,'Unsupported VPN is rejected')
+            sudoku='sudoku://'+base64.urlsafe_b64encode(json.dumps({'h':'127.0.0.1','p':443,'k':'fixture'}).encode()).decode().rstrip('=')
+            s.evaluate(page,"document.querySelector('#vpnKey').value="+json.dumps(sudoku)+";document.querySelector('#vpnKey').dispatchEvent(new Event('input'))")
+            click(page,'Проверить ключ');check(s.evaluate(page,"document.querySelector('#message').textContent.includes('Sudoku пока недоступен')"),'Onboarding does not advertise unsupported native Sudoku')
             click(page,'Пропустить');check(flow()['step']==6,'VPN skip reaches completion')
             check(s.evaluate(page,"document.querySelector('.summary').textContent.includes('Импортировано паролей: 1') && document.querySelector('.summary').textContent.includes('частично') && document.querySelector('.summary').textContent.includes('Приватность настроена') && document.querySelector('.summary').textContent.includes('VPN можно добавить позже')"),'Summary reports actual partial/applied/skipped outcomes')
             for width,height,scale in [(1280,800,1),(800,500,1),(480,360,1),(900,600,1.5),(900,600,2)]:
@@ -136,11 +146,27 @@ def main():
             s.command(page,'Emulation.clearDeviceMetricsOverride')
             s.command(page,'Input.dispatchKeyEvent',{'type':'keyDown','key':'Escape','windowsVirtualKeyCode':27})
             check(flow()['status']=='not_started','Escape does not dismiss flow')
+            if os.environ.get('SOULU_TEST_DEFAULT_APPS')=='1':
+                def choices():
+                    values=[]
+                    for protocol in ['http','https']:
+                        try:
+                            with winreg.OpenKey(winreg.HKEY_CURRENT_USER,rf'Software\Microsoft\Windows\Shell\Associations\UrlAssociations\{protocol}\UserChoice') as k:
+                                values.append(winreg.QueryValueEx(k,'ProgId')[0])
+                        except OSError:values.append(None)
+                    return values
+                before=choices();opened=call(page,'default')
+                check(opened['ok'],'Default action opens Windows Default Apps')
+                with winreg.OpenKey(winreg.HKEY_CURRENT_USER,r'Software\RegisteredApplications') as k:
+                    check(winreg.QueryValueEx(k,'Soulu')[0]==r'Software\Soulu\Capabilities','Soulu capabilities are registered with Windows')
+                with winreg.OpenKey(winreg.HKEY_CURRENT_USER,r'Software\Classes\Soulu.Url\shell\open\command') as k:
+                    check(winreg.QueryValueEx(k,'')[0]=='"'+exe+'" "%1"','Default browser command uses this executable and URL argument')
+                check(choices()==before,'Default action does not bypass Windows user choice')
             finish(page);socket('/ui/home.html');check(flow()['status']=='completed','Completion opens ordinary Soulu')
             check(len(s.evaluate(shell,'browserShell.getState()')['tabs'])==1,'Completion adds no extra tab')
             stop();shell=start();socket('/ui/home.html');check(not any('/ui/onboarding.html' in t.get('url','') for t in s.targets()),'Completed profile has no automatic onboarding on restart')
             state=s.evaluate(shell,"browserShell.createProfile('Second first-run')")
-            page=socket('/ui/onboarding.html');wait(lambda:s.evaluate(page,"document.querySelector('main').getAttribute('aria-busy')==='false'"))
+            page=socket('/ui/onboarding.html');wait(lambda:s.evaluate(page,"document.querySelector('main')?.getAttribute('aria-busy')==='false'"))
             check(ui(page)['flow']['status']=='not_started','Second new profile owns a separate first-run state')
             second=s.evaluate(shell,'browserShell.getState()')['activeProfileId']
             call(page,'progress',{'step':5});s.command(page,'Page.reload')
@@ -159,6 +185,13 @@ def main():
             s.evaluate(shell,'browserShell.newIncognito()');time.sleep(.5)
             check(not any('/ui/onboarding.html' in t.get('url','') for t in s.targets()),'Incognito never starts first-run')
             check(flow()['status']=='completed','Incognito does not mutate normal first-run status')
+            s.evaluate(shell,"browserShell.createProfile('Welcome skip')")
+            page=socket('/ui/onboarding.html');wait(lambda:s.evaluate(page,"document.querySelector('main')?.getAttribute('aria-busy')==='false'"))
+            third=s.evaluate(shell,'browserShell.getState()')['activeProfileId']
+            s.evaluate(page,"[...document.querySelectorAll('button')].find(n=>n.textContent==='Не сейчас').click()")
+            third_file=profile.parent/third/'soulu-settings.json'
+            wait(lambda:json.loads(third_file.read_text())['onboarding']['status']=='skipped')
+            check(not (profile.parent/third/'soulu-site-rules.json').exists() and not (profile.parent/third/'soulu-passwords.json').exists(),'Welcome Not now skips without applying privacy or import')
             stop()
             # Simulate an existing install without the new marker, preserving values.
             settings=json.loads((profile/'soulu-settings.json').read_text());settings.pop('onboarding');settings['theme']='dark';settings['startupMode']='continue'
@@ -168,6 +201,9 @@ def main():
             check(not any('/ui/onboarding.html' in t.get('url','') for t in s.targets()),'Existing profile update restores its session without first-run')
             check(json.loads((profile/'soulu-settings.json').read_text())['theme']=='dark','Migration preserves existing settings')
             check(flow()['status']=='skipped','Existing profile migration records skipped')
+            check(s.evaluate(shell,'vpn.settingsGet()')['link']==key,'Saved VPN key survives browser restart')
+            s.evaluate(shell,'browserShell.switchProfile('+json.dumps(third)+')');time.sleep(.3)
+            check(not any('/ui/onboarding.html' in t.get('url','') for t in s.targets()),'Explicitly skipped profile stays skipped on restart')
         finally:
             if process:stop()
     if output:output.parent.mkdir(parents=True,exist_ok=True);output.write_text(json.dumps({'passed':True,'checks':checks},indent=2),encoding='utf-8')

@@ -14,6 +14,7 @@
   async function run(fn){if(busy)return;busy=true;document.querySelector('main').setAttribute('aria-busy','true');disable();try{await fn();}catch(e){report(e);}finally{busy=false;document.querySelector('main').setAttribute('aria-busy','false');disable();}}
   function disable(){document.querySelectorAll('button,input').forEach(n=>{n.disabled=busy||n.dataset.unavailable==='true';});}
   const persist=async patch=>{flow=await invoke('progress',{...patch,step:patch.step||flow.step||1});};
+  const parseVpn=()=>{const parsed=window.souluParseVpnKey(vpnDraft);if(parsed.protocol!=='vless')throw Error('В этой версии поддерживаются ключи Xray (VLESS). Sudoku пока недоступен.');return parsed;};
   const go=async step=>{await persist({step});render();$('title').focus();};
   function button(text,fn,kind=''){const n=el('button',text,kind);n.type='button';n.onclick=()=>run(fn);return n;}
   function note(text){$('controls').append(el('p',text,'note'));}
@@ -78,9 +79,9 @@
       actions.append(button('Назад',()=>go(source?3:2)),button('Пропустить',()=>go(5)),button('Продолжить',async()=>{await invoke('privacy');flow.privacyApplied=true;await go(5);},'primary'));
     }else controls.className='';
     if(step===5){const input=el('input',null,'vpn-input');input.id='vpnKey';input.type='password';input.autocomplete='off';input.placeholder='Вставь ключ или ссылку подключения';input.setAttribute('aria-label','Ключ подключения VPN');input.value=vpnDraft;input.maxLength=16384;input.oninput=()=>{vpnDraft=input.value;$('message').textContent='';};controls.append(input);
-      note('Поддерживаются протоколы: Xray (VLESS), Sudoku');
-      controls.append(button('Проверить ключ',()=>{window.souluParseVpnKey(vpnDraft);$('message').textContent='Формат ключа распознан. При добавлении его проверит VPN backend. Подключение не запускается.';},'link'));
-      actions.append(button('Назад',()=>go(4)),button('Пропустить',()=>go(6)),button('Добавить',async()=>{const parsed=window.souluParseVpnKey(vpnDraft);const result=await invoke('vpn',parsed);if(result?.ok===false)throw Error(result.error||'Ключ не сохранён');flow.vpnAdded=true;vpnDraft='';await go(6);},'primary'));
+      note('Поддерживаются ключи Xray (VLESS)');
+      controls.append(button('Проверить ключ',()=>{parseVpn();$('message').textContent='Формат ключа распознан. При добавлении его проверит VPN backend. Подключение не запускается.';},'link'));
+      actions.append(button('Назад',()=>go(4)),button('Пропустить',()=>go(6)),button('Добавить',async()=>{const parsed=parseVpn();const result=await invoke('vpn',parsed);if(result?.ok===false)throw Error(result.error||'Ключ не сохранён');flow.vpnAdded=true;vpnDraft='';await go(6);},'primary'));
     }
     if(step===6){summary();note('Если хочешь, можно сразу сделать Soulu браузером по умолчанию.');controls.lastChild.classList.add('divider');
       actions.append(button('Не сейчас',()=>finish(false)),button('Сделать браузером по умолчанию',async()=>{const result=await invoke('default');if(!result.ok)throw Error('Не удалось открыть стандартные приложения Windows');$('message').textContent=result.message;},'primary'),button('Открыть Soulu',()=>finish(false),'link'));
