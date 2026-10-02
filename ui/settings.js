@@ -65,23 +65,10 @@
     document.body.classList.add("ready");
   }
 
-  function decodeBase64Url(value) {
-    const normalized=value.replace(/-/g,"+").replace(/_/g,"/").padEnd(Math.ceil(value.length/4)*4,"=");
-    return decodeURIComponent([...atob(normalized)].map(c=>"%"+c.charCodeAt(0).toString(16).padStart(2,"0")).join(""));
-  }
   async function parseVpnLink() {
-    const raw=$("#vpnLink").value.trim();
-    const protocol=document.querySelector('[name="vpnProtocol"]:checked')?.value||"vless";
-    let address="",region="";
     try {
-      if(protocol==="vless"){
-        if(!raw.startsWith("vless://")) throw new Error("Ожидается ссылка vless://");
-        const url=new URL(raw); address=url.hostname+(url.port?":"+url.port:""); region=decodeURIComponent(url.hash.slice(1))||url.searchParams.get("sni")||"Не указан";
-      } else {
-        if(!raw.startsWith("sudoku://")) throw new Error("Ожидается ссылка sudoku://");
-        const data=JSON.parse(decodeBase64Url(raw.slice(9))); address=String(data.h||"")+(data.p?":"+data.p:""); region=String(data.r||data.n||"Не указан");
-        if(!data.h||!data.p||!data.k) throw new Error("В Sudoku-ключе отсутствуют сервер, порт или ключ");
-      }
+      const parsed=window.souluParseVpnKey($("#vpnLink").value,document.querySelector('[name="vpnProtocol"]:checked')?.value||"vless");
+      const {protocol,link:raw,address,region}=parsed;
       const host=address.replace(/^\[/,"").replace(/\](:\d+)?$/,"").replace(/:\d+$/,"");
       const resolved=await window.vpn.resolve(host).catch(()=>null);
       const ip=resolved?.ip||host;

@@ -28,6 +28,10 @@ class BridgeHandler final : public CefMessageRouterBrowserSide::Handler {
                CefRefPtr<Callback> callback) override {
     if (!frame->IsMain()) return false;
     const std::string url = frame->GetURL();
+    if (owner_->IsOnboardingUi(url)) {
+      owner_->HandleOnboardingBridge(id_, request, callback);
+      return true;
+    }
     if (owner_->IsHomeUi(url)) {
       owner_->HandleHomeBridge(id_, request, callback);
       return true;

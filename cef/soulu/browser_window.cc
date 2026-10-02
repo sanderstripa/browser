@@ -1,5 +1,6 @@
 #include "examples/soulu/browser_window.h"
 #include "include/cef_app.h"
+#include "include/cef_command_line.h"
 #include "include/cef_devtools_message_observer.h"
 
 #include <windowsx.h>
@@ -347,6 +348,7 @@ BrowserWindow::BrowserWindow()
   settings_->SetBool("bookmarksIconsOnly", false);
   LoadSettings();
   initial_settings_ = settings_->Copy(false);
+  initial_settings_->Remove("onboarding");
   std::ifstream marks(UserDataDirectory() / L"bookmarks.json", std::ios::binary);
   std::stringstream data; data << marks.rdbuf();
   auto saved = CefParseJSON(data.str(), JSON_PARSER_RFC);
@@ -423,6 +425,7 @@ void BrowserWindow::LoadProfileSettings() {
 void BrowserWindow::Create() {
   CEF_REQUIRE_UI_THREAD();
   CefRefPtr<BrowserWindow> window = new BrowserWindow();
+  current_=window.get();
   if (window->CreateNativeWindow()) window->CreateShellBrowser();
 }
 
@@ -499,7 +502,7 @@ void BrowserWindow::InitializeProfiles() {
         auto profile = list->GetDictionary(i);
         if (profile)
           CreateProfile(profile->GetString("name"),
-                        profile->GetString("id"));
+                        profile->GetString("id"), true);
       }
     }
   }
@@ -509,7 +512,7 @@ void BrowserWindow::InitializeProfiles() {
 }
 
 void BrowserWindow::CreateProfile(const std::string& name,
-                                  const std::string& requested_id) {
+                                  const std::string& requested_id, bool existing) {
   std::string id = requested_id.empty()
       ? (profiles_.empty() ? "personal" : "profile-" + RandomId())
       : requested_id;
@@ -517,6 +520,12 @@ void BrowserWindow::CreateProfile(const std::string& name,
        [&id](const Profile& p){return p.id==id;}))return;
   CefRequestContextSettings context_settings;
   auto profile_path = ProfileRoot(id);
+  // Decide before CEF creates any cache files. Old profiles and legacy installs
+  // never acquire a first-run prompt merely by upgrading.
+  std::error_code probe;
+  existing = existing || std::filesystem::exists(profile_path, probe) ||
+      (id == "personal" && (std::filesystem::exists(UserDataDirectory()/L"settings.json", probe) ||
+       std::filesystem::exists(UserDataDirectory()/L"bookmarks.json", probe)));
   // CEF's Windows context registry compares path strings. Match Chromium's
   // native initial-profile path so a restored last-used profile reuses its
   // context instead of opening the same databases a second time.
@@ -532,6 +541,13 @@ void BrowserWindow::CreateProfile(const std::string& name,
       context_settings, new ProfileContextHandler(this));
   profiles_.push_back(profile);
   policies_[id]=std::make_shared<SitePolicy>(id);
+  auto saved=ReadJson(profile_path/L"soulu-settings.json");
+  auto config=saved&&saved->GetType()==VTYPE_DICTIONARY?saved->GetDictionary()->Copy(false):initial_settings_->Copy(false);
+  if(!config->GetDictionary("onboarding")) {
+    auto flow=CefDictionaryValue::Create();flow->SetString("status",existing?"skipped":"not_started");
+    flow->SetInt("step",1);config->SetDictionary("onboarding",flow);
+    WriteJson(profile_path/L"soulu-settings.json",Wrap(config));
+  }
   SaveProfiles();
 }
 
@@ -887,7 +903,10 @@ void BrowserWindow::NewTab(const std::string& url, bool incognito,
   tab.id = id;
   if (incognito && !private_page_settings_) private_page_settings_ = settings_->Copy(false);
   tab.url = url.empty() ? PageUrl("newTab", incognito ? private_page_settings_ : settings_) : url;
-  tab.focus_address_on_attach = foreground && (url.empty() || tab.url=="about:blank" || tab.url=="soulu://home");
+  if(!incognito && foreground && (profile_id.empty()||profile_id==active_profile_id_) && NeedsOnboarding() &&
+      std::none_of(tabs_.begin(),tabs_.end(),[this](const Tab& t){return !t.incognito&&t.profile_id==active_profile_id_;}))
+    tab.url="soulu://onboarding";
+  tab.focus_address_on_attach = tab.url!="soulu://onboarding" && foreground && (url.empty() || tab.url=="about:blank" || tab.url=="soulu://home");
   tab.incognito = incognito;
   tab.profile_id = profile_id.empty() ? (incognito ? "__incognito__" : active_profile_id_) : profile_id;
   if (url.find("/ui/settings.html") != std::string::npos)
@@ -921,14 +940,17 @@ void BrowserWindow::NewTab(const std::string& url, bool incognito,
     return;
   }
   EmitState();
-  if (foreground && (url.empty() || tab.url == "about:blank" || tab.url == "soulu://home")) FocusAddress();
+  if (tab.url!="soulu://onboarding" && foreground && (url.empty() || tab.url == "about:blank" || tab.url == "soulu://home")) FocusAddress();
 }
 
 void BrowserWindow::AttachShell(CefRefPtr<CefBrowser> browser) {
   shell_ = browser;
   surface_->Attach(browser);
   InitializeProfiles();
-  if (!RestoreSession()) NewTab(PageUrl("startup", settings_));
+  if (NeedsOnboarding() || !RestoreSession()) NewTab(PageUrl("startup", settings_));
+  CefCommandLine::ArgumentList arguments;
+  CefCommandLine::GetGlobalCommandLine()->GetArguments(arguments);
+  for(const auto& argument:arguments)OpenExternal(argument.ToString());
   Layout();
   FocusAddress();
 }
@@ -1072,7 +1094,7 @@ void BrowserWindow::UpdateTitle(int id, const std::string& title) {
 }
 void BrowserWindow::UpdateAddress(int id, const std::string& url) {
   if (auto* tab = FindTab(id)) {
-    const std::string next = url == InternalUrl("about:blank") ? "about:blank" : (url == InternalUrl("soulu://home") ? "soulu://home" : url);
+    const std::string next = url == InternalUrl("about:blank") ? "about:blank" : (url == InternalUrl("soulu://home") ? "soulu://home" : (IsOnboardingUi(url)?"soulu://onboarding":url));
     if (next != tab->url) {tab->thumbnail.clear();++tab->document_generation;tab->reader_active=false;tab->reader_article=nullptr;}
     tab->url = next;
   }
@@ -1323,8 +1345,8 @@ CefRefPtr<CefDictionaryValue> BrowserWindow::State() const {
   }
   state->SetList("profiles", profiles);
   auto update = CefDictionaryValue::Create();
-  update->SetString("soulu", "0.9.0-cef-preview.43");
-  update->SetString("recommended", "0.9.0-cef-preview.43");
+  update->SetString("soulu", "0.9.0-cef-preview.45");
+  update->SetString("recommended", "0.9.0-cef-preview.45");
   update->SetString("cef", EngineVersion(0, 3));
   update->SetString("chromium", EngineVersion(4, 4));
   update->SetBool("available", false);
@@ -1673,8 +1695,8 @@ void BrowserWindow::HandleBridge(const std::string& request,
   }
   else if (action == "browser.update.check") {
     auto update = CefDictionaryValue::Create();
-    update->SetString("soulu", "0.9.0-cef-preview.43");
-    update->SetString("recommended", "0.9.0-cef-preview.43");
+    update->SetString("soulu", "0.9.0-cef-preview.45");
+    update->SetString("recommended", "0.9.0-cef-preview.45");
     update->SetString("cef", EngineVersion(0, 3));
     update->SetString("chromium", EngineVersion(4, 4));
     update->SetBool("available", false);

@@ -37,6 +37,7 @@ CefRefPtr<CefValue> AsValue(CefRefPtr<CefDictionaryValue> data) {
 
 std::string BrowserWindow::InternalUrl(const std::string& url) const {
   if(url=="soulu://home"||url=="soulu://home/")return LocalPage("home.html");
+  if(url=="soulu://onboarding")return LocalPage("onboarding.html");
   if(url=="about:blank")return LocalPage("start.html");
   return url;
 }

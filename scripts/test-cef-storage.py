@@ -61,7 +61,17 @@ def targets(timeout=45):
     while time.monotonic() < deadline:
         try:
             with urllib.request.urlopen(BASE + "/json/list", timeout=2) as response:
-                return json.load(response)
+                rows=json.load(response)
+            # Unrelated regression suites explicitly opt into a normal browsing
+            # fixture. The dedicated first-run suite leaves this flag unset.
+            if os.environ.get('SOULU_REGRESSION_SKIP_FIRST_RUN')=='1':
+                for row in rows:
+                    if '/ui/onboarding.html' not in row.get('url',''):continue
+                    with websocket.create_connection(row['webSocketDebuggerUrl'],timeout=5,origin=BASE) as ws:
+                        command(ws,'Runtime.evaluate',{'expression':"cefQuery({request:JSON.stringify({action:'onboarding.finish',payload:{skip:true}}),onSuccess:()=>{},onFailure:()=>{}})"})
+                if any('/ui/onboarding.html' in row.get('url','') for row in rows):
+                    time.sleep(.1);continue
+            return rows
         except OSError:
             time.sleep(0.25)
     raise AssertionError("CEF remote debugging did not start")

@@ -20,8 +20,12 @@ namespace soulu {
 class BrowserWindow final : public CefBaseRefCounted {
  public:
   static void Create();
+  static void OpenExternal(const std::string& url);
 
   bool IsHomeUi(const std::string& url) const;
+  bool IsOnboardingUi(const std::string& url) const;
+  void HandleOnboardingBridge(int id, const std::string& request,
+      CefRefPtr<CefMessageRouterBrowserSide::Callback> callback);
   void HandleHomeBridge(int id, const std::string& request,
       CefRefPtr<CefMessageRouterBrowserSide::Callback> callback);
   bool HandlePageShortcut(int id, int key, bool control, bool alt);
@@ -96,13 +100,18 @@ class BrowserWindow final : public CefBaseRefCounted {
   };
 
   BrowserWindow();
-  ~BrowserWindow() override = default;
+  ~BrowserWindow() override { if(current_==this)current_=nullptr; }
+  inline static BrowserWindow* current_ = nullptr;
+  std::string pending_external_url_;
   static LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam);
   bool CreateNativeWindow();
   void CreateShellBrowser();
   void OpenSettingsTab();
   void InitializeProfiles();
-  void CreateProfile(const std::string& name, const std::string& requested_id = "");
+  void CreateProfile(const std::string& name, const std::string& requested_id = "", bool existing = false);
+  bool NeedsOnboarding() const;
+  CefRefPtr<CefDictionaryValue> OnboardingState() const;
+  bool SaveOnboarding(CefRefPtr<CefDictionaryValue> state);
   void SaveProfiles() const;
   void LoadSettings();
   bool SaveBookmarks(CefRefPtr<CefListValue> rows) const;

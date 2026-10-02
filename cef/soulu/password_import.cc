@@ -2,6 +2,7 @@
 #include <windows.h>
 #include <wincrypt.h>
 #include <bcrypt.h>
+#include <shellapi.h>
 #include <algorithm>
 #include <fstream>
 #include <map>
@@ -211,7 +212,32 @@ CefRefPtr<CefListValue> DiscoverImportBrowsers() {
   auto rows=CefListValue::Create();auto sources=Sources();
   for(const auto browser:{std::string("Chrome"),std::string("Edge"),std::string("Firefox")}){
     auto row=CefDictionaryValue::Create();row->SetString("browser",browser);
-    row->SetBool("installed",!InstalledBrowser(browser).empty());
+    const auto executable=InstalledBrowser(browser);
+    row->SetBool("installed",!executable.empty());
+    if(!executable.empty()) {
+      HICON icon=nullptr;
+      if(ExtractIconExW(executable.c_str(),0,&icon,nullptr,1)&&icon) {
+        // The installed executable owns its brand, not a fixed browser catalog.
+        BITMAPINFO bitmap={};bitmap.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);
+        bitmap.bmiHeader.biWidth=48;bitmap.bmiHeader.biHeight=48;
+        bitmap.bmiHeader.biPlanes=1;bitmap.bmiHeader.biBitCount=32;
+        void* pixels=nullptr;HDC dc=CreateCompatibleDC(nullptr);
+        HBITMAP image=CreateDIBSection(dc,&bitmap,DIB_RGB_COLORS,&pixels,nullptr,0);
+        if(image&&pixels) {
+          auto old=SelectObject(dc,image);std::fill_n(static_cast<unsigned char*>(pixels),48*48*4,0);
+          if(DrawIconEx(dc,0,0,icon,48,48,0,nullptr,DI_NORMAL)) {
+            BITMAPFILEHEADER header={};header.bfType=0x4d42;
+            header.bfOffBits=sizeof(header)+sizeof(BITMAPINFOHEADER);header.bfSize=header.bfOffBits+48*48*4;
+            std::string bytes(reinterpret_cast<char*>(&header),sizeof(header));
+            bytes.append(reinterpret_cast<char*>(&bitmap.bmiHeader),sizeof(BITMAPINFOHEADER));
+            bytes.append(static_cast<char*>(pixels),48*48*4);
+            row->SetString("icon","data:image/bmp;base64,"+CefBase64Encode(bytes.data(),bytes.size()));
+          }
+          SelectObject(dc,old);DeleteObject(image);
+        }
+        DeleteDC(dc);DestroyIcon(icon);
+      }
+    }
     row->SetInt("profiles",static_cast<int>(std::count_if(sources.begin(),sources.end(),[&](const Source& s){return s.browser==browser;})));
     rows->SetDictionary(rows->GetSize(),row);
   }return rows;

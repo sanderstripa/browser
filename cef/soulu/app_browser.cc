@@ -20,6 +20,12 @@ class BrowserApp final : public CefApp, public CefBrowserProcessHandler {
   }
 
   void OnContextInitialized() override { BrowserWindow::Create(); }
+  bool OnAlreadyRunningAppRelaunch(CefRefPtr<CefCommandLine> command_line,
+      const CefString&) override {
+    CefCommandLine::ArgumentList arguments;command_line->GetArguments(arguments);
+    for(const auto& argument:arguments)BrowserWindow::OpenExternal(argument.ToString());
+    return true;
+  }
 
  private:
   IMPLEMENT_REFCOUNTING(BrowserApp);
