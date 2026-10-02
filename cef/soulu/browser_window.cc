@@ -923,7 +923,7 @@ void BrowserWindow::NewTab(const std::string& url, bool incognito,
   info.style &= ~WS_VISIBLE;
   CefBrowserSettings browser_settings;
   const bool dark = settings_->GetString("theme") == "dark" || (settings_->GetString("theme") == "system" && IsWindowsDarkMode());
-  browser_settings.background_color = dark ? CefColorSetARGB(255,8,9,11) : CefColorSetARGB(255,250,250,250);
+  browser_settings.background_color = dark && tab.url!="soulu://onboarding" ? CefColorSetARGB(255,8,9,11) : CefColorSetARGB(255,250,250,250);
   const BrowserRole role =
       url.find("/ui/settings.html") != std::string::npos
           ? BrowserRole::kSettings : BrowserRole::kContent;
@@ -952,7 +952,7 @@ void BrowserWindow::AttachShell(CefRefPtr<CefBrowser> browser) {
   CefCommandLine::GetGlobalCommandLine()->GetArguments(arguments);
   for(const auto& argument:arguments)OpenExternal(argument.ToString());
   Layout();
-  FocusAddress();
+  if(!NeedsOnboarding())FocusAddress();
 }
 
 void BrowserWindow::AttachContent(int tab_id, CefRefPtr<CefBrowser> browser) {

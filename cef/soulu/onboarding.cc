@@ -95,6 +95,9 @@ void BrowserWindow::HandleOnboardingBridge(int id,const std::string& request,
     if(!payload){callback->Failure(400,"Progress required");return;}
     const int step=payload->GetInt("step");
     if(step<1||step>6){callback->Failure(400,"Invalid step");return;}
+    if(flow->GetBool("importStarted")&&payload->HasKey("source")&&payload->GetString("source")!=flow->GetString("source")){
+      callback->Failure(409,"This source was already used. Additional import is available in Settings.");return;
+    }
     // Only draft choices are writable from JS; outcomes belong to native code.
     flow->SetInt("step",step);
     for(const auto* key:{"source","passwords","adblock","askPermissions"})

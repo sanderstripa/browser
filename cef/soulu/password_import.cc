@@ -226,10 +226,18 @@ CefRefPtr<CefListValue> DiscoverImportBrowsers() {
         if(image&&pixels) {
           auto old=SelectObject(dc,image);std::fill_n(static_cast<unsigned char*>(pixels),48*48*4,0);
           if(DrawIconEx(dc,0,0,icon,48,48,0,nullptr,DI_NORMAL)) {
+            BITMAPV5HEADER encoded={};encoded.bV5Size=sizeof(encoded);
+            encoded.bV5Width=48;encoded.bV5Height=48;encoded.bV5Planes=1;encoded.bV5BitCount=32;
+            encoded.bV5Compression=BI_BITFIELDS;encoded.bV5RedMask=0x00ff0000;
+            encoded.bV5GreenMask=0x0000ff00;encoded.bV5BlueMask=0x000000ff;
+            encoded.bV5AlphaMask=0xff000000;encoded.bV5CSType=LCS_sRGB;
+            auto rgba=static_cast<unsigned char*>(pixels);
+            for(int n=0;n<48*48;++n)if(rgba[n*4+3])for(int channel=0;channel<3;++channel)
+              rgba[n*4+channel]=static_cast<unsigned char>(std::min(255,rgba[n*4+channel]*255/rgba[n*4+3]));
             BITMAPFILEHEADER header={};header.bfType=0x4d42;
-            header.bfOffBits=sizeof(header)+sizeof(BITMAPINFOHEADER);header.bfSize=header.bfOffBits+48*48*4;
+            header.bfOffBits=sizeof(header)+sizeof(encoded);header.bfSize=header.bfOffBits+48*48*4;
             std::string bytes(reinterpret_cast<char*>(&header),sizeof(header));
-            bytes.append(reinterpret_cast<char*>(&bitmap.bmiHeader),sizeof(BITMAPINFOHEADER));
+            bytes.append(reinterpret_cast<char*>(&encoded),sizeof(encoded));
             bytes.append(static_cast<char*>(pixels),48*48*4);
             row->SetString("icon","data:image/bmp;base64,"+CefBase64Encode(bytes.data(),bytes.size()).ToString());
           }

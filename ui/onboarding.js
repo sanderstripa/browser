@@ -53,8 +53,9 @@
     const finish=skip=>invoke('finish',{skip});
     if(step===1){note('Первичная настройка займёт пару минут.');actions.append(button('Начать',()=>go(2),'primary'),button('Не сейчас',()=>finish(true)));}
     if(step===2){
-      for(const s of sources)check(controls,`${s.browser} · ${s.name}`,flow.source===s.id,()=>persist({source:s.id}),{icon:s.icon,radio:true});
-      controls.append(button('Начать с чистого листа',()=>go(4),'link'));
+      for(const s of sources)check(controls,`${s.browser} · ${s.name}`,flow.source===s.id,()=>persist({source:s.id}),{icon:s.icon,radio:true,disabled:!!flow.importStarted});
+      if(flow.importStarted)note('Выбранный источник уже использован. Дополнительный импорт доступен в настройках.');
+      if(sources.length)controls.append(button('Начать с чистого листа',()=>go(4),'link'));
       actions.append(button('Назад',()=>go(1)),button('Пропустить',()=>go(4)),button(sources.length?'Далее':'Начать с чистого листа',()=>go(source?3:4),'primary'));
     }
     if(step===3){
@@ -94,5 +95,5 @@
     if(flow.askPermissions===undefined)flow.askPermissions=['camera','microphone','geolocation','notifications'].every(k=>state.policy.defaults[k]===1);
   }
   document.addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();return;}if(e.key==='Enter'&&e.target.tagName!=='BUTTON'&&!['checkbox','radio'].includes(e.target.type)){const primary=$('actions').querySelector('.primary');if(primary&&!primary.disabled){e.preventDefault();primary.click();}}});
-  run(async()=>{await reload();await persist({source:flow.source||'',passwords:flow.passwords,adblock:flow.adblock,askPermissions:flow.askPermissions});render();}).catch(report);
+  run(async()=>{await reload();await persist({source:flow.source||'',passwords:flow.passwords,adblock:flow.adblock,askPermissions:flow.askPermissions});render();($('vpnKey')||$('actions').querySelector('.primary'))?.focus();}).catch(report);
 })();

@@ -88,6 +88,7 @@ void BrowserWindow::RefreshHomePages(int id) {
 void BrowserWindow::ContentPageLoaded(int id) {
   auto* tab=FindTab(id);if(!tab||!tab->browser)return;
   auto frame=tab->browser->GetMainFrame();if(!frame)return;
+  if(IsOnboardingUi(frame->GetURL())){if(id==active_tab_id_)tab->browser->GetHost()->SetFocus(true);return;}
   if(IsHomeUi(frame->GetURL())){RefreshHomePages(id);return;}
   if(frame->GetURL()!=InternalUrl("about:blank"))return;
   const std::string theme=HomeState(*tab)->GetString("resolvedTheme");
