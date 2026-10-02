@@ -548,6 +548,15 @@ jobs:
           if($taskbarIcon -eq [IntPtr]::Zero){$taskbarIcon=[MouseTest]::GetClassLongPtr($soulu.MainWindowHandle,-14)}
           if($taskbarIcon -eq [IntPtr]::Zero){throw 'Soulu taskbar window has no small icon'}
           [System.Drawing.Icon]::FromHandle($taskbarIcon).ToBitmap().Save((Join-Path $PWD 'browser/artifacts/taskbar-window-icon.png'))
+          python browser/scripts/verify-branding.py --shortcut $desktopLink --shortcut $startLink --window ($soulu.MainWindowHandle.ToInt64())
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Add-Type -AssemblyName System.Windows.Forms
+          $desktopBounds=[System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+          $shellBitmap=[System.Drawing.Bitmap]::new($desktopBounds.Width,$desktopBounds.Height)
+          $shellGraphics=[System.Drawing.Graphics]::FromImage($shellBitmap)
+          $shellGraphics.CopyFromScreen($desktopBounds.Left,$desktopBounds.Top,0,0,$shellBitmap.Size)
+          $shellBitmap.Save((Join-Path $PWD 'browser/artifacts/taskbar-desktop-shell.png'))
+          $shellGraphics.Dispose();$shellBitmap.Dispose()
           Get-Process Soulu -ErrorAction SilentlyContinue | Stop-Process -Force
           "Physical mouse-click, extraction drag and persistent finish checks passed."
           # Repeat with launch unchecked: Done must close without starting Soulu.

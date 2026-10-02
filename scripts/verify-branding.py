@@ -104,12 +104,101 @@ def verify_binary(path, expected):
     finally:
         kernel.FreeLibrary(module)
 
+
+def verify_hicon(handle, expected, label, shortcut_overlay=False):
+    """Read the icon Windows actually supplied, including its native alpha."""
+    from PIL import ImageChops
+    user = ctypes.WinDLL('user32', use_last_error=True)
+    gdi = ctypes.WinDLL('gdi32', use_last_error=True)
+    class IconInfo(ctypes.Structure):
+        _fields_ = [('icon',wintypes.BOOL),('x',wintypes.DWORD),('y',wintypes.DWORD),
+                    ('mask',wintypes.HBITMAP),('color',wintypes.HBITMAP)]
+    class Bitmap(ctypes.Structure):
+        _fields_ = [('kind',wintypes.LONG),('width',wintypes.LONG),('height',wintypes.LONG),
+                    ('stride',wintypes.LONG),('planes',wintypes.WORD),('bits',wintypes.WORD),
+                    ('data',ctypes.c_void_p)]
+    class Header(ctypes.Structure):
+        _fields_ = [('size',wintypes.DWORD),('width',wintypes.LONG),('height',wintypes.LONG),
+                    ('planes',wintypes.WORD),('bits',wintypes.WORD),('compression',wintypes.DWORD),
+                    ('bytes',wintypes.DWORD),('x',wintypes.LONG),('y',wintypes.LONG),
+                    ('used',wintypes.DWORD),('important',wintypes.DWORD)]
+    user.GetIconInfo.argtypes = [wintypes.HICON,ctypes.POINTER(IconInfo)]
+    user.GetDC.argtypes = [wintypes.HWND]
+    user.GetDC.restype = wintypes.HDC
+    user.ReleaseDC.argtypes = [wintypes.HWND,wintypes.HDC]
+    gdi.GetObjectW.argtypes = [wintypes.HANDLE,ctypes.c_int,ctypes.c_void_p]
+    gdi.GetDIBits.argtypes = [wintypes.HDC,wintypes.HBITMAP,wintypes.UINT,wintypes.UINT,
+                             ctypes.c_void_p,ctypes.c_void_p,wintypes.UINT]
+    gdi.DeleteObject.argtypes = [wintypes.HANDLE]
+    info = IconInfo()
+    assert handle and user.GetIconInfo(handle,ctypes.byref(info)), f'No native icon: {label}'
+    dc = user.GetDC(None)
+    try:
+        bitmap = Bitmap()
+        assert info.color and gdi.GetObjectW(info.color,ctypes.sizeof(bitmap),ctypes.byref(bitmap))
+        assert bitmap.width == bitmap.height and bitmap.width in SIZES, f'Wrong shell size: {label}'
+        size = bitmap.width
+        header = Header(ctypes.sizeof(Header),size,-size,1,32,0,size*size*4,0,0,0,0)
+        pixels = ctypes.create_string_buffer(size*size*4)
+        assert gdi.GetDIBits(dc,info.color,0,size,pixels,ctypes.byref(header),0) == size
+        actual = Image.frombytes('RGBA',(size,size),pixels.raw,'raw','BGRA')
+        target = Image.open(BytesIO(frames(expected)[size])).convert('RGBA')
+        # Windows decoders can expose straight or premultiplied color channels.
+        # Accept only the same pixels, allowing at most two rounding levels.
+        differences = []
+        for reference in (target,Image.frombytes('RGBA',target.size,target.convert('RGBa').tobytes())):
+            difference = ImageChops.difference(actual,reference)
+            if shortcut_overlay:
+                # Explorer itself adds the Windows shortcut arrow in this
+                # quadrant. Verify the mark outside that system-owned overlay.
+                difference.paste((0,0,0,0),(0,size//2,(size+1)//2,size))
+            differences.append(difference.getextrema())
+        assert any(max(high for low,high in diff) <= 2 for diff in differences), f'Stale shell/window icon: {label}'
+    finally:
+        user.ReleaseDC(None,dc)
+        if info.mask: gdi.DeleteObject(info.mask)
+        if info.color: gdi.DeleteObject(info.color)
+
+def verify_shortcut(path, expected):
+    shell = ctypes.WinDLL('shell32',use_last_error=True)
+    user = ctypes.WinDLL('user32',use_last_error=True)
+    class ShellInfo(ctypes.Structure):
+        _fields_ = [('icon',wintypes.HICON),('index',ctypes.c_int),('attributes',wintypes.DWORD),
+                    ('display',wintypes.WCHAR*260),('kind',wintypes.WCHAR*80)]
+    shell.SHGetFileInfoW.argtypes = [wintypes.LPCWSTR,wintypes.DWORD,ctypes.POINTER(ShellInfo),
+                                     wintypes.UINT,wintypes.UINT]
+    shell.SHGetFileInfoW.restype = ctypes.c_size_t
+    user.DestroyIcon.argtypes = [wintypes.HICON]
+    for flag in (0,1):  # Explorer's large and small shell presentations.
+        info = ShellInfo()
+        assert shell.SHGetFileInfoW(str(Path(path).resolve()),0,ctypes.byref(info),ctypes.sizeof(info),0x100|flag)
+        try: verify_hicon(info.icon,expected,str(path),shortcut_overlay=True)
+        finally: user.DestroyIcon(info.icon)
+
+def verify_window(handle, expected):
+    user = ctypes.WinDLL('user32',use_last_error=True)
+    user.SendMessageW.argtypes = [wintypes.HWND,wintypes.UINT,ctypes.c_size_t,ctypes.c_ssize_t]
+    user.SendMessageW.restype = ctypes.c_ssize_t
+    user.GetClassLongPtrW.argtypes = [wintypes.HWND,ctypes.c_int]
+    user.GetClassLongPtrW.restype = ctypes.c_size_t
+    for kind,index in ((1,-14),(2,-34)):
+        icon = user.SendMessageW(handle,0x7f,kind,0) or user.GetClassLongPtrW(handle,index)
+        verify_hicon(icon,expected,f'window {handle}, icon {kind}')
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--binary', action='append', default=[])
+    parser.add_argument('--shortcut', action='append', default=[])
+    parser.add_argument('--window', type=int)
     args = parser.parse_args()
     expected = verify_assets()
     for path in args.binary:
         verify_binary(path, expected)
-    print(json.dumps({'passed': True, 'sizes': sorted(SIZES), 'binaries': args.binary}))
+    for path in args.shortcut:
+        verify_shortcut(path, expected)
+    if args.window:
+        verify_window(args.window, expected)
+    print(json.dumps({'passed': True, 'sizes': sorted(SIZES), 'binaries': args.binary,
+                      'shortcuts': args.shortcut, 'window': args.window}))
 

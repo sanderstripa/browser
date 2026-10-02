@@ -62,6 +62,9 @@ preparation before releasing the job and temporary file.
 silhouette bounds and absence of opaque legacy files. On Windows, `--binary`
 loads every executable icon group and compares every frame's pixels against the
 new production export, supporting PNG and DIB resources.
+`--shortcut` checks the small/large icons actually returned by Windows Explorer
+for both installed shortcuts (excluding its standard shortcut-arrow overlay).
+`--window` checks the running browser's actual small and large HICON pixels.
 
 The main build requires these checks for Soulu.exe, setup, payload and installed
 uninstaller. Existing native suites remain mandatory. The installer mouse smoke
