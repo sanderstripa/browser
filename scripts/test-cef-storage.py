@@ -67,8 +67,10 @@ def targets(timeout=45):
             if os.environ.get('SOULU_REGRESSION_SKIP_FIRST_RUN')=='1':
                 for row in rows:
                     if '/ui/onboarding.html' not in row.get('url',''):continue
-                    with websocket.create_connection(row['webSocketDebuggerUrl'],timeout=5,origin=BASE) as ws:
+                    ws=websocket.create_connection(row['webSocketDebuggerUrl'],timeout=5,origin=BASE)
+                    try:
                         command(ws,'Runtime.evaluate',{'expression':"cefQuery({request:JSON.stringify({action:'onboarding.finish',payload:{skip:true}}),onSuccess:()=>{},onFailure:()=>{}})"})
+                    finally:ws.close()
                 if any('/ui/onboarding.html' in row.get('url','') for row in rows):
                     time.sleep(.1);continue
             return rows
