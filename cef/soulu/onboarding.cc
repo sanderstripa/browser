@@ -3,6 +3,7 @@
 #include "include/cef_task.h"
 #include "include/wrapper/cef_helpers.h"
 #include <shellapi.h>
+#include <shlobj.h>
 #include <algorithm>
 #include <functional>
 

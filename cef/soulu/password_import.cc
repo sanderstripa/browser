@@ -231,7 +231,7 @@ CefRefPtr<CefListValue> DiscoverImportBrowsers() {
             std::string bytes(reinterpret_cast<char*>(&header),sizeof(header));
             bytes.append(reinterpret_cast<char*>(&bitmap.bmiHeader),sizeof(BITMAPINFOHEADER));
             bytes.append(static_cast<char*>(pixels),48*48*4);
-            row->SetString("icon","data:image/bmp;base64,"+CefBase64Encode(bytes.data(),bytes.size()));
+            row->SetString("icon","data:image/bmp;base64,"+CefBase64Encode(bytes.data(),bytes.size()).ToString());
           }
           SelectObject(dc,old);DeleteObject(image);
         }
