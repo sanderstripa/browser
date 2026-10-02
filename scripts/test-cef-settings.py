@@ -70,7 +70,7 @@ def main():
         def start():
             nonlocal process,shell,settings
             process=subprocess.Popen([exe,'--no-proxy-server'],env=env)
-            shell=socket('/ui/index.html');wait(lambda:s.evaluate(shell,"typeof browserShell?.getState==='function'"))
+            shell=socket('/ui/index.html');wait(lambda:s.evaluate(shell,"typeof window.browserShell?.getState==='function'"))
             shellcall('openSettingsWindow');settings=socket('/ui/settings.html')
             wait(lambda:evaluate("document.body.classList.contains('ready')"))
         def stop():
@@ -106,7 +106,9 @@ def main():
                 results=evaluate("[...document.querySelectorAll('.result')].map(n=>n.textContent)")
                 check(bool(results),'Control search finds '+query)
                 # Select the matching result via the same rendered click handler.
-                evaluate("(()=>{const found=[...document.querySelectorAll('.result')].find(n=>n.querySelector('strong').textContent==="+json.dumps({'permissions-camera':'Камера','permissions-microphone':'Микрофон','settings-theme':'Тема','settings-newTabMode':'Новая вкладка','settings-homeMode':'Домашняя страница','settings-passwords':'Открыть менеджер паролей','reader-theme':'Тема чтения','settings-bookmarksBarMode':'Панель закладок','settings-downloadPath':'Папка загрузок'}[target])+ ");if(!found)throw Error('Result missing');found.click();})()")
+                label={'permissions-camera':'Камера','permissions-microphone':'Микрофон','settings-theme':'Тема','settings-newTabMode':'Новая вкладка','settings-homeMode':'Домашняя страница','settings-passwords':'Открыть менеджер паролей','reader-theme':'Тема чтения','settings-bookmarksBarMode':'Панель закладок','settings-downloadPath':'Папка загрузок'}[target]
+                path='Вкладки и страницы' if target in ['settings-newTabMode','settings-homeMode'] else ''
+                evaluate("(()=>{const found=[...document.querySelectorAll('.result')].find(n=>n.querySelector('strong').textContent==="+json.dumps(label)+" && n.textContent.includes("+json.dumps(path)+"));if(!found)throw Error('Result missing');found.click();})()")
                 check(evaluate('document.getElementById('+json.dumps('control-'+target)+').classList.contains("setting-highlight")'),'Search scroll/highlight: '+query)
             change('#settingsSearch','VPN');check(len(evaluate("[...document.querySelectorAll('.result')].filter(n=>n.textContent.includes('Интерфейс'))"))>0,'VPN search includes toolbar canonical control')
             change('#settingsSearch','zz-no-such-setting');check(evaluate("document.querySelectorAll('.result').length===0"),'Search has no false results')
@@ -123,7 +125,9 @@ def main():
             check(evaluate('souluSettings.apply()') is False and saved()==before,'Invalid custom URL does not persist or discard draft')
             change('#startupUrl','https://example.com/start');change('#newTabMode','blank');change('#homeMode','custom');change('#homeUrl','https://example.com/home2')
             section('sites');change('#permissions-camera','1');change('#reader-theme','dark');click('#blocking-contentBlocking')
-            check(evaluate('souluSettings.apply()'),'Multi-section Apply succeeds')
+            applied=evaluate('souluSettings.apply()')
+            if not applied:print('Apply error:',evaluate("document.querySelector('#dataMessage').textContent"),flush=True)
+            check(applied,'Multi-section Apply succeeds')
             check(saved()['startupUrl']=='https://example.com/start' and saved()['homeUrl']=='https://example.com/home2' and saved()['newTabMode']=='blank','Startup/New Tab/Home persist independently')
             check(json.loads((profile/'soulu-site-rules.json').read_text())['defaults']['camera']==1 and json.loads((profile/'soulu-reader.json').read_text())['theme']=='dark','Policy and Reader canonical stores persist')
             check(evaluate("document.querySelector('#applySettings').disabled"),'Successful Apply clears dirty state')

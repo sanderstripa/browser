@@ -201,7 +201,7 @@ bool SitePolicy::Replace(CefRefPtr<CefDictionaryValue> data) {
     !sites->GetDictionary(key)||!valid(sites->GetDictionary(key)))return false;
   auto blocking=data->GetDictionary("blocking");
   if(blocking->GetType("enabled")!=VTYPE_BOOL)return false;
-  auto exceptions=blocking->GetDictionary("sites");exceptions->GetKeys(keys);
+  auto exceptions=blocking->GetDictionary("sites");keys.clear();exceptions->GetKeys(keys);
   for(const auto& key:keys)if(SiteDomain(key)!=key.ToString()||exceptions->GetType(key)!=VTYPE_BOOL)return false;
   std::lock_guard lock(mutex_);auto old=data_;data_=data->Copy(false);
   if(Save())return true;data_=old;return false;
