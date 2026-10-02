@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="56 146 1154 996">
+  <title>Soulu — two overlapping blue petals</title>
+  <desc>New editable production master, redrawn from the supplied October 2 reference. No background, stroke, filter or external images.</desc>
+  <defs>
+    <linearGradient id="rear" x1="420" y1="960" x2="1100" y2="250" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0666ff"/>
+      <stop offset=".40" stop-color="#389bf7"/>
+      <stop offset=".72" stop-color="#92dbf5"/>
+      <stop offset="1" stop-color="#c0f1f8"/>
+    </linearGradient>
+    <radialGradient id="rearLight" cx="1070" cy="620" r="570" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#f2f8ff" stop-opacity=".94"/>
+      <stop offset="1" stop-color="#e6f7ff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="front" x1="175" y1="480" x2="740" y2="1040" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#b6eef4"/>
+      <stop offset=".33" stop-color="#67c5f5"/>
+      <stop offset=".70" stop-color="#2797f8"/>
+      <stop offset="1" stop-color="#c2eafb"/>
+    </linearGradient>
+    <radialGradient id="blue" cx="460" cy="930" r="535" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0053fc"/>
+      <stop offset=".34" stop-color="#0062ff" stop-opacity=".95"/>
+      <stop offset=".70" stop-color="#197eff" stop-opacity=".45"/>
+      <stop offset="1" stop-color="#2389ff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="frontLight" cx="910" cy="965" r="470" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#effaff" stop-opacity=".88"/>
+      <stop offset="1" stop-color="#e3f6ff" stop-opacity="0"/>
+    </radialGradient>
+    <path id="backPetal" d="M416 1064 C290 1021 371 767 487 549 C655 319 927 162 1058 188 C1190 214 1190 480 1065 740 C919 961 619 1163 416 1064Z"/>
+    <path id="frontPetal" d="M487 549 C318 472 123 430 94 560 C72 790 319 1086 535 1090 C691 1118 921 1116 977 1027 C1080 869 733 644 487 549Z"/>
+    <clipPath id="overlap"><use href="#backPetal"/></clipPath>
+  </defs>
+  <use href="#backPetal" fill="url(#rear)"/>
+  <use href="#backPetal" fill="url(#rearLight)"/>
+  <use href="#frontPetal" fill="url(#front)"/>
+  <use href="#frontPetal" fill="url(#frontLight)"/>
+  <g clip-path="url(#overlap)">
+    <use href="#frontPetal" fill="url(#blue)"/>
+    <use href="#frontPetal" fill="url(#frontLight)"/>
+  </g>
+</svg>

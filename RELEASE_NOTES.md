@@ -1,12 +1,10 @@
-# Soulu Preview 43
+# Soulu Preview 44
 
-- Independent Startup, New Tab and Home page modes, with legacy Startup migration.
-- Offline local Soulu page with profile-scoped search, ordered editable shortcuts and individual visibility controls.
-- Ctrl+T and Ctrl+L handled by the native browser; Alt+Home opens the configured Home in the current tab.
-- Graceful-close restore of ordered normal tab URLs and selection, excluding incognito.
-- Last-tab Startup/blank semantics preserved; pending tabs do not cause duplicate replacement tabs.
-- Private Home changes remain in memory and disappear when the last incognito tab closes.
-- Weather shows an honest unavailable state until a provider is connected. Selected city is saved without requesting geolocation.
+- New transparent blue Soulu symbol redrawn from the supplied reference, with an editable SVG master.
+- Consistent app, installer, uninstaller and shortcut icons at 16, 20, 24, 32, 40, 48, 64, 128 and 256 pixels. Narrow safe margins keep the symbol large in the Windows shell.
+- Compact three-screen native installer follows the supplied composition, wording, colors and proportions. Buttons and launch checkbox are drawn live rather than baked into screenshots.
+- Versioned shortcut icon refreshes the Windows shell cache. Obsolete opaque logo and installer screen images are removed.
+- Installation remains per-user, with optional launch, persistent completion screen and working uninstall.
 - CEF remains 154.0.32 / Chromium 154.0.8037.58.
 
-See STARTUP_HOME.md for storage, security boundaries, limitations and validation.
+See BRANDING.md for source assets, packaging, validation and Windows cache limitations.

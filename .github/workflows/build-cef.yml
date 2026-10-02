@@ -15,7 +15,7 @@ on:
         type: boolean
   push:
     branches: [main]
-    tags: [preview-43]
+    tags: [preview-44]
     paths:
       - "cef/**"
       - "installer/**"
@@ -39,7 +39,7 @@ jobs:
     timeout-minutes: 90
     env:
       PREVIEW_VERSION: 0.9.0-cef-preview.43
-      PREVIEW_NUMBER: 43
+      PREVIEW_NUMBER: 44
       PYTHONUTF8: 1
       PYTHONDONTWRITEBYTECODE: 1
     steps:
@@ -100,7 +100,11 @@ jobs:
 
       - name: Install CEF Python compatibility package
         shell: pwsh
-        run: python -m pip install --disable-pip-version-check six
+        run: python -m pip install --disable-pip-version-check six pillow
+
+      - name: Verify all production branding exports
+        shell: pwsh
+        run: python browser/scripts/verify-branding.py
 
       - name: Configure CEF
         shell: pwsh
@@ -159,6 +163,8 @@ jobs:
           $exe = Get-ChildItem cef-build -Recurse -Filter Soulu.exe | Where-Object { $_.FullName -match "Release" } | Select-Object -First 1
           if (-not $exe) { throw "Soulu.exe was not produced" }
           $buildDir = $exe.Directory.FullName
+          python browser/scripts/verify-branding.py --binary $exe.FullName
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & ./browser/scripts/verify-cef-engine.ps1 -BuildDir $buildDir -ReportPath (Join-Path $buildDir "engine-version.json")
           New-Item -ItemType Directory -Force browser/artifacts | Out-Null
           $zip = Join-Path $PWD "browser/artifacts/Soulu-Preview-$env:PREVIEW_NUMBER-x64.zip"
@@ -187,6 +193,8 @@ jobs:
           $buildDir = "${{ steps.package.outputs.build_dir }}"
           $out = Join-Path $PWD "browser/artifacts/Soulu-Preview-$env:PREVIEW_NUMBER-x64.exe"
           & ./browser/installer/build.ps1 -BuildDir $buildDir -OutFile $out
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python browser/scripts/verify-branding.py --binary $out --binary browser/installer/payload.exe
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Add-Type -AssemblyName System.Drawing
           $setupIcon=[System.Drawing.Icon]::ExtractAssociatedIcon($out)
@@ -490,10 +498,12 @@ jobs:
             if(-not (Test-Path $link)){throw "Soulu shortcut missing: $link"}
             $iconLocation=$shortcutShell.CreateShortcut($link).IconLocation
             "Shortcut icon: $link -> $iconLocation"
-            if($iconLocation -notmatch 'soulu-icon-v24\.ico,0$'){throw "Shortcut still references stale icon: $iconLocation"}
+            if($iconLocation -notmatch 'soulu-icon-v44\.ico,0$'){throw "Shortcut still references stale icon: $iconLocation"}
           }
           $uninstaller=Join-Path (Split-Path $installedExe) 'Uninstall Soulu.exe'
           if(-not (Test-Path $uninstaller)){throw 'Uninstall Soulu.exe is missing'}
+          python browser/scripts/verify-branding.py --binary $installedExe --binary $uninstaller
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $uninstallIcon=[System.Drawing.Icon]::ExtractAssociatedIcon($uninstaller)
           if(-not $uninstallIcon){throw 'Uninstall Soulu.exe has no associated icon'}
           $uninstallIcon.ToBitmap().Save((Join-Path $PWD 'browser/artifacts/uninstaller-exe-icon.png'))
@@ -563,6 +573,15 @@ jobs:
           Click-At ([int](($rect.Left+$rect.Right)/2)) ([int](($rect.Top+$rect.Bottom)/2))
           if(-not $again.WaitForExit(5000)){throw 'Close click did not close installer directly'}
 
+          # Exercise the real uninstall path after both launch scenarios.
+          $uninstall = Start-Process $uninstaller -ArgumentList '/S' -WindowStyle Hidden -PassThru -Wait
+          if($uninstall.ExitCode -ne 0){throw 'Uninstaller failed'}
+          $deadline=(Get-Date).AddSeconds(30)
+          while((Get-Date) -lt $deadline -and (Test-Path $installedExe)){Start-Sleep -Milliseconds 250}
+          if(Test-Path $installedExe){throw 'Uninstaller left Soulu.exe behind'}
+          if((Test-Path $desktopLink) -or (Test-Path $startLink)){throw 'Uninstaller left shortcuts behind'}
+          if(Test-Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu'){throw 'Uninstaller left Installed Apps registration behind'}
+
 
       - name: Upload visual checks
         continue-on-error: true
@@ -595,7 +614,7 @@ jobs:
           if-no-files-found: ignore
 
       - name: Verify release source is the current main commit
-        if: ${{ !inputs.native_only && (success() && (github.ref == 'refs/tags/preview-43' || (github.ref == 'refs/heads/main' && inputs.publish))) }}
+        if: ${{ !inputs.native_only && (success() && (github.ref == 'refs/tags/preview-44' || (github.ref == 'refs/heads/main' && inputs.publish))) }}
         shell: pwsh
         working-directory: browser
         run: |
@@ -609,7 +628,7 @@ jobs:
           Write-Host "Release source verified: HEAD == origin/main == $headSha"
 
       - name: Publish Soulu release
-        if: ${{ !inputs.native_only && (success() && (github.ref == 'refs/tags/preview-43' || (github.ref == 'refs/heads/main' && inputs.publish)) && steps.verified.outputs.passed == 'true') }}
+        if: ${{ !inputs.native_only && (success() && (github.ref == 'refs/tags/preview-44' || (github.ref == 'refs/heads/main' && inputs.publish)) && steps.verified.outputs.passed == 'true') }}
         uses: softprops/action-gh-release@v2
         with:
           tag_name: preview-${{ env.PREVIEW_NUMBER }}

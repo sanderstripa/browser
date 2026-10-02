@@ -8,7 +8,7 @@ SetCompressor /SOLID lzma
 !ifndef OUT_FILE
 !error "OUT_FILE required"
 !endif
-Name "Soulu Preview 41"
+Name "Soulu Preview 44"
 OutFile "${OUT_FILE}"
 InstallDir "$LOCALAPPDATA\Programs\Soulu"
 Icon "${BUILD_DIR}\ui\soulu-icon.ico"
@@ -24,20 +24,22 @@ Section
   File /r "${BUILD_DIR}\*"
   IfErrors install_failed
   SetOutPath "$INSTDIR\ui"
-  File /oname=soulu-icon-v24.ico "${BUILD_DIR}\ui\soulu-icon.ico"
+  File /oname=soulu-icon-v44.ico "${BUILD_DIR}\ui\soulu-icon.ico"
+  Delete "$INSTDIR\ui\soulu-icon-v24.ico"
+  Delete "$INSTDIR\ui\soulu-icon.jpg"
   SetOutPath "$INSTDIR"
   WriteUninstaller "$INSTDIR\Uninstall Soulu.exe"
   WriteRegStr HKCU "Software\Soulu" "InstallDir" "$INSTDIR"
   CreateDirectory "$SMPROGRAMS\Soulu"
   Delete "$SMPROGRAMS\Soulu\Soulu.lnk"
   Delete "$DESKTOP\Soulu.lnk"
-  CreateShortcut "$SMPROGRAMS\Soulu\Soulu.lnk" "$INSTDIR\Soulu.exe" "" "$INSTDIR\ui\soulu-icon-v24.ico" 0 SW_SHOWNORMAL
-  CreateShortcut "$DESKTOP\Soulu.lnk" "$INSTDIR\Soulu.exe" "" "$INSTDIR\ui\soulu-icon-v24.ico" 0 SW_SHOWNORMAL
+  CreateShortcut "$SMPROGRAMS\Soulu\Soulu.lnk" "$INSTDIR\Soulu.exe" "" "$INSTDIR\ui\soulu-icon-v44.ico" 0 SW_SHOWNORMAL
+  CreateShortcut "$DESKTOP\Soulu.lnk" "$INSTDIR\Soulu.exe" "" "$INSTDIR\ui\soulu-icon-v44.ico" 0 SW_SHOWNORMAL
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "DisplayName" "Soulu"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "DisplayIcon" "$INSTDIR\Soulu.exe"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "UninstallString" '$"$INSTDIR\Uninstall Soulu.exe$"'
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "Publisher" "Soulu"
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "DisplayVersion" "0.9.0-cef-preview.43"
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "DisplayVersion" "0.9.0-cef-preview.44"
   System::Call 'shell32::SHChangeNotify(i 0x00002000, i 0x0005, w "$INSTDIR\Soulu.exe", p 0)'
   System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0, p 0, p 0)'
   IfErrors install_failed

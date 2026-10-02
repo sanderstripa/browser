@@ -1,0 +1,41 @@
+{
+  "revision": 44,
+  "source": "ui/branding/soulu-master.svg",
+  "sizes": [
+    16,
+    20,
+    24,
+    32,
+    40,
+    48,
+    64,
+    128,
+    256
+  ],
+  "png_sizes": [
+    16,
+    20,
+    24,
+    32,
+    40,
+    48,
+    64,
+    128,
+    256,
+    512,
+    1024
+  ],
+  "margin": "max(1px, round(size * 0.02)) per side",
+  "ico_sha256": "83afdc4746d133206e8f9a7b1f3f1bc091455f86335b7bec65ad46aa605a1f15",
+  "aliases": [
+    "soulu-icon.png",
+    "soulu-icon-new.png",
+    "browser-icon.png",
+    "soulu-icon.ico",
+    "soulu-app-icon.ico",
+    "soulu-installer-icon.ico",
+    "soulu-shortcut-icon.ico",
+    "browser-icon.ico",
+    "browser-app-icon.ico"
+  ]
+}
