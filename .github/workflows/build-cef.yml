@@ -137,6 +137,8 @@ jobs:
             python "browser/scripts/test-cef-$suite.py" $exe.FullName
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
+          python browser/scripts/test-cef-layout.py $exe.FullName browser/artifacts/home-layout-evidence
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Upload validation executable and evidence
         if: inputs.native_only && always()

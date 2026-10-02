@@ -10,6 +10,7 @@ set(SOULU_SRCS
   browser_window.h
   browser_window.cc
   home_page.cc
+  home_weather.h
   profile_data.h
   profile_data.cc
   password_import.cc

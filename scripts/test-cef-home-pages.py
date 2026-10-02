@@ -14,6 +14,8 @@ import time
 spec=importlib.util.spec_from_file_location('storage',Path(__file__).with_name('test-cef-storage.py'))
 s=importlib.util.module_from_spec(spec);spec.loader.exec_module(s)
 checks=[]
+os.environ["NO_PROXY"]="localhost,127.0.0.1,::1"
+
 
 def wait(fn,timeout=30):
     until=time.monotonic()+timeout
@@ -145,6 +147,14 @@ def main():
             wait(lambda:len(state()['tabs'])==before+9);check(True,'Native Ctrl+T creates one foreground tab')
             s.evaluate(shell,"new Promise((resolve,reject)=>cefQuery({request:JSON.stringify({action:'browser.test.pageShortcut',payload:76}),onSuccess:resolve,onFailure:reject}))")
             wait(lambda:s.evaluate(shell,"['compactAddress','classicAddress'].includes(document.activeElement?.id)"));check(True,'Native Ctrl+L focuses omnibox')
+            call('setSettings',{'homeMode':'blank'})
+            s.evaluate(shell,"new Promise((resolve,reject)=>cefQuery({request:JSON.stringify({action:'browser.test.pageShortcut',payload:36}),onSuccess:resolve,onFailure:reject}))")
+            wait(lambda:current_url()=='');check(True,'Native Alt+Home opens configured blank Home')
+            call('setSettings',{'homeMode':'soulu'})
+            ids=[t['id'] for t in state()['tabs']]
+            s.evaluate(shell,'Promise.all('+json.dumps(ids)+'.map(id=>browserShell.closeTab(id)))')
+            wait(lambda:len(state()['tabs'])==1)
+            check(True,'Rapid closing all tabs creates one replacement without a loop')
             one_tab();call('setSettings',{'openStartPageAfterLastTab':True,'startupMode':'custom','startupUrl':origin+'/startup','newTabMode':'soulu'})
             call('closeTab',state()['activeTabId']);wait(lambda:len(state()['tabs'])==1 and current_url()==origin+'/startup')
             check(True,'Last-tab ON uses Startup custom and creates one tab')
@@ -183,6 +193,9 @@ def main():
             start();wait(lambda:len(state()['tabs'])==2)
             check([t['url'] for t in state()['tabs']]==saved['tabs'] and current_url()==origin+'/second','Startup restores ordered session without an extra home tab')
             check(call('getSettings')['homeShortcuts'][0]['name']=='Edited','Shortcuts persist after restart')
+            call('newIncognito');wait(lambda:state()['incognito']);call('closeTab',state()['activeTabId']);wait(lambda:not state()['incognito'])
+            selected=current_url();stop();start()
+            check(current_url()==selected,'Restore retains actual normal selection after incognito closes')
             stop()
             # Explicit startup modes are tested at full launch, rather than as Ctrl+T.
             for mode,expected in [('blank',''),('custom',origin+'/startup'),('soulu','soulu://home')]:

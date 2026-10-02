@@ -1,4 +1,5 @@
 #include "examples/soulu/browser_window.h"
+#include "examples/soulu/home_weather.h"
 #include "include/cef_parser.h"
 #include "include/wrapper/cef_helpers.h"
 #include <algorithm>
@@ -115,11 +116,8 @@ void BrowserWindow::HandleHomeBridge(int id,const std::string& request,
     ReplyEmpty(callback);tab->browser->GetMainFrame()->LoadURL(InternalUrl(url));return;
   }
   if(action=="home.weather"){
-    // Provider boundary. No fake weather, keys or silent geolocation requests.
-    auto weather=CefDictionaryValue::Create();weather->SetString("status","unavailable");
-    weather->SetString("reason","provider-not-configured");
-    weather->SetString("city",PageSettings(*tab)->GetString("homeWeatherCity"));
-    Reply(callback,weather);return;
+    static const UnconfiguredHomeWeather provider;
+    Reply(callback,provider.Snapshot(PageSettings(*tab)->GetString("homeWeatherCity")));return;
   }
   if(action!="home.set"||!payload||payload->GetType()!=VTYPE_DICTIONARY){
     callback->Failure(403,"Home action not allowed");return;
@@ -194,7 +192,7 @@ void BrowserWindow::ReplaceLastTab(bool incognito,const std::string& profile) {
   // Last-tab OFF has always opened a blank replacement, independently of Ctrl+T.
   if(incognito){
     auto normal=std::find_if(tabs_.begin(),tabs_.end(),[&](const Tab& t){return !t.incognito&&t.profile_id==active_profile_id_;});
-    if(normal!=tabs_.end()){active_tab_id_=normal->id;return;}
+    if(normal!=tabs_.end()){active_tab_id_=normal->id;last_normal_active_[normal->profile_id]=normal->id;return;}
   }
   const auto url=settings_->GetBool("openStartPageAfterLastTab")?PageUrl("startup",settings_):"about:blank";
   NewTab(url,false,true,nullptr,active_profile_id_);
