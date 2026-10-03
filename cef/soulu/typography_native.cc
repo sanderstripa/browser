@@ -123,7 +123,7 @@ INT_PTR CALLBACK Procedure(HWND window,UINT message,WPARAM wParam,LPARAM lParam)
       SendMessageW(d.edit,WM_SETFONT,reinterpret_cast<WPARAM>(Service().Get(typography::body,d.dpi)),FALSE);
     }
     const bool confirm=(d.flags&MB_TYPEMASK)==MB_YESNO;
-    const bool two=confirm||d.prompt;
+    const bool two=confirm||d.prompt||(d.flags&MB_TYPEMASK)==MB_OKCANCEL;
     const bool english=PRIMARYLANGID(GetUserDefaultUILanguage())!=LANG_RUSSIAN;
     const int accept=confirm?IDYES:IDOK,reject=confirm?IDNO:IDCANCEL;
     auto button=[&](const wchar_t* label,int id,int x,bool primary){
@@ -193,7 +193,7 @@ int TypographyMessageBox(HWND owner,const wchar_t* text,const wchar_t* title,UIN
   Dialog state;state.owner=owner;state.text=text?text:L"";state.title=title?title:L"Soulu";state.flags=flags;state.tag=tag;return Show(state);
 }
 bool TypographyPrompt(HWND owner,const std::wstring& text,const std::wstring& initial,std::wstring& result,const void* tag){
-  Dialog state;state.owner=owner;state.text=text;state.title=L"Soulu";state.initial=initial;state.prompt=true;state.flags=MB_OKCANCEL|MB_DEFBUTTON2;
+  Dialog state;state.owner=owner;state.text=text;state.title=L"Soulu";state.initial=initial;state.prompt=true;state.flags=MB_OKCANCEL;
   state.tag=tag;if(Show(state)!=IDOK)return false;result=std::move(state.result);return true;
 }
 void TypographyCancelDialogs(const void* tag){

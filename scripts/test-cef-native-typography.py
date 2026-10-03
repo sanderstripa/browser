@@ -20,6 +20,7 @@ u=ctypes.windll.user32;g=ctypes.windll.gdi32
 u.GetDlgItem.argtypes=[w.HWND,ctypes.c_int];u.GetDlgItem.restype=w.HWND
 u.SendMessageW.argtypes=[w.HWND,w.UINT,w.WPARAM,w.LPARAM];u.SendMessageW.restype=ctypes.c_ssize_t
 u.SetWindowTextW.argtypes=[w.HWND,w.LPCWSTR]
+u.SetForegroundWindow.argtypes=[w.HWND]
 class LOGFONT(ctypes.Structure):
     _fields_=[(name,w.LONG) for name in ('height','width','escapement','orientation','weight')]+[(name,w.BYTE) for name in ('italic','underline','strikeout','charset','outprecision','clipprecision','quality','pitch')]+[('face',w.WCHAR*32)]
 g.GetObjectW.argtypes=[w.HANDLE,ctypes.c_int,ctypes.c_void_p]
@@ -52,7 +53,7 @@ def main():
         try:
             ws=s.page_socket();s.navigate(ws,f'http://127.0.0.1:{server.server_port}/fixture')
             sample='Ёё Йй Жж Щщ Ыы Дд Лл Aa Gg Ii Ll Oo 0123456789 https://example.com/path?q=test'
-            cases=[('confirm accept','confirm('+json.dumps(sample)+')',6,True),('confirm decline','confirm('+json.dumps(sample)+')',7,False),('alert','(alert('+json.dumps(sample)+'),true)',1,True),('prompt accept','prompt('+json.dumps(sample)+',"initial")',1,'Ответ Ёё 0123'),('prompt cancel','prompt("Cancel", "initial")',2,None),('long body','confirm('+json.dumps((sample+'\n')*100)+')',7,False)]
+            cases=[('confirm accept','confirm('+json.dumps(sample)+')',1,True),('confirm decline','confirm('+json.dumps(sample)+')',2,False),('alert','(alert('+json.dumps(sample)+'),true)',1,True),('prompt accept','prompt('+json.dumps(sample)+',"initial")',1,'Ответ Ёё 0123'),('prompt cancel','prompt("Cancel", "initial")',2,None),('long body','confirm('+json.dumps((sample+'\n')*100)+')',2,False),('prompt enter','prompt("Enter", "initial")',1,'Ответ Ёё 0123'),('confirm escape','confirm("Escape")',2,False)]
             for label,expression,button,expected in cases:
                 s.evaluate(ws,'window.dialogFinished=false;setTimeout(()=>{window.dialogValue='+expression+';window.dialogFinished=true},50);true')
                 hwnd=wait(lambda:dialog_for(process.pid))
@@ -62,7 +63,7 @@ def main():
                 assert font.face=='Onest Medium' and font.weight==500,(label,font.face,font.weight)
                 report['nativeFonts'].append({'case':label,'face':font.face,'weight':font.weight,'height':font.height})
                 edit=u.GetDlgItem(hwnd,1001)
-                if label=='prompt accept':
+                if label in ('prompt accept','prompt enter'):
                     assert edit,'Prompt input missing'
                     value=ctypes.create_unicode_buffer(expected)
                     assert u.SendMessageW(edit,0x000C,0,ctypes.addressof(value)),'Prompt input update failed'
@@ -71,7 +72,10 @@ def main():
                 rect=w.RECT();u.GetWindowRect(hwnd,ctypes.byref(rect))
                 time.sleep(.35)  # Capture after Windows' dialog entrance transition.
                 ImageGrab.grab(bbox=(rect.left,rect.top,rect.right,rect.bottom),all_screens=True).save(visuals/('native-'+label.replace(' ','-')+'.png'))
-                u.SendMessageW(control,0x00F5,0,0)
+                if label in ('prompt enter','confirm escape'):
+                    u.SetForegroundWindow(hwnd);key=0x0D if label=='prompt enter' else 0x1B
+                    u.keybd_event(key,0,0,0);u.keybd_event(key,0,2,0)
+                else:u.SendMessageW(control,0x00F5,0,0)
                 wait(lambda:s.evaluate(ws,'window.dialogFinished'))
                 actual=s.evaluate(ws,'window.dialogValue')
                 assert actual==expected,(label,actual,expected)

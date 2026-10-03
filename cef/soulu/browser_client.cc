@@ -26,7 +26,7 @@ bool BrowserClient::OnJSDialog(CefRefPtr<CefBrowser>, const CefString& origin, J
   bool accepted=false;
   if(type==JSDIALOGTYPE_PROMPT)accepted=TypographyPrompt(owner_->hwnd(),text,initial.ToWString(),value,this);
   else accepted=TypographyMessageBox(owner_->hwnd(),text.c_str(),L"Soulu",
-      type==JSDIALOGTYPE_CONFIRM?(MB_YESNO|MB_DEFBUTTON2):MB_OK,this)==(type==JSDIALOGTYPE_CONFIRM?IDYES:IDOK);
+      type==JSDIALOGTYPE_CONFIRM?MB_OKCANCEL:MB_OK,this)==IDOK;
   js_dialog_open_=false;callback->Continue(accepted,CefString(value));return true;
 }
 bool BrowserClient::OnBeforeUnloadDialog(CefRefPtr<CefBrowser>,const CefString& text,bool,
