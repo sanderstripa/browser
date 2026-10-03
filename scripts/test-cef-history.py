@@ -1,5 +1,6 @@
 """History and clearing against real CEF, real SQLite and isolated test profiles."""
 import base64
+import ctypes
 import http.server
 import importlib.util
 import json
@@ -52,6 +53,7 @@ def main():
                 for target in s.targets():
                     if fragment not in target.get('url',''):continue
                     ws=socket(target)
+                    if not s.evaluate(ws,"typeof window.cefQuery==='function'"):continue
                     if fragment=='/ui/history.html' and bool(bridge(ws,'state')['incognito'])!=private:continue
                     if s.evaluate(ws,"document.readyState==='complete'"):return ws
                 return None
@@ -72,7 +74,7 @@ def main():
         def start():
             nonlocal process,shell
             process=subprocess.Popen([exe,'--no-proxy-server'],env=env)
-            shell=page('/ui/index.html');wait(lambda:s.evaluate(shell,"typeof browserShell?.openHistory==='function'"))
+            shell=page('/ui/index.html');wait(lambda:s.evaluate(shell,"typeof window.browserShell?.openHistory==='function'"))
         def stop():
             nonlocal process
             for ws in sockets:
@@ -85,14 +87,49 @@ def main():
             s.evaluate(content,"localStorage.setItem('history-test','keep');sessionStorage.setItem('history-session','keep')")
             s.evaluate(content,"new Promise((resolve,reject)=>{const r=indexedDB.open('history-test',1);r.onupgradeneeded=()=>r.result.createObjectStore('values');r.onerror=()=>reject(r.error);r.onsuccess=()=>{const db=r.result,tx=db.transaction('values','readwrite');tx.objectStore('values').put('keep','key');tx.oncomplete=()=>{db.close();resolve(true)}}})")
             s.evaluate(content,"caches.open('history-cache').then(c=>c.put('/cached-storage',new Response('keep')))")
+            check(rejected(content,'query',dict(search='',begin=0,end=864e13,offset=0)),'An ordinary website cannot call the History bridge')
             call('addBookmark');call('addPassword',dict(origin=origin,username='tester',password='history-vault-control'))
-            call('openHistory');history=page('/ui/history.html')
+            s.command(content,'Input.dispatchKeyEvent',dict(type='rawKeyDown',windowsVirtualKeyCode=72,nativeVirtualKeyCode=72,modifiers=2))
+            s.command(content,'Input.dispatchKeyEvent',dict(type='keyUp',windowsVirtualKeyCode=72,nativeVirtualKeyCode=72,modifiers=2))
+            history=page('/ui/history.html')
+            check(state()['tabs'][-1]['url']=='soulu://history','Ctrl+H opens the internal History page')
+            s.command(history,'Input.dispatchKeyEvent',dict(type='rawKeyDown',windowsVirtualKeyCode=46,nativeVirtualKeyCode=46,modifiers=10))
+            check(wait(lambda:s.evaluate(history,"document.getElementById('clearDialog').open")),'Ctrl+Shift+Delete opens the clearing modal')
+            s.command(history,'Input.dispatchKeyEvent',dict(type='rawKeyDown',windowsVirtualKeyCode=27,nativeVirtualKeyCode=27,key='Escape',code='Escape'))
+            s.command(history,'Input.dispatchKeyEvent',dict(type='keyUp',windowsVirtualKeyCode=27,nativeVirtualKeyCode=27,key='Escape',code='Escape'))
+            check(wait(lambda:s.evaluate(history,"!document.getElementById('clearDialog').open")),'Esc cancels the idle modal')
             visits=wait(lambda:query(history)['rows'])
             check(any(r['url']==origin+'/seed' for r in visits),'Successful main-frame visits persist in the canonical history')
             check(query(history,'ИСТОРИЯ')['rows'],'Unicode case-insensitive title search')
             check(query(history,'127.0.0.1')['rows'],'Domain search')
             check(query(history,'/seed')['rows'],'URL search')
             check(not query(history,'no-such-result')['rows'],'Empty search result')
+            call('switchTab',state()['tabs'][0]['id'])
+            u=ctypes.windll.user32
+            u.SendMessageW.argtypes=[ctypes.c_void_p,ctypes.c_uint,ctypes.c_size_t,ctypes.c_ssize_t];u.SendMessageW.restype=ctypes.c_ssize_t
+            u.GetMenuItemCount.argtypes=[ctypes.c_void_p];u.GetMenuStringW.argtypes=[ctypes.c_void_p,ctypes.c_uint,ctypes.c_wchar_p,ctypes.c_int,ctypes.c_uint]
+            class Rect(ctypes.Structure):_fields_=[('left',ctypes.c_long),('top',ctypes.c_long),('right',ctypes.c_long),('bottom',ctypes.c_long)]
+            u.GetMenuItemRect.argtypes=[ctypes.c_void_p,ctypes.c_void_p,ctypes.c_uint,ctypes.POINTER(Rect)]
+            def menu_window():
+                found=[]
+                @ctypes.WINFUNCTYPE(ctypes.c_bool,ctypes.c_void_p,ctypes.c_void_p)
+                def collect(hwnd,_):
+                    pid=ctypes.c_ulong();u.GetWindowThreadProcessId(hwnd,ctypes.byref(pid));kind=ctypes.create_unicode_buffer(80);u.GetClassNameW(ctypes.c_void_p(hwnd),kind,80)
+                    if pid.value==process.pid and kind.value=='#32768':found.append(hwnd)
+                    return True
+                u.EnumWindows(collect,0);return found[0] if found else None
+            box=s.evaluate(shell,"(()=>{const n=document.querySelector('.browser-toolbar');const r=n.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+2}})()")
+            for event in ['mouseMoved','mousePressed','mouseReleased']:
+                params=dict(type=event,x=box['x'],y=box['y'])
+                if event!='mouseMoved':params.update(button='right',clickCount=1)
+                s.sequence+=1;shell.send(json.dumps(dict(id=s.sequence,method='Input.dispatchMouseEvent',params=params)))
+            hwnd=wait(menu_window);menu=u.SendMessageW(hwnd,0x01E1,0,0);labels=[]
+            for i in range(u.GetMenuItemCount(menu)):
+                label=ctypes.create_unicode_buffer(256);u.GetMenuStringW(menu,i,label,256,0x400);labels.append(label.value)
+            check(any(label.startswith('История') for label in labels),'Actual top-toolbar context menu contains History')
+            index=next(i for i,label in enumerate(labels) if label.startswith('История'));rect=Rect();check(u.GetMenuItemRect(None,menu,index,ctypes.byref(rect)),'History menu item has a native hit target')
+            u.SetCursorPos((rect.left+rect.right)//2,(rect.top+rect.bottom)//2);time.sleep(.1);u.mouse_event(0x0002,0,0,0,0);u.mouse_event(0x0004,0,0,0,0)
+            wait(lambda:not menu_window());check(wait(lambda:state()['activeTabId']==bridge(history,'state')['tabId']),'Selecting History from the actual native menu opens its internal page')
             db=sqlite3.connect(profile/'soulu-history.sqlite')
             now=time.time()*1000
             fixtures=[('old-control',origin+'/old','Old control','',now-40*864e5,'old control '+origin+'/old'),('recent-control',origin+'/recent','Recent control','',now-5*60e3,'recent control '+origin+'/recent')]
@@ -105,8 +142,8 @@ def main():
             check(query(history)['rows'][0]['id']=='old-control','Time-limited clearing preserves older history')
             check(s.evaluate(content,"localStorage.getItem('history-test')")== 'keep','History-only clearing preserves site data')
             check(any(c['name']=='soulu_history_cookie' for c in s.command(content,'Network.getAllCookies')['cookies']),'History-only clearing preserves cookies')
-            for range in ['hour','day','week','month']:
-                check(clear(history,history=True,range=range)['ok'],f'Native history range {range}')
+            for period in ['hour','day','week','month']:
+                check(clear(history,history=True,range=period)['ok'],f'Native history range {period}')
             # Seed more than one page of results using the already-created store.
             db.executemany('INSERT INTO visits VALUES(?,?,?,?,?,?)',[(f'page-{i:03}',origin+f'/page-{i}',f'Visit {i}','',now-40*864e5-i,f'visit {i} '+origin) for i in range(125)]);db.commit()
             first=query(history);second=query(history,offset=100)
@@ -149,13 +186,17 @@ def main():
             # Visual checks use the native renderer at every requested device scale.
             if output:
                 visuals=output.parent/'history-visuals';visuals.mkdir(parents=True,exist_ok=True)
+                db.executemany('INSERT INTO visits VALUES(?,?,?,?,?,?)',[(f'visual-{i}',origin+f'/visual/{i}','Название страницы '+str(i)+' · Soulu browser history','',now-i*864e5,'visual '+origin) for i in range(25)]);db.commit()
                 call('switchTab',bridge(history,'state')['tabId'])
+                s.evaluate(history,"window.dispatchEvent(new Event('focus'))")
+                wait(lambda:s.evaluate(history,"document.querySelectorAll('.visit').length>=25"))
                 for theme in ['light','dark','system']:
                     call('setSettings',dict(theme=theme));time.sleep(1.7)
                     for dpi in [1,1.25,1.5,1.75,2]:
                         for width,height in [(1100,800),(420,600)]:
                             s.command(history,'Emulation.setDeviceMetricsOverride',dict(width=width,height=height,deviceScaleFactor=dpi,mobile=False))
                             check(s.evaluate(history,"document.documentElement.scrollWidth<=innerWidth+1"),f'History has no horizontal overflow: {theme}, {dpi}, {width}')
+                            image=s.command(history,'Page.captureScreenshot',dict(format='png'))['data'];(visuals/f'history-{theme}-{dpi}-{width}.png').write_bytes(base64.b64decode(image))
                             s.evaluate(history,"souluHistoryClear();document.getElementById('sitesChoice').click()")
                             check(s.evaluate(history,"(()=>{const r=document.getElementById('clearDialog').getBoundingClientRect();return r.left>=0&&r.right<=innerWidth&&r.top>=0&&r.bottom<=innerHeight})()"),f'Clear dialog fits: {theme}, {dpi}, {width}')
                             image=s.command(history,'Page.captureScreenshot',dict(format='png'))['data'];(visuals/f'{theme}-{dpi}-{width}.png').write_bytes(base64.b64decode(image))

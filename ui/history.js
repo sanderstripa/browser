@@ -2,7 +2,7 @@
   'use strict';
   const $=id=>document.getElementById(id);
   const invoke=(action,payload={})=>new Promise((resolve,reject)=>window.cefQuery({request:JSON.stringify({action:'history.'+action,payload}),persistent:false,onSuccess:r=>{try{resolve(r?JSON.parse(r):null);}catch(e){reject(e);}},onFailure:(_c,m)=>reject(Error(m))}));
-  let state,rows=[],more=false,epoch=0,busy=false,timer,lastSignature='';
+  let state,rows=[],more=false,epoch=0,busy=false,timer,lastSignature='',queryBounds;
   const t=(ru,en)=>state?.language==='en'?en:ru;
   const report=e=>{$('message').textContent=e.message||String(e);};
   const filters=[['all','Все записи','All visits'],['today','Сегодня','Today'],['yesterday','Вчера','Yesterday'],['week','Последние 7 дней','Last 7 days'],['older','Более старые записи','Older visits']];
@@ -29,12 +29,12 @@
     text('cancelClear','Отмена','Cancel');text('confirmClear','Очистить','Clear');
     $('search').disabled=$('filter').disabled=$('clearData').disabled=!!state.incognito;
   }
-  async function load(reset=true){if(state.incognito)return draw();const token=++epoch;if(reset){rows=[];more=false;}$('message').textContent=t('Загрузка…','Loading…');$('more').disabled=true;
-    try{const result=await invoke('query',{search:$('search').value,...bounds(),offset:rows.length});if(token!==epoch)return;rows.push(...result.rows);more=result.more;draw();$('message').textContent=state.saveHistory?'':t('Сохранение новых посещений выключено в настройках.','Recording new visits is turned off in Settings.');}catch(e){if(token===epoch){draw();report(e);}}finally{if(token===epoch)$('more').disabled=false;}}
+  async function load(reset=true){if(state.incognito)return draw();const token=++epoch;if(reset){rows=[];more=false;queryBounds=bounds();queryBounds.end=Math.min(queryBounds.end,Date.now()+1);}$('message').textContent=t('Загрузка…','Loading…');$('more').disabled=true;
+    try{const result=await invoke('query',{search:$('search').value,...queryBounds,offset:rows.length});if(token!==epoch)return;rows.push(...result.rows);more=result.more;draw();$('message').textContent=state.saveHistory?'':t('Сохранение новых посещений выключено в настройках.','Recording new visits is turned off in Settings.');}catch(e){if(token===epoch){draw();report(e);}}finally{if(token===epoch)$('more').disabled=false;}}
   function dayLabel(time){const d=new Date(time);d.setHours(0,0,0,0);return +d===midnight()?t('Сегодня','Today'):+d===midnight(-1)?t('Вчера','Yesterday'):d.toLocaleDateString(locale(),{day:'numeric',month:'long',year:'numeric'});}
   function button(label,fn){const n=document.createElement('button');n.type='button';n.textContent=label;n.addEventListener('click',()=>Promise.resolve().then(fn).catch(report));return n;}
   function draw(){const list=$('visits');list.replaceChildren();let day='';for(const row of rows){const label=dayLabel(row.visited);if(state.groupDays&&label!==day){day=label;const h=document.createElement('h2');h.className='day';h.textContent=day;list.append(h);}
-      const n=document.createElement('article');n.className='visit';n.dataset.visitId=row.id;const icon=document.createElement('img');icon.className='favicon';icon.alt='';icon.referrerPolicy='no-referrer';icon.loading='lazy';icon.src=/^(https?:|data:image\/)/.test(row.favicon)?row.favicon:'settings-icon.svg';icon.onerror=()=>{icon.onerror=null;icon.src='settings-icon.svg';};
+      const n=document.createElement('article');n.className='visit';n.dataset.visitId=row.id;const icon=document.createElement('img');icon.className='favicon';icon.alt='';icon.referrerPolicy='no-referrer';icon.loading='lazy';icon.src=/^(https?:|data:image\/)/.test(row.favicon)?row.favicon:'history-site.svg';icon.onerror=()=>{icon.onerror=null;icon.src='history-site.svg';};
       const link=button('',()=>invoke('open',{url:row.url,newTab:false}));link.className='visit-link';const title=document.createElement('strong'),url=document.createElement('small');title.textContent=row.title||row.url;url.textContent=row.url;link.title=row.url;link.append(title,url);
       const time=document.createElement('time');time.dateTime=new Date(row.visited).toISOString();time.textContent=new Date(row.visited).toLocaleTimeString(locale(),{hour:'2-digit',minute:'2-digit'});if(!state.groupDays)time.textContent=new Date(row.visited).toLocaleDateString(locale())+' '+time.textContent;time.title=new Date(row.visited).toLocaleString(locale());
       const actions=document.createElement('div');actions.className='row-actions';const open=button('↗',()=>invoke('open',{url:row.url,newTab:true}));open.setAttribute('aria-label',t('Открыть в новой вкладке: ','Open in a new tab: ')+(row.title||row.url));open.title=t('Открыть в новой вкладке','Open in a new tab');
@@ -49,6 +49,7 @@
   window.souluHistoryClear=openClear;$('clearData').onclick=openClear;
   for(const id of ['historyChoice','sitesChoice','cacheChoice','allTimeAck'])$(id).onchange=controls;
   $('cancelClear').onclick=()=>{if(!busy)$('clearDialog').close();};$('clearDialog').addEventListener('cancel',e=>{if(busy)e.preventDefault();});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('clearDialog').open){e.preventDefault();if(!busy)$('clearDialog').close();}});
   $('clearDialog').addEventListener('close',()=>$('clearData').focus());
   $('clearForm').onsubmit=async e=>{e.preventDefault();if($('confirmClear').disabled)return;busy=true;controls();$('cancelClear').disabled=true;for(const id of ['historyChoice','sitesChoice','cacheChoice','range','allTimeAck'])$(id).disabled=true;
     $('clearMessage').textContent=t('Очистка…','Clearing…');try{const result=await invoke('clear',{history:$('historyChoice').checked,sites:$('sitesChoice').checked,cache:$('cacheChoice').checked,range:$('range').value,webAllTimeAcknowledged:$('allTimeAck').checked});await load();if(!result.ok){$('clearMessage').textContent=result.error;return;}$('clearDialog').close();$('message').textContent=t('Выбранные данные очищены.','Selected data cleared.');}catch(error){$('clearMessage').textContent=error.message;}finally{busy=false;$('cancelClear').disabled=false;for(const id of ['historyChoice','sitesChoice','cacheChoice','range','allTimeAck'])$(id).disabled=false;controls();}};
