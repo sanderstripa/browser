@@ -787,17 +787,17 @@ jobs:
           $shellGraphics.Dispose();$shellBitmap.Dispose()
           Get-Process Soulu -ErrorAction SilentlyContinue | Stop-Process -Force
           "Physical mouse-click, extraction drag and persistent finish checks passed."
-          # Replace the test installation with the actual published Preview 49
+          # Replace the test installation with the actual published Beta 1.0.50
           # runtime, then upgrade it with this final-main installer.
-          $previousZip = Join-Path $env:RUNNER_TEMP 'soulu-preview-49.zip'
-          Invoke-WebRequest 'https://github.com/sanderstripa/soulu/releases/download/preview-49/Soulu-Preview-49-x64.zip' -OutFile $previousZip
-          if ((Get-FileHash -LiteralPath $previousZip -Algorithm SHA256).Hash.ToLowerInvariant() -cne 'd0e81d48d409d38ac9aab0c4cacb3e6d9b8172577b9d495976af15665223cdbc') { throw 'Previous Preview archive checksum mismatch' }
+          $previousZip = Join-Path $env:RUNNER_TEMP 'soulu-beta-1.0.50.zip'
+          Invoke-WebRequest 'https://github.com/sanderstripa/soulu/releases/download/beta-1.0.50/Soulu-Beta-1.0.50-x64.zip' -OutFile $previousZip
+          if ((Get-FileHash -LiteralPath $previousZip -Algorithm SHA256).Hash.ToLowerInvariant() -cne 'ed89ae461bda6e32bf3b12821dd8ab7e2efa9c02351c9d0a0cb0660a637b4ea4') { throw 'Previous Beta archive checksum mismatch' }
           Expand-Archive -LiteralPath $previousZip -DestinationPath $installedDirectory -Force
           $previousReport = Join-Path $env:RUNNER_TEMP 'soulu-previous-engine.json'
           $previousProbe = Start-Process $installedExe -ArgumentList @("--engine-version-file=`"$previousReport`"") -WorkingDirectory $installedDirectory -WindowStyle Hidden -PassThru -Wait
-          if ($previousProbe.ExitCode -ne 0) { throw 'Previous Preview engine probe failed' }
+          if ($previousProbe.ExitCode -ne 0) { throw 'Previous Beta engine probe failed' }
           $previousEngine = Get-Content -LiteralPath $previousReport -Raw | ConvertFrom-Json
-          if ($previousEngine.cef -cne '154.0.33' -or $previousEngine.chromium -cne '154.0.8037.94') { throw 'Upgrade baseline is not the published Preview 49 runtime' }
+          if ($previousEngine.cef -cne '154.0.33' -or $previousEngine.chromium -cne '154.0.8037.94') { throw 'Upgrade baseline is not the published Beta 1.0.50 runtime' }
           # Repeat with launch unchecked: Done must close without starting Soulu.
           $noLaunch = Start-Process $installer -PassThru
           Start-Sleep -Seconds 2

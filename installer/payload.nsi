@@ -33,6 +33,8 @@ Section
   ; than breaking their icon target; newly created shortcuts use the new path.
   File /oname=soulu-icon-v24.ico "${BUILD_DIR}\ui\soulu-icon.ico"
   Delete "$INSTDIR\ui\soulu-icon.jpg"
+  ; Typography migration removes the obsolete VPN font on upgrades too.
+  Delete "$INSTDIR\ui\vpn\assets\Montserrat.ttf"
   SetOutPath "$INSTDIR"
   WriteUninstaller "$INSTDIR\Uninstall Soulu.exe"
   WriteRegStr HKCU "Software\Soulu" "InstallDir" "$INSTDIR"
