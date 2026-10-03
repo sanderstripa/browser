@@ -17,11 +17,21 @@ function flagSvg(value){const code=countryCode(value),horizontal={NL:["#ae1c28",
   else if(code==="FI"||code==="SE"){const bg=code==="FI"?"#fff":"#006aa7",cross=code==="FI"?"#003580":"#fecc00";art=`<path fill="${bg}" d="M0 0h48v32H0z"/><path fill="${cross}" d="M14 0h6v32h-6zM0 13h48v6H0z"/>`;}
   else if(code==="TR")art='<path fill="#e30a17" d="M0 0h48v32H0z"/><circle fill="#fff" cx="20" cy="16" r="9"/><circle fill="#e30a17" cx="23" cy="16" r="7"/><circle fill="#fff" cx="30" cy="16" r="2"/>';
   else if(code==="US")art='<path fill="#fff" d="M0 0h48v32H0z"/><path stroke="#b22234" stroke-width="4" stroke-dasharray="4" d="M0 2h48M0 10h48M0 18h48M0 26h48"/><path fill="#3c3b6e" d="M0 0h21v17H0z"/><g fill="#fff"><circle cx="4" cy="4" r="1"/><circle cx="10" cy="4" r="1"/><circle cx="16" cy="4" r="1"/><circle cx="7" cy="9" r="1"/><circle cx="13" cy="9" r="1"/><circle cx="4" cy="14" r="1"/><circle cx="10" cy="14" r="1"/><circle cx="16" cy="14" r="1"/></g>';
-  else if(code)art=`<defs><linearGradient id="g" x2="1" y2="1"><stop stop-color="#62748c"/><stop offset="1" stop-color="#344256"/></linearGradient></defs><path fill="url(#g)" d="M0 0h48v32H0z"/><text x="24" y="21" fill="#fff" font-family="Segoe UI,Arial" font-size="13" font-weight="700" text-anchor="middle">${code}</text>`;
+  else if(code)return code;
   else art='<path fill="#e8ecf2" d="M0 0h48v32H0z"/><circle cx="24" cy="16" r="9" fill="none" stroke="#7c8798" stroke-width="2"/><path d="M15 16h18M24 7c4 4 4 14 0 18M24 7c-4 4-4 14 0 18" fill="none" stroke="#7c8798" stroke-width="1.5"/>';
   return`data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 32">${art}</svg>`)}`;
 }
 
+// Known flags are graphics; other ISO labels use the bundled DOM font.
+function flagElement(value, previous){
+ const flag=flagSvg(value),isCode=/^[A-Z]{2}$/.test(flag);
+ const next=document.createElement(isCode?'span':'img');
+ if(previous){next.id=previous.id;next.className=previous.className;next.setAttribute('aria-label',previous.getAttribute('aria-label')||'');}
+ if(isCode){next.classList.add('country-code');next.textContent=flag;}
+ else{next.classList.remove('country-code');next.src=flag;next.alt='';}
+ if(previous)previous.replaceWith(next);
+ return next;
+}
 function applyTheme(value){document.documentElement.dataset.theme=value==="auto"?"":value;}
 function isBusy(){return ["connecting","reconnecting","disconnecting"].includes(currentState);}
 function syncControls(){const busy=isBusy(),empty=!profiles.length;for(const id of["add","edit","ping","remove","profileTrigger","checkIp"])$(id).disabled=busy||(empty&&id!=="add");$("primaryAction").disabled=busy||empty;}
@@ -35,11 +45,10 @@ function state(value,error="",detail=""){
 
 function setSettingChoice(id,value,emit=false){const input=$(id),box=document.querySelector(`.setting-select[data-select="${id}"]`),option=box.querySelector(`[data-value="${value}"]`)||box.querySelector("[data-value]");input.value=option.dataset.value;box.querySelector(".setting-trigger span").textContent=option.textContent;for(const b of box.querySelectorAll("[data-value]"))b.classList.toggle("selected",b===option);box.classList.remove("open");if(emit)input.dispatchEvent(new Event("change"));}
 function setThemeChoice(value,emit=false){const input=$("theme");input.value=value;for(const button of document.querySelectorAll("[data-theme-value]")){const selected=button.dataset.themeValue===value;button.classList.toggle("selected",selected);button.setAttribute("aria-checked",String(selected));}if(emit)input.dispatchEvent(new Event("change"));}
-function profileFlag(p){return flagSvg(p?.country||p?.name||"");}
-function selectProfile(id){const p=profiles.find(x=>x.id===id)||profiles[0];$("profile").value=p?.id||"";$("profileLabel").textContent=p?.name||"Нет профилей";$("profileFlag").src=profileFlag(p);$("profileFlag").alt=p?.country?`Флаг: ${p.country}`:"";for(const b of $("profileMenu").querySelectorAll("button"))b.classList.toggle("selected",b.dataset.id===$("profile").value);$("profileMenu").classList.remove("open");$("profileTrigger").setAttribute("aria-expanded","false");syncControls();}
+function selectProfile(id){const p=profiles.find(x=>x.id===id)||profiles[0];$("profile").value=p?.id||"";$("profileLabel").textContent=p?.name||"Нет профилей";flagElement(p?.country||p?.name||"",$("profileFlag"));$("profileFlag").alt=p?.country?`Флаг: ${p.country}`:"";for(const b of $("profileMenu").querySelectorAll("button"))b.classList.toggle("selected",b.dataset.id===$("profile").value);$("profileMenu").classList.remove("open");$("profileTrigger").setAttribute("aria-expanded","false");syncControls();}
 async function chooseProfile(id){const previous=$("profile").value;if(id===previous){selectProfile(id);return;}selectProfile(id);if(currentState==="connected"){state("reconnecting");const r=await send("switchProfile",{profileId:id});state(r.state||"error",r.error||"");}else await send("settings",{settings:{lastProfileId:id}});}
-async function loadProfiles(selected=""){const r=await send("profiles");if(!r.ok)throw new Error(r.error);profiles=r.profiles||[];$("profileMenu").replaceChildren(...profiles.map(p=>{const b=document.createElement("button");b.type="button";b.role="option";b.dataset.id=p.id;const f=document.createElement("img"),n=document.createElement("span");f.className="menu-flag";f.src=profileFlag(p);f.alt="";n.textContent=p.name;b.append(f,n);b.onclick=()=>chooseProfile(p.id);return b;}));selectProfile(selected);}
-function openProfile(p){editing=p?.id||"";$("dialogTitle").textContent=p?"Изменить профиль":"Новый профиль";$("name").value=p?.name||"";$("country").value=p?.country||"";$("countryFlag").src=flagSvg(p?.country||p?.name||"");$("url").value="";$("url").placeholder=p?"Оставьте пустым, чтобы не менять":"vless://…";$("urlHint").textContent=p?"Текущий ключ скрыт. Новый URL заменит его.":"После сохранения ключ шифруется и скрывается.";$("modalError").textContent="";$("profileDialog").showModal();}
+async function loadProfiles(selected=""){const r=await send("profiles");if(!r.ok)throw new Error(r.error);profiles=r.profiles||[];$("profileMenu").replaceChildren(...profiles.map(p=>{const b=document.createElement("button");b.type="button";b.role="option";b.dataset.id=p.id;const f=flagElement(p.country||p.name||""),n=document.createElement("span");f.classList.add("menu-flag");n.textContent=p.name;b.append(f,n);b.onclick=()=>chooseProfile(p.id);return b;}));selectProfile(selected);}
+function openProfile(p){editing=p?.id||"";$("dialogTitle").textContent=p?"Изменить профиль":"Новый профиль";$("name").value=p?.name||"";$("country").value=p?.country||"";flagElement(p?.country||p?.name||"",$("countryFlag"));$("url").value="";$("url").placeholder=p?"Оставьте пустым, чтобы не менять":"vless://…";$("urlHint").textContent=p?"Текущий ключ скрыт. Новый URL заменит его.":"После сохранения ключ шифруется и скрывается.";$("modalError").textContent="";$("profileDialog").showModal();}
 
 $("profileTrigger").onclick=e=>{e.stopPropagation();if(isBusy())return;const open=$("profileMenu").classList.toggle("open");$("profileTrigger").setAttribute("aria-expanded",String(open));};
 document.addEventListener("click",()=>{$("profileMenu").classList.remove("open");$("profileTrigger").setAttribute("aria-expanded","false");for(const box of document.querySelectorAll(".setting-select"))box.classList.remove("open");});
@@ -47,7 +56,7 @@ for(const box of document.querySelectorAll(".setting-select")){box.querySelector
 for(const button of document.querySelectorAll("[data-theme-value]"))button.onclick=()=>setThemeChoice(button.dataset.themeValue,true);
 
 $("add").onclick=()=>openProfile();$("edit").onclick=()=>openProfile(profiles.find(p=>p.id===$("profile").value));
-function updateCountryPreview(){$("countryFlag").src=flagSvg($("country").value||$("name").value);}
+function updateCountryPreview(){flagElement($("country").value||$("name").value,$("countryFlag"));}
 $("country").oninput=updateCountryPreview;$("name").oninput=()=>{if(!$("country").value)updateCountryPreview();};
 $("save").onclick=async e=>{e.preventDefault();const name=$("name").value.trim(),country=$("country").value.trim(),url=$("url").value.trim().replace(/\\(?=[:@_\-])/g,"");if(!name||(!editing&&!url))return $("modalError").textContent="Укажите название и VLESS URL.";const r=await send("saveProfile",{id:editing,name,country,url});if(!r.ok)return $("modalError").textContent=r.error;$("profileDialog").close();await loadProfiles(r.id);};
 $("remove").onclick=async()=>{const id=$("profile").value,p=profiles.find(x=>x.id===id);if(!p||!confirm(`Удалить «${p.name}»?`))return;const r=await send("deleteProfile",{id});if(!r.ok)return state("error",r.error);await loadProfiles();state("disconnected");};

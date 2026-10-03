@@ -8,7 +8,7 @@ SetCompressor /SOLID lzma
 !ifndef OUT_FILE
 !error "OUT_FILE required"
 !endif
-Name "Soulu Beta 1.0.50"
+Name "Soulu Beta 1.0.51"
 OutFile "${OUT_FILE}"
 InstallDir "$LOCALAPPDATA\Programs\Soulu"
 Icon "${BUILD_DIR}\ui\soulu-icon.ico"
@@ -45,7 +45,7 @@ Section
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "DisplayIcon" "$INSTDIR\Soulu.exe"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "UninstallString" '$"$INSTDIR\Uninstall Soulu.exe$"'
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "Publisher" "Soulu"
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "DisplayVersion" "1.0.50-beta"
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "DisplayVersion" "1.0.51-beta"
   System::Call 'shell32::SHChangeNotify(i 0x00002000, i 0x0005, w "$INSTDIR\Soulu.exe", p 0)'
   System::Call 'shell32::SHChangeNotify(i 0x00002000, i 0x0005, w "$INSTDIR\ui\soulu-icon-v24.ico", p 0)'
   System::Call 'shell32::SHChangeNotify(i 0x00002000, i 0x0005, w "$INSTDIR\ui\soulu-icon-v44.ico", p 0)'

@@ -5,11 +5,15 @@ $payload=Join-Path $PSScriptRoot 'payload.exe'
 & "${env:ProgramFiles(x86)}\NSIS\makensis.exe" /INPUTCHARSET UTF8 "/DBUILD_DIR=$BuildDir" "/DOUT_FILE=$payload" "$PSScriptRoot/payload.nsi"
 if($LASTEXITCODE -ne 0){throw 'Payload compilation failed'}
 $icon=(Join-Path $BuildDir 'ui/soulu-icon.ico').Replace('\','/')
+$fontRoot=(Join-Path $BuildDir 'ui/fonts').Replace('\','/')
 $logo=(Join-Path $BuildDir 'ui/branding/soulu-512.png').Replace('\','/')
 @"
 100 RCDATA "payload.exe"
 101 ICON "$icon"
 102 RCDATA "$logo"
+103 RCDATA "$fontRoot/Onest-Regular.ttf"
+104 RCDATA "$fontRoot/Onest-Medium.ttf"
+105 RCDATA "$fontRoot/Onest-SemiBold.ttf"
 "@ | Set-Content -Encoding utf8 (Join-Path $PSScriptRoot 'setup.rc')
 $vswhere="${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
 $vs=& $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath

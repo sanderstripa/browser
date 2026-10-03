@@ -1,0 +1,1847 @@
+[
+  {
+    "file": "ui\\history.css",
+    "selector": ":root",
+    "before": [
+      "font:14px/1.5 \"Segoe UI\",sans-serif;"
+    ],
+    "after": "font:var(--type-body);"
+  },
+  {
+    "file": "ui\\history.css",
+    "selector": ".eyebrow",
+    "before": [
+      "font-size:11px;",
+      "letter-spacing:.14em;",
+      "font-weight:600;"
+    ],
+    "after": "font:var(--type-caption);"
+  },
+  {
+    "file": "ui\\history.css",
+    "selector": "h1",
+    "before": [
+      "font-size:32px;",
+      "font-weight:600;",
+      "letter-spacing:-.025em;"
+    ],
+    "after": "font:var(--type-heading1);"
+  },
+  {
+    "file": "ui\\history.css",
+    "selector": "h2",
+    "before": [
+      "font-size:23px;",
+      "font-weight:600;",
+      "line-height:1.25;"
+    ],
+    "after": "font:var(--type-heading2);"
+  },
+  {
+    "file": "ui\\history.css",
+    "selector": "button,input,select",
+    "before": [
+      "font:inherit;"
+    ],
+    "after": "font:var(--type-control);"
+  },
+  {
+    "file": "ui\\history.css",
+    "selector": ".search span",
+    "before": [
+      "font-size:25px;"
+    ],
+    "after": "font:var(--type-compact);font-size:var(--glyph-large);line-height:1;"
+  },
+  {
+    "file": "ui\\history.css",
+    "selector": ".day",
+    "before": [
+      "font-size:13px;",
+      "font-weight:600;"
+    ],
+    "after": "font:var(--type-compactControl);"
+  },
+  {
+    "file": "ui\\history.css",
+    "selector": ".visit-link strong",
+    "before": [
+      "font-weight:500"
+    ],
+    "after": "font:var(--type-control);"
+  },
+  {
+    "file": "ui\\history.css",
+    "selector": ".visit-link small",
+    "before": [
+      "font-size:12px"
+    ],
+    "after": "font:var(--type-caption);"
+  },
+  {
+    "file": "ui\\history.css",
+    "selector": ".visit time",
+    "before": [
+      "font-size:12px;"
+    ],
+    "after": "font:var(--type-caption);"
+  },
+  {
+    "file": "ui\\history.css",
+    "selector": "#empty h2",
+    "before": [
+      "font-size:20px"
+    ],
+    "after": "font:var(--type-heading3);"
+  },
+  {
+    "file": "ui\\history.css",
+    "selector": ".empty-icon",
+    "before": [
+      "font-size:52px;"
+    ],
+    "after": "font:var(--type-compact);font-size:var(--glyph-large);line-height:1;"
+  },
+  {
+    "file": "ui\\history.css",
+    "selector": ".dialog-heading p:not(.eyebrow),.note",
+    "before": [
+      "font-size:13px;"
+    ],
+    "after": "font:var(--type-body);"
+  },
+  {
+    "file": "ui\\history.css",
+    "selector": ".range-label",
+    "before": [
+      "font-size:13px;"
+    ],
+    "after": "font:var(--type-body);"
+  },
+  {
+    "file": "ui\\history.css",
+    "selector": ".category strong",
+    "before": [
+      "font-size:14px;",
+      "font-weight:500;"
+    ],
+    "after": "font:var(--type-control);"
+  },
+  {
+    "file": "ui\\history.css",
+    "selector": ".category small",
+    "before": [
+      "font-size:12px;"
+    ],
+    "after": "font:var(--type-caption);"
+  },
+  {
+    "file": "ui\\history.css",
+    "selector": ".acknowledge",
+    "before": [
+      "font-size:13px;"
+    ],
+    "after": "font:var(--type-body);"
+  },
+  {
+    "file": "ui\\history.css",
+    "selector": "#clearMessage",
+    "before": [
+      "font-size:13px;"
+    ],
+    "after": "font:var(--type-body);"
+  },
+  {
+    "file": "ui\\history.css",
+    "selector": "h1",
+    "before": [
+      "font-size:28px"
+    ],
+    "after": "font:var(--type-heading1);"
+  },
+  {
+    "file": "ui\\home.css",
+    "selector": "body",
+    "before": [
+      "font:14px \"Segoe UI Variable Text\",\"Segoe UI\",system-ui,sans-serif"
+    ],
+    "after": "font:var(--type-caption);"
+  },
+  {
+    "file": "ui\\home.css",
+    "selector": "h1",
+    "before": [
+      "font-size:58px;",
+      "letter-spacing:-3px;",
+      "font-weight:550;"
+    ],
+    "after": "font:var(--type-display);"
+  },
+  {
+    "file": "ui\\home.css",
+    "selector": "button,input",
+    "before": [
+      "font:inherit;"
+    ],
+    "after": "font:var(--type-control);"
+  },
+  {
+    "file": "ui\\home.css",
+    "selector": "#query",
+    "before": [
+      "font-size:16px;"
+    ],
+    "after": "font:var(--type-bodyLarge);"
+  },
+  {
+    "file": "ui\\home.css",
+    "selector": "#search button",
+    "before": [
+      "font-size:22px"
+    ],
+    "after": "font:var(--type-compact);font-size:var(--glyph-medium);line-height:1;"
+  },
+  {
+    "file": "ui\\home.css",
+    "selector": ".shortcut-tools button",
+    "before": [
+      "font-size:12px;"
+    ],
+    "after": "font:var(--type-compactControl);"
+  },
+  {
+    "file": "ui\\home.css",
+    "selector": "#customize",
+    "before": [
+      "font-size:19px"
+    ],
+    "after": "font:var(--type-compact);font-size:var(--glyph-medium);line-height:1;"
+  },
+  {
+    "file": "ui\\home.css",
+    "selector": "h2",
+    "before": [
+      "font-size:20px;",
+      "font-weight:550;"
+    ],
+    "after": "font:var(--type-heading2);"
+  },
+  {
+    "file": "ui\\home.css",
+    "selector": "#error,#editorError",
+    "before": [
+      "font-size:12px"
+    ],
+    "after": "font:var(--type-caption);"
+  },
+  {
+    "file": "ui\\home.css",
+    "selector": "h1",
+    "before": [
+      "font-size:46px"
+    ],
+    "after": "font:var(--type-display);"
+  },
+  {
+    "file": "ui\\navigation.css",
+    "selector": ".bookmark-item",
+    "before": [
+      "font-size:12px;"
+    ],
+    "after": "font:var(--type-compact);"
+  },
+  {
+    "file": "ui\\navigation.css",
+    "selector": ".navigation-toolbar-button",
+    "before": [
+      "font-size:20px;"
+    ],
+    "after": "font:var(--type-compact);font-size:var(--glyph-medium);line-height:1;"
+  },
+  {
+    "file": "ui\\navigation.css",
+    "selector": ".overview-head h1",
+    "before": [
+      "font-size:20px;",
+      "font-weight:500;"
+    ],
+    "after": "font:var(--type-heading2);"
+  },
+  {
+    "file": "ui\\navigation.css",
+    "selector": ".preview-placeholder",
+    "before": [
+      "font-size:13px"
+    ],
+    "after": "font:var(--type-compact);"
+  },
+  {
+    "file": "ui\\navigation.css",
+    "selector": ".overview-new",
+    "before": [
+      "font-size:18px;"
+    ],
+    "after": "font:var(--type-heading3);"
+  },
+  {
+    "file": "ui\\navigation.css",
+    "selector": ".bookmark-select-trigger",
+    "before": [
+      "font-size:13px"
+    ],
+    "after": "font:var(--type-compactControl);"
+  },
+  {
+    "file": "ui\\navigation.css",
+    "selector": ".bookmark-select-list .nav-action",
+    "before": [
+      "font-size:13px"
+    ],
+    "after": "font:var(--type-compactControl);"
+  },
+  {
+    "file": "ui\\onboarding.css",
+    "selector": ":root",
+    "before": [
+      "font-family:\"Segoe UI\",sans-serif;"
+    ],
+    "after": "font:var(--type-body);"
+  },
+  {
+    "file": "ui\\onboarding.css",
+    "selector": ".brand",
+    "before": [
+      "font-size:44px;",
+      "font-weight:600;",
+      "letter-spacing:-1.5px"
+    ],
+    "after": "font:var(--type-display);"
+  },
+  {
+    "file": "ui\\onboarding.css",
+    "selector": ".data-art span",
+    "before": [
+      "font-size:35px;"
+    ],
+    "after": "font:var(--type-compact);font-size:var(--glyph-large);line-height:1;"
+  },
+  {
+    "file": "ui\\onboarding.css",
+    "selector": ".counter",
+    "before": [
+      "font-size:14px"
+    ],
+    "after": "font:var(--type-caption);"
+  },
+  {
+    "file": "ui\\onboarding.css",
+    "selector": "h1",
+    "before": [
+      "font-size:38px;",
+      "line-height:1.15;",
+      "font-weight:600;",
+      "letter-spacing:-.7px;"
+    ],
+    "after": "font:var(--type-heading1);"
+  },
+  {
+    "file": "ui\\onboarding.css",
+    "selector": ".description",
+    "before": [
+      "font-size:21px;",
+      "line-height:1.45;"
+    ],
+    "after": "font:var(--type-bodyLarge);"
+  },
+  {
+    "file": "ui\\onboarding.css",
+    "selector": "p.note",
+    "before": [
+      "font-size:16px;",
+      "line-height:1.5;"
+    ],
+    "after": "font:var(--type-body);"
+  },
+  {
+    "file": "ui\\onboarding.css",
+    "selector": "button,input",
+    "before": [
+      "font:inherit"
+    ],
+    "after": "font:var(--type-control);"
+  },
+  {
+    "file": "ui\\onboarding.css",
+    "selector": "button",
+    "before": [
+      "font-size:17px"
+    ],
+    "after": "font:var(--type-control);"
+  },
+  {
+    "file": "ui\\onboarding.css",
+    "selector": "button.primary",
+    "before": [
+      "font-weight:600"
+    ],
+    "after": "font:var(--type-control);"
+  },
+  {
+    "file": "ui\\onboarding.css",
+    "selector": "button.primary::after",
+    "before": [
+      "font-size:23px;",
+      "line-height:0"
+    ],
+    "after": "font:var(--type-compact);font-size:var(--glyph-medium);line-height:1;"
+  },
+  {
+    "file": "ui\\onboarding.css",
+    "selector": ".row strong",
+    "before": [
+      "font-size:18px;",
+      "font-weight:500"
+    ],
+    "after": "font:var(--type-control);"
+  },
+  {
+    "file": "ui\\onboarding.css",
+    "selector": ".row small",
+    "before": [
+      "font-size:15px;",
+      "line-height:1.5;"
+    ],
+    "after": "font:var(--type-body);"
+  },
+  {
+    "file": "ui\\onboarding.css",
+    "selector": ".row .symbol",
+    "before": [
+      "font-size:27px"
+    ],
+    "after": "font:var(--type-compact);font-size:var(--glyph-large);line-height:1;"
+  },
+  {
+    "file": "ui\\onboarding.css",
+    "selector": ".type .symbol",
+    "before": [
+      "font-size:34px;"
+    ],
+    "after": "font:var(--type-compact);font-size:var(--glyph-large);line-height:1;"
+  },
+  {
+    "file": "ui\\onboarding.css",
+    "selector": ".type strong",
+    "before": [
+      "font-size:17px;",
+      "font-weight:500"
+    ],
+    "after": "font:var(--type-control);"
+  },
+  {
+    "file": "ui\\onboarding.css",
+    "selector": ".type small",
+    "before": [
+      "font-size:12px;"
+    ],
+    "after": "font:var(--type-caption);"
+  },
+  {
+    "file": "ui\\onboarding.css",
+    "selector": ".vpn-input",
+    "before": [
+      "font-size:17px"
+    ],
+    "after": "font:var(--type-body);"
+  },
+  {
+    "file": "ui\\onboarding.css",
+    "selector": ".summary li",
+    "before": [
+      "font-size:19px"
+    ],
+    "after": "font:var(--type-bodyLarge);"
+  },
+  {
+    "file": "ui\\onboarding.css",
+    "selector": "#message",
+    "before": [
+      "font-size:15px;",
+      "line-height:1.5;"
+    ],
+    "after": "font:var(--type-body);"
+  },
+  {
+    "file": "ui\\onboarding.css",
+    "selector": ".brand",
+    "before": [
+      "font-size:38px"
+    ],
+    "after": "font:var(--type-display);"
+  },
+  {
+    "file": "ui\\onboarding.css",
+    "selector": "h1",
+    "before": [
+      "font-size:32px"
+    ],
+    "after": "font:var(--type-heading1);"
+  },
+  {
+    "file": "ui\\onboarding.css",
+    "selector": ".description",
+    "before": [
+      "font-size:18px"
+    ],
+    "after": "font:var(--type-bodyLarge);"
+  },
+  {
+    "file": "ui\\onboarding.css",
+    "selector": ".brand",
+    "before": [
+      "font-size:30px"
+    ],
+    "after": "font:var(--type-display);"
+  },
+  {
+    "file": "ui\\onboarding.css",
+    "selector": "h1",
+    "before": [
+      "font-size:27px"
+    ],
+    "after": "font:var(--type-heading1);"
+  },
+  {
+    "file": "ui\\onboarding.css",
+    "selector": ".brand",
+    "before": [
+      "font-size:30px"
+    ],
+    "after": "font:var(--type-display);"
+  },
+  {
+    "file": "ui\\onboarding.css",
+    "selector": "h1",
+    "before": [
+      "font-size:27px"
+    ],
+    "after": "font:var(--type-heading1);"
+  },
+  {
+    "file": "ui\\onboarding.css",
+    "selector": ".description",
+    "before": [
+      "font-size:17px"
+    ],
+    "after": "font:var(--type-bodyLarge);"
+  },
+  {
+    "file": "ui\\onboarding.css",
+    "selector": ".type .symbol",
+    "before": [
+      "font-size:27px"
+    ],
+    "after": "font:var(--type-compact);font-size:var(--glyph-large);line-height:1;"
+  },
+  {
+    "file": "ui\\onboarding.css",
+    "selector": ".actions button",
+    "before": [
+      "font-size:15px;"
+    ],
+    "after": "font:var(--type-control);"
+  },
+  {
+    "file": "ui\\onboarding.css",
+    "selector": ".row strong",
+    "before": [
+      "font-size:16px"
+    ],
+    "after": "font:var(--type-control);"
+  },
+  {
+    "file": "ui\\settings.css",
+    "selector": ":root",
+    "before": [
+      "font-family:\"Segoe UI Variable Text\",\"Segoe UI\",system-ui,sans-serif;",
+      "font-size:14px;"
+    ],
+    "after": "font:var(--type-body);"
+  },
+  {
+    "file": "ui\\settings.css",
+    "selector": "button,input,select,textarea",
+    "before": [
+      "font:inherit;"
+    ],
+    "after": "font:var(--type-control);"
+  },
+  {
+    "file": "ui\\settings.css",
+    "selector": ".settings-header h1",
+    "before": [
+      "font-size:29px;",
+      "letter-spacing:-.8px;",
+      "font-weight:650"
+    ],
+    "after": "font:var(--type-heading1);"
+  },
+  {
+    "file": "ui\\settings.css",
+    "selector": ".search-box button",
+    "before": [
+      "font-size:20px"
+    ],
+    "after": "font:var(--type-compact);font-size:var(--glyph-medium);line-height:1;"
+  },
+  {
+    "file": "ui\\settings.css",
+    "selector": ".category-copy strong",
+    "before": [
+      "font-size:17px;",
+      "font-weight:650;"
+    ],
+    "after": "font:var(--type-heading3);"
+  },
+  {
+    "file": "ui\\settings.css",
+    "selector": ".category-copy small",
+    "before": [
+      "font-size:13px;",
+      "line-height:1.45"
+    ],
+    "after": "font:var(--type-body);"
+  },
+  {
+    "file": "ui\\settings.css",
+    "selector": ".chevron",
+    "before": [
+      "font-size:25px"
+    ],
+    "after": "font:var(--type-compact);font-size:var(--glyph-medium);line-height:1;"
+  },
+  {
+    "file": "ui\\settings.css",
+    "selector": ".section-heading h2",
+    "before": [
+      "font-size:22px;",
+      "font-weight:650"
+    ],
+    "after": "font:var(--type-heading2);"
+  },
+  {
+    "file": "ui\\settings.css",
+    "selector": ".section-heading p",
+    "before": [
+      "line-height:1.5"
+    ],
+    "after": "font:var(--type-body);"
+  },
+  {
+    "file": "ui\\settings.css",
+    "selector": ".card h3",
+    "before": [
+      "font-size:14px;",
+      "font-weight:650"
+    ],
+    "after": "font:var(--type-heading3);"
+  },
+  {
+    "file": "ui\\settings.css",
+    "selector": ".row b",
+    "before": [
+      "font-weight:500"
+    ],
+    "after": "font:var(--type-control);"
+  },
+  {
+    "file": "ui\\settings.css",
+    "selector": ".row small",
+    "before": [
+      "font-size:12px;",
+      "line-height:1.5;"
+    ],
+    "after": "font:var(--type-caption);"
+  },
+  {
+    "file": "ui\\settings.css",
+    "selector": ".note",
+    "before": [
+      "font-size:12px;",
+      "line-height:1.6;"
+    ],
+    "after": "font:var(--type-caption);"
+  },
+  {
+    "file": "ui\\settings.css",
+    "selector": ".settings-footer p",
+    "before": [
+      "font-size:12px;"
+    ],
+    "after": "font:var(--type-caption);"
+  },
+  {
+    "file": "ui\\settings.css",
+    "selector": ".profile-row small",
+    "before": [
+      "font-size:12px;"
+    ],
+    "after": "font:var(--type-caption);"
+  },
+  {
+    "file": "ui\\settings.css",
+    "selector": ".dialog-header button",
+    "before": [
+      "font-size:22px;"
+    ],
+    "after": "font:var(--type-compact);font-size:var(--glyph-medium);line-height:1;"
+  },
+  {
+    "file": "ui\\settings.css",
+    "selector": "dialog h2",
+    "before": [
+      "font-size:22px"
+    ],
+    "after": "font:var(--type-heading2);"
+  },
+  {
+    "file": "ui\\settings.css",
+    "selector": "#actionMessage",
+    "before": [
+      "font-size:13px"
+    ],
+    "after": "font:var(--type-body);"
+  },
+  {
+    "file": "ui\\settings.css",
+    "selector": ".version-grid span",
+    "before": [
+      "font-size:12px"
+    ],
+    "after": "font:var(--type-caption);"
+  },
+  {
+    "file": "ui\\settings.css",
+    "selector": ".settings-header h1",
+    "before": [
+      "font-size:24px"
+    ],
+    "after": "font:var(--type-heading1);"
+  },
+  {
+    "file": "ui\\settings.css",
+    "selector": ".category-copy strong",
+    "before": [
+      "font-size:15px"
+    ],
+    "after": "font:var(--type-heading3);"
+  },
+  {
+    "file": "ui\\settings.css",
+    "selector": ".category-copy small",
+    "before": [
+      "font-size:12px"
+    ],
+    "after": "font:var(--type-body);"
+  },
+  {
+    "file": "ui\\settings.css",
+    "selector": "#closeSettings",
+    "before": [
+      "font-size:23px;"
+    ],
+    "after": "font:var(--type-compact);font-size:var(--glyph-medium);line-height:1;"
+  },
+  {
+    "file": "ui\\site-reader.css",
+    "selector": ".site-popover",
+    "before": [
+      "font-size:13px"
+    ],
+    "after": "font:var(--type-body);"
+  },
+  {
+    "file": "ui\\site-reader.css",
+    "selector": ".site-heading small",
+    "before": [
+      "font-size:11px;"
+    ],
+    "after": "font:var(--type-caption);"
+  },
+  {
+    "file": "ui\\site-reader.css",
+    "selector": ".site-control select",
+    "before": [
+      "font:inherit"
+    ],
+    "after": "font:var(--type-body);"
+  },
+  {
+    "file": "ui\\site-reader.css",
+    "selector": ".site-hint",
+    "before": [
+      "font-size:11px;"
+    ],
+    "after": "font:var(--type-caption);"
+  },
+  {
+    "file": "ui\\site-reader.css",
+    "selector": ".site-status",
+    "before": [
+      "font-size:12px;"
+    ],
+    "after": "font:var(--type-caption);"
+  },
+  {
+    "file": "ui\\site-reader.css",
+    "selector": ".reader-toolbar",
+    "before": [
+      "font:13px 'Segoe UI',sans-serif"
+    ],
+    "after": "font:var(--type-compact);"
+  },
+  {
+    "file": "ui\\site-reader.css",
+    "selector": ".reader-settings",
+    "before": [
+      "font:13px 'Segoe UI',sans-serif"
+    ],
+    "after": "font:var(--type-body);"
+  },
+  {
+    "file": "ui\\styles.css",
+    "selector": ":root",
+    "before": [
+      "font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",sans-serif;"
+    ],
+    "after": "font:var(--type-body);"
+  },
+  {
+    "file": "ui\\styles.css",
+    "selector": "button,input,select",
+    "before": [
+      "font:inherit"
+    ],
+    "after": "font:var(--type-control);"
+  },
+  {
+    "file": "ui\\styles.css",
+    "selector": ".favicon-fallback",
+    "before": [
+      "font-size:8px;"
+    ],
+    "after": "font:var(--type-compact);font-size:var(--glyph-tiny);line-height:1;"
+  },
+  {
+    "file": "ui\\styles.css",
+    "selector": ".close-action",
+    "before": [
+      "font-size:16px;",
+      "font-weight:300"
+    ],
+    "after": "font:var(--type-compact);font-size:var(--glyph-medium);line-height:1;"
+  },
+  {
+    "file": "ui\\styles.css",
+    "selector": ".downloads-badge",
+    "before": [
+      "font-size:9px"
+    ],
+    "after": "font:var(--type-caption);"
+  },
+  {
+    "file": "ui\\styles.css",
+    "selector": ".suggestion-row strong",
+    "before": [
+      "font-size:12px"
+    ],
+    "after": "font:var(--type-compactControl);"
+  },
+  {
+    "file": "ui\\styles.css",
+    "selector": ".suggestion-row small,.suggestion-row em",
+    "before": [
+      "font-size:10px;",
+      "font-style:normal"
+    ],
+    "after": "font:var(--type-caption);"
+  },
+  {
+    "file": "ui\\styles.css",
+    "selector": ".classic-tab strong",
+    "before": [
+      "font-size:12px;"
+    ],
+    "after": "font:var(--type-compact);"
+  },
+  {
+    "file": "ui\\styles.css",
+    "selector": ".classic-tab button",
+    "before": [
+      "font-size:16px;"
+    ],
+    "after": "font:var(--type-compact);font-size:var(--glyph-medium);line-height:1;"
+  },
+  {
+    "file": "ui\\styles.css",
+    "selector": ".panel-heading strong",
+    "before": [
+      "font-size:14px"
+    ],
+    "after": "font:var(--type-heading3);"
+  },
+  {
+    "file": "ui\\styles.css",
+    "selector": ".panel-heading small",
+    "before": [
+      "font-size:11px"
+    ],
+    "after": "font:var(--type-caption);"
+  },
+  {
+    "file": "ui\\styles.css",
+    "selector": ".panel-heading button",
+    "before": [
+      "font-size:21px"
+    ],
+    "after": "font:var(--type-compact);font-size:var(--glyph-medium);line-height:1;"
+  },
+  {
+    "file": "ui\\styles.css",
+    "selector": ".sidebar-tab strong,.favorite-row strong,.download-row strong",
+    "before": [
+      "font-size:12px;"
+    ],
+    "after": "font:var(--type-compact);"
+  },
+  {
+    "file": "ui\\styles.css",
+    "selector": ".sidebar-tab small,.favorite-row small,.download-row small",
+    "before": [
+      "font-size:10px;"
+    ],
+    "after": "font:var(--type-caption);"
+  },
+  {
+    "file": "ui\\styles.css",
+    "selector": ".sidebar-tab>button:last-child,.favorite-row>button:last-child",
+    "before": [
+      "font-size:18px"
+    ],
+    "after": "font:var(--type-compact);font-size:var(--glyph-medium);line-height:1;"
+  },
+  {
+    "file": "ui\\styles.css",
+    "selector": ".empty>b",
+    "before": [
+      "font-size:28px"
+    ],
+    "after": "font:var(--type-compact);font-size:var(--glyph-large);line-height:1;"
+  },
+  {
+    "file": "ui\\styles.css",
+    "selector": ".empty strong",
+    "before": [
+      "font-size:13px"
+    ],
+    "after": "font:var(--type-body);"
+  },
+  {
+    "file": "ui\\styles.css",
+    "selector": ".empty small",
+    "before": [
+      "font-size:11px"
+    ],
+    "after": "font:var(--type-caption);"
+  },
+  {
+    "file": "ui\\styles.css",
+    "selector": ".settings-header strong",
+    "before": [
+      "font-size:17px"
+    ],
+    "after": "font:var(--type-heading3);"
+  },
+  {
+    "file": "ui\\styles.css",
+    "selector": ".settings-header small",
+    "before": [
+      "font-size:11px"
+    ],
+    "after": "font:var(--type-caption);"
+  },
+  {
+    "file": "ui\\styles.css",
+    "selector": ".settings-header button",
+    "before": [
+      "font-size:20px"
+    ],
+    "after": "font:var(--type-compact);font-size:var(--glyph-medium);line-height:1;"
+  },
+  {
+    "file": "ui\\styles.css",
+    "selector": ".settings-scroll h2",
+    "before": [
+      "font-size:13px"
+    ],
+    "after": "font:var(--type-heading3);"
+  },
+  {
+    "file": "ui\\styles.css",
+    "selector": ".settings-scroll p",
+    "before": [
+      "font-size:11px;",
+      "line-height:1.45"
+    ],
+    "after": "font:var(--type-body);"
+  },
+  {
+    "file": "ui\\styles.css",
+    "selector": ".layout-card strong",
+    "before": [
+      "font-size:11px"
+    ],
+    "after": "font:var(--type-control);"
+  },
+  {
+    "file": "ui\\styles.css",
+    "selector": ".layout-card small",
+    "before": [
+      "font-size:9px"
+    ],
+    "after": "font:var(--type-caption);"
+  },
+  {
+    "file": "ui\\styles.css",
+    "selector": ".setting-line strong,.setting-action strong",
+    "before": [
+      "font-size:12px"
+    ],
+    "after": "font:var(--type-body);"
+  },
+  {
+    "file": "ui\\styles.css",
+    "selector": ".setting-line small,.setting-action small",
+    "before": [
+      "font-size:10px"
+    ],
+    "after": "font:var(--type-caption);"
+  },
+  {
+    "file": "ui\\styles.css",
+    "selector": ".choice-row,.check-line,.button-row",
+    "before": [
+      "font-size:12px"
+    ],
+    "after": "font:var(--type-control);"
+  },
+  {
+    "file": "ui\\styles.css",
+    "selector": ".folder-row>span",
+    "before": [
+      "font-size:10px;"
+    ],
+    "after": "font:var(--type-caption);"
+  },
+  {
+    "file": "ui\\styles.css",
+    "selector": ".soft-button,.primary-button",
+    "before": [
+      "font-size:11px;",
+      "font-weight:600"
+    ],
+    "after": "font:var(--type-control);"
+  },
+  {
+    "file": "ui\\styles.css",
+    "selector": ".password-row strong",
+    "before": [
+      "font-size:11px"
+    ],
+    "after": "font:var(--type-body);"
+  },
+  {
+    "file": "ui\\styles.css",
+    "selector": ".password-row small",
+    "before": [
+      "font-size:10px"
+    ],
+    "after": "font:var(--type-caption);"
+  },
+  {
+    "file": "ui\\styles.css",
+    "selector": ".mini-empty",
+    "before": [
+      "font-size:11px;"
+    ],
+    "after": "font:var(--type-caption);"
+  },
+  {
+    "file": "ui\\styles.css",
+    "selector": ".compact-tab .favicon-fallback",
+    "before": [
+      "font-size:7px"
+    ],
+    "after": "font:var(--type-compact);font-size:var(--glyph-tiny);line-height:1;"
+  },
+  {
+    "file": "ui\\styles.css",
+    "selector": ".compact-active-tab .active-address",
+    "before": [
+      "font-size:12px"
+    ],
+    "after": "font:var(--type-compact);"
+  },
+  {
+    "file": "ui\\styles.css",
+    "selector": ".compact-active-tab .close-action",
+    "before": [
+      "font-size:15px;",
+      "font-weight:300"
+    ],
+    "after": "font:var(--type-compact);font-size:var(--glyph-medium);line-height:1;"
+  },
+  {
+    "file": "ui\\styles.css",
+    "selector": ".search-mark",
+    "before": [
+      "font-size:16px;",
+      "font-weight:400"
+    ],
+    "after": "font:var(--type-compact);font-size:var(--glyph-medium);line-height:1;"
+  },
+  {
+    "file": "ui\\styles.css",
+    "selector": ".compact-tab .favicon-fallback",
+    "before": [
+      "font-size:7px"
+    ],
+    "after": "font:var(--type-compact);font-size:var(--glyph-tiny);line-height:1;"
+  },
+  {
+    "file": "ui\\styles.css",
+    "selector": ".compact-active-tab .active-address",
+    "before": [
+      "font-size:12px;"
+    ],
+    "after": "font:var(--type-compact);"
+  },
+  {
+    "file": "ui\\styles.css",
+    "selector": ".classic-toolbar .classic-tab strong",
+    "before": [
+      "font-weight:400"
+    ],
+    "after": "font:var(--type-compact);"
+  },
+  {
+    "file": "ui\\styles.css",
+    "selector": ".classic-toolbar .classic-tab.active strong",
+    "before": [
+      "font-weight:550"
+    ],
+    "after": "font:var(--type-compact);"
+  },
+  {
+    "file": "ui\\theme.css",
+    "selector": "html,body,button,input,select,textarea",
+    "before": [
+      "font-family:\"Segoe UI Variable Text\",\"Segoe UI\",system-ui,sans-serif;",
+      "font-weight:400;"
+    ],
+    "after": "font:var(--type-body);"
+  },
+  {
+    "file": "ui\\theme.css",
+    "selector": "body",
+    "before": [
+      "font-size:13px"
+    ],
+    "after": "font:var(--type-body);"
+  },
+  {
+    "file": "ui\\theme.css",
+    "selector": "strong,b",
+    "before": [
+      "font-weight:550"
+    ],
+    "after": "font:var(--type-control);"
+  },
+  {
+    "file": "ui\\theme.css",
+    "selector": ".settings-content>header h1",
+    "before": [
+      "font-size:25px;",
+      "font-weight:550;",
+      "letter-spacing:-.6px"
+    ],
+    "after": "font:var(--type-heading1);"
+  },
+  {
+    "file": "ui\\theme.css",
+    "selector": ".settings-nav h1",
+    "before": [
+      "font-size:18px;",
+      "font-weight:550"
+    ],
+    "after": "font:var(--type-heading3);"
+  },
+  {
+    "file": "ui\\theme.css",
+    "selector": ".card h2,.row b",
+    "before": [
+      "font-weight:550"
+    ],
+    "after": "font:var(--type-heading3);"
+  },
+  {
+    "file": "ui\\theme.css",
+    "selector": ".active-address",
+    "before": [
+      "font-size:12px;",
+      "letter-spacing:.02px"
+    ],
+    "after": "font:var(--type-compact);"
+  },
+  {
+    "file": "ui\\theme.css",
+    "selector": ".suggestion-row strong",
+    "before": [
+      "font-weight:450"
+    ],
+    "after": "font:var(--type-compactControl);"
+  },
+  {
+    "file": "ui\\theme.css",
+    "selector": ".suggestion-row small",
+    "before": [
+      "font-size:11px"
+    ],
+    "after": "font:var(--type-caption);"
+  },
+  {
+    "file": "ui\\theme.css",
+    "selector": ".soulu-tooltip",
+    "before": [
+      "font-size:12px;",
+      "line-height:1.4;"
+    ],
+    "after": "font:var(--type-caption);"
+  },
+  {
+    "file": "ui\\theme.css",
+    "selector": ".soulu-tooltip small",
+    "before": [
+      "font-size:11px;"
+    ],
+    "after": "font:var(--type-caption);"
+  },
+  {
+    "file": "ui\\vpn\\polish.css",
+    "selector": ":root",
+    "before": [
+      "font-family:\"Segoe UI Variable\",\"Segoe UI\",sans-serif"
+    ],
+    "after": "font:var(--type-body);"
+  },
+  {
+    "file": "ui\\vpn\\polish.css",
+    "selector": ".round",
+    "before": [
+      "line-height:1"
+    ],
+    "after": "font:var(--type-compact);font-size:var(--glyph-medium);line-height:1;"
+  },
+  {
+    "file": "ui\\vpn\\polish.css",
+    "selector": ".profile-select>button",
+    "before": [
+      "font:inherit;",
+      "font-size:12px;"
+    ],
+    "after": "font:var(--type-control);"
+  },
+  {
+    "file": "ui\\vpn\\polish.css",
+    "selector": "#profileMenu button",
+    "before": [
+      "font:inherit;",
+      "font-size:12px;"
+    ],
+    "after": "font:var(--type-compactControl);"
+  },
+  {
+    "file": "ui\\vpn\\polish.css",
+    "selector": "#profileMenu button.selected",
+    "before": [
+      "font-weight:600"
+    ],
+    "after": "font:var(--type-compactControl);"
+  },
+  {
+    "file": "ui\\vpn\\polish.css",
+    "selector": ".setting-trigger",
+    "before": [
+      "font:inherit;",
+      "font-size:12px;"
+    ],
+    "after": "font:var(--type-control);"
+  },
+  {
+    "file": "ui\\vpn\\polish.css",
+    "selector": ".setting-menu button",
+    "before": [
+      "font:inherit;",
+      "font-size:12px;"
+    ],
+    "after": "font:var(--type-compactControl);"
+  },
+  {
+    "file": "ui\\vpn\\polish.css",
+    "selector": ".setting-menu button.selected",
+    "before": [
+      "font-weight:600"
+    ],
+    "after": "font:var(--type-compactControl);"
+  },
+  {
+    "file": "ui\\vpn\\polish.css",
+    "selector": ".hero .connection strong",
+    "before": [
+      "font-size:15px;",
+      "line-height:1.2;"
+    ],
+    "after": "font:var(--type-control);"
+  },
+  {
+    "file": "ui\\vpn\\polish.css",
+    "selector": ".hero .connection small",
+    "before": [
+      "font-size:10px;",
+      "line-height:1.2;"
+    ],
+    "after": "font:var(--type-caption);"
+  },
+  {
+    "file": "ui\\vpn\\polish.css",
+    "selector": ".profile-select>button",
+    "before": [
+      "font-size:14px;"
+    ],
+    "after": "font:var(--type-control);"
+  },
+  {
+    "file": "ui\\vpn\\polish.css",
+    "selector": ".tools button",
+    "before": [
+      "font-size:10px;"
+    ],
+    "after": "font:var(--type-control);"
+  },
+  {
+    "file": "ui\\vpn\\polish.css",
+    "selector": ".quick-actions button",
+    "before": [
+      "font:inherit;",
+      "font-size:11px;",
+      "font-weight:600;"
+    ],
+    "after": "font:var(--type-compactControl);"
+  },
+  {
+    "file": "ui\\vpn\\polish.css",
+    "selector": "#settingsDialog .dialog-head h2",
+    "before": [
+      "font-size:18px"
+    ],
+    "after": "font:var(--type-heading3);"
+  },
+  {
+    "file": "ui\\vpn\\polish.css",
+    "selector": "#settingsDialog h3",
+    "before": [
+      "font-size:11px;"
+    ],
+    "after": "font:var(--type-heading3);"
+  },
+  {
+    "file": "ui\\vpn\\polish.css",
+    "selector": "#settingsDialog .hint",
+    "before": [
+      "font-size:9px;",
+      "line-height:1.3"
+    ],
+    "after": "font:var(--type-caption);"
+  },
+  {
+    "file": "ui\\vpn\\polish.css",
+    "selector": "#settingsDialog .settings-card h3,#settingsDialog .settings-card h3:first-of-type",
+    "before": [
+      "font-size:11px;",
+      "font-weight:650;",
+      "letter-spacing:0;"
+    ],
+    "after": "font:var(--type-heading3);"
+  },
+  {
+    "file": "ui\\vpn\\polish.css",
+    "selector": ".theme-options button",
+    "before": [
+      "font:inherit;",
+      "font-size:10px;"
+    ],
+    "after": "font:var(--type-control);"
+  },
+  {
+    "file": "ui\\vpn\\polish.css",
+    "selector": ".theme-options button span",
+    "before": [
+      "font-family:\"Segoe UI Symbol\",\"Segoe UI\",sans-serif;",
+      "font-size:13px;",
+      "line-height:1"
+    ],
+    "after": "font:var(--type-compact);font-size:var(--glyph-medium);line-height:1;"
+  },
+  {
+    "file": "ui\\vpn\\polish.css",
+    "selector": "#settingsDialog .connection-card .toggle span",
+    "before": [
+      "font-size:11px;"
+    ],
+    "after": "font:var(--type-body);"
+  },
+  {
+    "file": "ui\\vpn\\polish.css",
+    "selector": ".update-row",
+    "before": [
+      "font:inherit;"
+    ],
+    "after": "font:var(--type-caption);"
+  },
+  {
+    "file": "ui\\vpn\\polish.css",
+    "selector": ".update-row strong",
+    "before": [
+      "font-size:11px;",
+      "font-weight:600;"
+    ],
+    "after": "font:var(--type-control);"
+  },
+  {
+    "file": "ui\\vpn\\polish.css",
+    "selector": ".update-row small",
+    "before": [
+      "font-size:8.5px;",
+      "line-height:1.2;"
+    ],
+    "after": "font:var(--type-caption);"
+  },
+  {
+    "file": "ui\\vpn\\polish.css",
+    "selector": ":root",
+    "before": [
+      "font-family:\"Montserrat VPN\",\"Montserrat\",\"Segoe UI Variable Text\",\"Segoe UI\",sans-serif\n"
+    ],
+    "after": "font:var(--type-body);"
+  },
+  {
+    "file": "ui\\vpn\\polish.css",
+    "selector": "html,body,button,input,textarea",
+    "before": [
+      "font-family:\"Montserrat VPN\",\"Montserrat\",\"Segoe UI Variable Text\",\"Segoe UI\",sans-serif"
+    ],
+    "after": "font:var(--type-body);"
+  },
+  {
+    "file": "ui\\vpn\\polish.css",
+    "selector": ".hero .connection strong",
+    "before": [
+      "font-weight:500;",
+      "letter-spacing:.14em;"
+    ],
+    "after": "font:var(--type-control);"
+  },
+  {
+    "file": "ui\\vpn\\polish.css",
+    "selector": ".hero .connection small",
+    "before": [
+      "letter-spacing:.06em"
+    ],
+    "after": "font:var(--type-caption);"
+  },
+  {
+    "file": "ui\\vpn\\polish.css",
+    "selector": ".quick-actions button",
+    "before": [
+      "font-weight:400;",
+      "letter-spacing:.04em"
+    ],
+    "after": "font:var(--type-compactControl);"
+  },
+  {
+    "file": "ui\\vpn\\polish.css",
+    "selector": "#profileMenu button.selected,.setting-menu button.selected",
+    "before": [
+      "font-weight:500"
+    ],
+    "after": "font:var(--type-compactControl);"
+  },
+  {
+    "file": "ui\\vpn\\polish.css",
+    "selector": "#settingsDialog .dialog-head h2",
+    "before": [
+      "font-weight:500;",
+      "letter-spacing:.12em;"
+    ],
+    "after": "font:var(--type-heading3);"
+  },
+  {
+    "file": "ui\\vpn\\polish.css",
+    "selector": "#settingsDialog .settings-card h3,#settingsDialog .settings-card h3:first-of-type",
+    "before": [
+      "font-weight:500;",
+      "letter-spacing:.1em;"
+    ],
+    "after": "font:var(--type-heading3);"
+  },
+  {
+    "file": "ui\\vpn\\polish.css",
+    "selector": "#settingsDialog .hint,#settingsDialog label:not(.toggle),#settingsDialog #settingsError",
+    "before": [
+      "font-size:9.5px;",
+      "line-height:1.45"
+    ],
+    "after": "font:var(--type-caption);"
+  },
+  {
+    "file": "ui\\vpn\\polish.css",
+    "selector": ".update-row small",
+    "before": [
+      "font-size:9px;",
+      "line-height:1.35"
+    ],
+    "after": "font:var(--type-caption);"
+  },
+  {
+    "file": "ui\\vpn\\popup.css",
+    "selector": ":root",
+    "before": [
+      "font-family:Inter,\"Segoe UI\",sans-serif"
+    ],
+    "after": "font:var(--type-body);"
+  },
+  {
+    "file": "ui\\vpn\\popup.css",
+    "selector": ".brand h1",
+    "before": [
+      "font-size:20px;",
+      "letter-spacing:.08em;",
+      "font-weight:800"
+    ],
+    "after": "font:var(--type-heading3);"
+  },
+  {
+    "file": "ui\\vpn\\popup.css",
+    "selector": ".brand p",
+    "before": [
+      "font-size:10px;",
+      "letter-spacing:.06em"
+    ],
+    "after": "font:var(--type-caption);"
+  },
+  {
+    "file": "ui\\vpn\\popup.css",
+    "selector": ".round",
+    "before": [
+      "font-weight:800;",
+      "letter-spacing:1px;"
+    ],
+    "after": "font:var(--type-compact);font-size:var(--glyph-medium);line-height:1;"
+  },
+  {
+    "file": "ui\\vpn\\popup.css",
+    "selector": ".eyebrow",
+    "before": [
+      "font-size:9px;",
+      "letter-spacing:.13em"
+    ],
+    "after": "font:var(--type-caption);"
+  },
+  {
+    "file": "ui\\vpn\\popup.css",
+    "selector": ".text-button",
+    "before": [
+      "font-size:11px;",
+      "letter-spacing:0"
+    ],
+    "after": "font:var(--type-control);"
+  },
+  {
+    "file": "ui\\vpn\\popup.css",
+    "selector": "select,input,textarea",
+    "before": [
+      "font:inherit;",
+      "font-size:12px;"
+    ],
+    "after": "font:var(--type-body);"
+  },
+  {
+    "file": "ui\\vpn\\popup.css",
+    "selector": "textarea",
+    "before": [
+      "font-family:\"Segoe UI\",sans-serif"
+    ],
+    "after": "font:var(--type-body);"
+  },
+  {
+    "file": "ui\\vpn\\popup.css",
+    "selector": ".tools button,.secondary",
+    "before": [
+      "font-size:10px;"
+    ],
+    "after": "font:var(--type-control);"
+  },
+  {
+    "file": "ui\\vpn\\popup.css",
+    "selector": ".connection strong",
+    "before": [
+      "font-size:13px"
+    ],
+    "after": "font:var(--type-control);"
+  },
+  {
+    "file": "ui\\vpn\\popup.css",
+    "selector": ".connection small",
+    "before": [
+      "font-size:10px;"
+    ],
+    "after": "font:var(--type-caption);"
+  },
+  {
+    "file": "ui\\vpn\\popup.css",
+    "selector": "#error,#modalError,#settingsError",
+    "before": [
+      "font-size:10px;"
+    ],
+    "after": "font:var(--type-caption);"
+  },
+  {
+    "file": "ui\\vpn\\popup.css",
+    "selector": ".connect,.disconnect,.primary",
+    "before": [
+      "font-weight:700;"
+    ],
+    "after": "font:var(--type-control);"
+  },
+  {
+    "file": "ui\\vpn\\popup.css",
+    "selector": ".ip-button",
+    "before": [
+      "font-size:10px;"
+    ],
+    "after": "font:var(--type-control);"
+  },
+  {
+    "file": "ui\\vpn\\popup.css",
+    "selector": ".dialog-head h2",
+    "before": [
+      "font-size:17px;"
+    ],
+    "after": "font:var(--type-heading3);"
+  },
+  {
+    "file": "ui\\vpn\\popup.css",
+    "selector": ".close",
+    "before": [
+      "font-size:23px;",
+      "line-height:1;"
+    ],
+    "after": "font:var(--type-compact);font-size:var(--glyph-medium);line-height:1;"
+  },
+  {
+    "file": "ui\\vpn\\popup.css",
+    "selector": "label",
+    "before": [
+      "font-size:10px;"
+    ],
+    "after": "font:var(--type-caption);"
+  },
+  {
+    "file": "ui\\vpn\\popup.css",
+    "selector": "h3",
+    "before": [
+      "font-size:10px;",
+      "letter-spacing:.13em;"
+    ],
+    "after": "font:var(--type-heading3);"
+  },
+  {
+    "file": "ui\\vpn\\popup.css",
+    "selector": ".hint",
+    "before": [
+      "font-size:9px;",
+      "line-height:1.45"
+    ],
+    "after": "font:var(--type-caption);"
+  },
+  {
+    "file": "ui\\vpn\\popup.css",
+    "selector": ".toggle span",
+    "before": [
+      "font-size:11px"
+    ],
+    "after": "font:var(--type-caption);"
+  },
+  {
+    "file": "ui\\vpn\\visual.css",
+    "selector": ":root",
+    "before": [
+      "font-family:\"Segoe UI Variable Text\",\"Segoe UI Variable\",\"Segoe UI\",sans-serif"
+    ],
+    "after": "font:var(--type-body);"
+  },
+  {
+    "file": "ui\\vpn\\visual.css",
+    "selector": ".connection strong",
+    "before": [
+      "font-size:15px;",
+      "font-weight:700"
+    ],
+    "after": "font:var(--type-control);"
+  },
+  {
+    "file": "ui\\vpn\\visual.css",
+    "selector": ".connection small",
+    "before": [
+      "font-size:11px;"
+    ],
+    "after": "font:var(--type-caption);"
+  },
+  {
+    "file": "ui\\vpn\\visual.css",
+    "selector": ".eyebrow",
+    "before": [
+      "font-size:10px;",
+      "font-weight:700;",
+      "letter-spacing:.07em"
+    ],
+    "after": "font:var(--type-caption);"
+  },
+  {
+    "file": "ui\\vpn\\visual.css",
+    "selector": ".text-button",
+    "before": [
+      "font-size:12px;",
+      "font-weight:600"
+    ],
+    "after": "font:var(--type-control);"
+  },
+  {
+    "file": "ui\\vpn\\visual.css",
+    "selector": ".profile-select>button",
+    "before": [
+      "font-size:14px"
+    ],
+    "after": "font:var(--type-control);"
+  },
+  {
+    "file": "ui\\vpn\\visual.css",
+    "selector": ".tools button",
+    "before": [
+      "font-size:11px;"
+    ],
+    "after": "font:var(--type-control);"
+  },
+  {
+    "file": "ui\\vpn\\visual.css",
+    "selector": ".connect",
+    "before": [
+      "font-size:15px;"
+    ],
+    "after": "font:var(--type-control);"
+  },
+  {
+    "file": "ui\\vpn\\visual.css",
+    "selector": ".ip-button",
+    "before": [
+      "font-size:12px;",
+      "font-weight:600;"
+    ],
+    "after": "font:var(--type-control);"
+  },
+  {
+    "file": "ui\\vpn\\visual.css",
+    "selector": ".dialog-head h2",
+    "before": [
+      "font-size:20px;"
+    ],
+    "after": "font:var(--type-heading3);"
+  },
+  {
+    "file": "ui\\vpn\\visual.css",
+    "selector": ".close",
+    "before": [
+      "font-weight:300"
+    ],
+    "after": "font:var(--type-compact);font-size:var(--glyph-medium);line-height:1;"
+  },
+  {
+    "file": "ui\\vpn\\visual.css",
+    "selector": "#settingsDialog h3",
+    "before": [
+      "font-size:12px;",
+      "font-weight:700;",
+      "letter-spacing:.05em"
+    ],
+    "after": "font:var(--type-heading3);"
+  },
+  {
+    "file": "ui\\vpn\\visual.css",
+    "selector": ".setting-trigger",
+    "before": [
+      "font-size:13px"
+    ],
+    "after": "font:var(--type-control);"
+  },
+  {
+    "file": "ui\\vpn\\visual.css",
+    "selector": "#settingsDialog label:not(.toggle)",
+    "before": [
+      "font-size:11px"
+    ],
+    "after": "font:var(--type-caption);"
+  },
+  {
+    "file": "ui\\vpn\\visual.css",
+    "selector": ".toggle span",
+    "before": [
+      "font-size:12px"
+    ],
+    "after": "font:var(--type-caption);"
+  },
+  {
+    "file": "ui\\vpn\\visual.css",
+    "selector": ".info",
+    "before": [
+      "font-size:10px!important;"
+    ],
+    "after": "font:var(--type-caption);"
+  },
+  {
+    "file": "ui\\vpn\\visual.css",
+    "selector": "#settingsDialog textarea",
+    "before": [
+      "font-size:13px"
+    ],
+    "after": "font:var(--type-body);"
+  },
+  {
+    "file": "ui\\vpn\\visual.css",
+    "selector": ".hint",
+    "before": [
+      "font-size:10px;",
+      "line-height:1.5"
+    ],
+    "after": "font:var(--type-caption);"
+  }
+]

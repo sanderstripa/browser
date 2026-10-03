@@ -23,10 +23,11 @@
       const tile=el('div');tile.className='shortcut';const a=el('a');a.href=url.href;a.title=url.href;
       // Local fallback is immediate; only the chosen site receives an optional favicon request.
       const icon=el('img');icon.className='favicon';icon.alt='';const initial=(url.hostname[0]||'S').toUpperCase();
-      icon.src='data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="34" height="34"><text x="17" y="23" text-anchor="middle" font-family="Segoe UI,sans-serif" font-size="20" fill="#89919e">'+initial.replace(/[<>&"']/g,'')+'</text></svg>');
-      const fallback=icon.src;icon.referrerPolicy='no-referrer';icon.onerror=()=>{icon.onerror=null;icon.src=fallback;};
+      const badge=document.createElement('span');badge.className='favicon shortcut-initial';badge.textContent=initial;
+      icon.referrerPolicy='no-referrer';icon.onerror=()=>{icon.onerror=null;icon.replaceWith(badge);};
+      icon.onload=()=>{badge.replaceWith(icon);};
       icon.src=url.origin+'/favicon.ico';
-      a.append(icon,el('span',row.name));a.onclick=e=>{if(e.ctrlKey||e.metaKey||e.shiftKey||e.button!==0)return;e.preventDefault();invoke('home.navigate',url.href).catch(report);};
+      a.append(badge,el('span',row.name));a.onclick=e=>{if(e.ctrlKey||e.metaKey||e.shiftKey||e.button!==0)return;e.preventDefault();invoke('home.navigate',url.href).catch(report);};
       const tools=el('div');tools.className='shortcut-tools';tools.append(tool('✎','Изменить / Edit',()=>openEditor(index)),tool('×','Удалить / Delete',()=>set({homeShortcuts:rows.filter((_,i)=>i!==index)})));
       const move=tool('←','Переместить влево / Move left',()=>{const next=rows.map(x=>({...x}));[next[index-1],next[index]]=[next[index],next[index-1]];return set({homeShortcuts:next});});move.disabled=index===0;tools.append(move);tile.append(a,tools);$('links').append(tile);
     });$('add').disabled=rows.length>=12;

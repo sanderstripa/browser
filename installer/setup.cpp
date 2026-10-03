@@ -13,6 +13,8 @@
 #include <atomic>
 #include <thread>
 #include <objidl.h>
+#include <memory>
+#include "typography_metrics.h"
 #pragma comment(lib,"gdiplus.lib")
 #pragma comment(lib,"dwmapi.lib")
 #pragma comment(lib,"shell32.lib")
@@ -45,10 +47,45 @@ void Round(GraphicsPath& path,RectF r,float radius){
  const float d=radius*2; path.AddArc(r.X,r.Y,d,d,180,90);path.AddArc(r.GetRight()-d,r.Y,d,d,270,90);
  path.AddArc(r.GetRight()-d,r.GetBottom()-d,d,d,0,90);path.AddArc(r.X,r.GetBottom()-d,d,d,90,90);path.CloseFigure();
 }
-void Text(Graphics& g,const wchar_t* text,float size,RectF rect,Color color, bool bold=false){
- FontFamily family(L"Segoe UI");Font font(&family,size,bold?FontStyleBold:FontStyleRegular,UnitPixel);
+// One private collection per real face. GDI+ sees each as a regular family,
+// so Medium/SemiBold are selected by resource, never synthetic FontStyleBold.
+std::unique_ptr<PrivateFontCollection> fontCollections[3];
+std::unique_ptr<FontFamily> fontFamilies[3];
+std::vector<BYTE> fontBytes[3];
+std::unique_ptr<Font> textFonts[10];
+bool LoadTypography(){
+ const wchar_t* names[]={L"Onest",L"Onest Medium",L"Onest SemiBold"};
+ for(int i=0;i<3;++i){
+  HRSRC resource=FindResourceW(nullptr,MAKEINTRESOURCEW(103+i),RT_RCDATA);
+  HGLOBAL loaded=resource?LoadResource(nullptr,resource):nullptr;
+  auto* bytes=loaded?static_cast<const BYTE*>(LockResource(loaded)):nullptr;
+  DWORD length=resource?SizeofResource(nullptr,resource):0;
+  if(!bytes||!length)return false;
+  fontBytes[i].assign(bytes,bytes+length);
+  fontCollections[i]=std::make_unique<PrivateFontCollection>();
+  if(fontCollections[i]->AddMemoryFont(fontBytes[i].data(),length)!=Ok)return false;
+  fontFamilies[i]=std::make_unique<FontFamily>(names[i],fontCollections[i].get());
+  if(fontFamilies[i]->GetLastStatus()!=Ok)return false;
+ }
+ return true;
+}
+void Text(Graphics& g,const wchar_t* text,soulu::typography::Metrics metrics,RectF rect,Color color){
+ // The existing installer paints a 720-wide reference at 524 DIP. Compensate
+ // that reference transform so token sizes/line boxes still match CSS DIP.
+ const float size=metrics.size/kReferenceScale;
+ const int face=metrics.weight==600?2:metrics.weight==500?1:0;
+ const soulu::typography::Metrics roles[]={soulu::typography::display,soulu::typography::heading1,soulu::typography::heading2,soulu::typography::heading3,soulu::typography::bodyLarge,soulu::typography::body,soulu::typography::control,soulu::typography::compact,soulu::typography::compactControl,soulu::typography::caption};
+ int role=0;for(int i=0;i<10;++i)if(roles[i].size==metrics.size&&roles[i].weight==metrics.weight){role=i;break;}
+ if(!textFonts[role])textFonts[role]=std::make_unique<Font>(fontFamilies[face].get(),size,FontStyleRegular,UnitPixel);
  SolidBrush brush(color);StringFormat format;format.SetAlignment(StringAlignmentCenter);format.SetLineAlignment(StringAlignmentCenter);
- g.DrawString(text,-1,&font,rect,&format,&brush);
+ format.SetTrimming(StringTrimmingEllipsisCharacter);
+ // Use the canonical line box for multiline descriptions, independent of the
+ // font's default GDI+ paragraph spacing. Keep the existing centering geometry.
+ std::wstring value(text);size_t start=0;std::vector<std::wstring> lines;
+ do{size_t next=value.find(L'\n',start);lines.push_back(value.substr(start,next-start));if(next==std::wstring::npos)break;start=next+1;}while(true);
+ const float line=metrics.lineHeight/kReferenceScale;
+ const float top=rect.Y+(rect.Height-line*lines.size())/2;
+ for(size_t i=0;i<lines.size();++i)g.DrawString(lines[i].c_str(),-1,textFonts[role].get(),RectF(rect.X,top+i*line,rect.Width,line),&format,&brush);
 }
 Bitmap* LoadPngResource(int id,IStream** keptStream){
  HRSRC resource=FindResourceW(nullptr,MAKEINTRESOURCEW(id),RT_RCDATA);
@@ -106,7 +143,7 @@ void DrawControl(Graphics& g,int id,bool pressed,bool focused){
      REAL positions[]={0,.3f,1};sheen.SetInterpolationColors(colors,positions,3);g.FillPath(&sheen,&pill);
    }
    Pen highlight(Color(105,255,255,255),1);g.DrawPath(&highlight,&pill);
-   Text(g,stage==Stage::Finished?L"Готово":stage==Stage::Error?L"Повторить":L"Установить →",22,RectF(0,-1,320,60),Color(255,255,255,255));
+   Text(g,stage==Stage::Finished?L"Готово":stage==Stage::Error?L"Повторить":L"Установить →",soulu::typography::control,RectF(0,-1,320,60),Color(255,255,255,255));
    if(focused){GraphicsPath ring;Round(ring,RectF(4,4,312,52),26);Pen focus(Color(170,255,255,255),1);g.DrawPath(&focus,&ring);}
  }else if(id==kLaunch){
    GraphicsPath box;Round(box,RectF(4,8,26,26),4);
@@ -114,7 +151,7 @@ void DrawControl(Graphics& g,int id,bool pressed,bool focused){
      LinearGradientBrush blue(PointF(4,8),PointF(30,34),Color(255,45,157,255),Color(255,38,63,255));g.FillPath(&blue,&box);
      Pen check(Color(255,255,255,255),1.6f);g.DrawLine(&check,10.0f,21.0f,15.0f,26.0f);g.DrawLine(&check,15.0f,26.0f,25.0f,15.0f);
    }else{SolidBrush clear(Color(130,250,253,255));g.FillPath(&clear,&box);Pen outline(muted,1);g.DrawPath(&outline,&box);}
-   Text(g,L"Запустить Soulu",19,RectF(42,0,168,42),muted);
+   Text(g,L"Запустить Soulu",soulu::typography::control,RectF(42,0,168,42),muted);
    if(focused){Pen focus(muted,1);g.DrawRectangle(&focus,1.0f,3.0f,218.0f,35.0f);}
  }else{
    Pen line(ink,1.3f);
@@ -132,20 +169,20 @@ void Paint(HDC dc){
    // A single transparent production PNG, never a baked screen or old logo.
    if(logo)g.DrawImage(logo,RectF(276,46,168,168));
    if(stage==Stage::Welcome){
-     Text(g,L"Soulu",54,RectF(0,209,kWidth,67),ink);
-     Text(g,L"Спокойный и умный браузер\nдля больших возможностей.",22,RectF(110,279,500,62),muted);
-     Text(g,L"Быстро. Безопасно. Для того, что важно.",19,RectF(80,460,560,35),muted);
+     Text(g,L"Soulu",soulu::typography::display,RectF(0,209,kWidth,67),ink);
+     Text(g,L"Спокойный и умный браузер\nдля больших возможностей.",soulu::typography::bodyLarge,RectF(110,279,500,62),muted);
+     Text(g,L"Быстро. Безопасно. Для того, что важно.",soulu::typography::body,RectF(80,460,560,35),muted);
    }else{
-     Text(g,L"Всё готово",44,RectF(0,220,kWidth,57),ink);
-     Text(g,L"Браузер установлен. Можно начинать.",22,RectF(35,278,650,38),muted);
+     Text(g,L"Всё готово",soulu::typography::heading1,RectF(0,220,kWidth,57),ink);
+     Text(g,L"Браузер установлен. Можно начинать.",soulu::typography::bodyLarge,RectF(35,278,650,38),muted);
    }
  }else if(stage==Stage::Installing){
-   Text(g,L"Установка Soulu",48,RectF(0,212,kWidth,64),ink);
-   Text(g,L"Это займёт всего несколько мгновений.",22,RectF(35,278,650,38),muted);
+   Text(g,L"Установка Soulu",soulu::typography::heading1,RectF(0,212,kWidth,64),ink);
+   Text(g,L"Это займёт всего несколько мгновений.",soulu::typography::bodyLarge,RectF(35,278,650,38),muted);
    // NSIS exposes completion/exit code, not byte progress. No fake percentage.
  }else{
-   Text(g,L"Не удалось завершить установку",30,RectF(35,207,650,58),ink);
-   Text(g,errorText.c_str(),20,RectF(75,274,570,66),muted);
+   Text(g,L"Не удалось завершить установку",soulu::typography::heading2,RectF(35,207,650,58),ink);
+   Text(g,errorText.c_str(),soulu::typography::body,RectF(75,274,570,66),muted);
  }
  Graphics screen(dc);screen.DrawImage(&buffer,0,0);
 }
@@ -283,6 +320,7 @@ LRESULT CALLBACK Proc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp){
 int WINAPI wWinMain(HINSTANCE instance,HINSTANCE,wchar_t*,int){
  SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
  GdiplusStartupInput input;GdiplusStartup(&graphicsToken,&input,nullptr);
+ if(!LoadTypography()){MessageBoxW(nullptr,L"Bundled Onest resources are missing or invalid.",L"Soulu Setup",MB_ICONERROR);GdiplusShutdown(graphicsToken);return 1;}
  wchar_t local[MAX_PATH]={};GetEnvironmentVariableW(L"LOCALAPPDATA",local,MAX_PATH);installDir=std::wstring(local)+L"\\Programs\\Soulu";
  icon=static_cast<HICON>(LoadImageW(instance,MAKEINTRESOURCEW(101),IMAGE_ICON,GetSystemMetrics(SM_CXICON),GetSystemMetrics(SM_CYICON),LR_DEFAULTCOLOR));
  smallIcon=static_cast<HICON>(LoadImageW(instance,MAKEINTRESOURCEW(101),IMAGE_ICON,GetSystemMetrics(SM_CXSMICON),GetSystemMetrics(SM_CYSMICON),LR_DEFAULTCOLOR));
@@ -310,5 +348,5 @@ int WINAPI wWinMain(HINSTANCE instance,HINSTANCE,wchar_t*,int){
    if(message.message==WM_KEYDOWN&&message.wParam==VK_ESCAPE){SendMessageW(window,WM_CLOSE,0,0);continue;}
    if(!IsDialogMessageW(window,&message)){TranslateMessage(&message);DispatchMessageW(&message);}
  }
- CleanupWorker(true);if(icon)DestroyIcon(icon);if(smallIcon)DestroyIcon(smallIcon);delete logo;if(logoStream)logoStream->Release();GdiplusShutdown(graphicsToken);return 0;
+ CleanupWorker(true);if(icon)DestroyIcon(icon);if(smallIcon)DestroyIcon(smallIcon);delete logo;if(logoStream)logoStream->Release();for(auto& font:textFonts)font.reset();for(auto& family:fontFamilies)family.reset();for(auto& collection:fontCollections)collection.reset();GdiplusShutdown(graphicsToken);return 0;
 }
