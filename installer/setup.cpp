@@ -56,7 +56,6 @@ std::unique_ptr<FontFamily> fontFamilies[3];
 std::vector<BYTE> fontBytes[3];
 std::unique_ptr<Font> textFonts[10];
 bool LoadTypography(){
- const wchar_t* names[]={L"Onest",L"Onest Medium",L"Onest SemiBold"};
  for(int i=0;i<3;++i){
   HRSRC resource=FindResourceW(nullptr,MAKEINTRESOURCEW(103+i),RT_RCDATA);
   HGLOBAL loaded=resource?LoadResource(nullptr,resource):nullptr;
@@ -66,7 +65,13 @@ bool LoadTypography(){
   fontBytes[i].assign(bytes,bytes+length);
   fontCollections[i]=std::make_unique<PrivateFontCollection>();
   if(fontCollections[i]->AddMemoryFont(fontBytes[i].data(),length)!=Ok)return false;
-  fontFamilies[i]=std::make_unique<FontFamily>(names[i],fontCollections[i].get());
+  // Select the sole family from this exact static-face collection. GDI+ can
+  // expose legacy or typographic family names depending on its font cache;
+  // looking up "Onest Medium" by name is therefore not reliable.
+  FontFamily families[1];INT found=0;
+  if(fontCollections[i]->GetFamilies(1,families,&found)!=Ok||found!=1)return false;
+  fontFamilies[i].reset(families[0].Clone());
+  if(!fontFamilies[i])return false;
   if(fontFamilies[i]->GetLastStatus()!=Ok||!fontFamilies[i]->IsStyleAvailable(FontStyleRegular))return false;
  }
  return true;
