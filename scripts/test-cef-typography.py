@@ -61,9 +61,9 @@ def main():
             wait(lambda:s.evaluate(settings,'document.body.classList.contains("ready")'))
             actual_face(settings,'#settingsTitle','Settings title')
             for lang in ('ru','en'):
-                s.evaluate(settings,"souluSettings.openSection('general');const n=document.querySelector('#language');n.value="+json.dumps(lang)+";n.dispatchEvent(new Event('change',{bubbles:true}))")
+                s.evaluate(settings,"(()=>{souluSettings.openSection('general');const n=document.querySelector('#language');n.value="+json.dumps(lang)+";n.dispatchEvent(new Event('change',{bubbles:true}));})()")
                 for theme in ('light','dark','system'):
-                    s.evaluate(settings,"souluSettings.openSection('interface');const n=document.querySelector('[name=settings-theme][value="+theme+"]');n.click()")
+                    s.evaluate(settings,"(()=>{souluSettings.openSection('interface');const n=document.querySelector('[name=settings-theme][value="+theme+"]');n.click();})()")
                     for scale in (1,1.25,1.5,2):
                         s.command(settings,'Emulation.setDeviceMetricsOverride',{'width':1000,'height':760,'deviceScaleFactor':scale,'mobile':False})
                         s.evaluate(settings,"souluSettings.openSection('')")

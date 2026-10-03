@@ -45,8 +45,8 @@ are distributed beside them as `OFL.txt`, inside both the ZIP and installer
 payload. `ui/fonts/manifest.json` records hashes and provenance.
 
 CEF pages explicitly link the generated stylesheet and preload the three local
-TTFs. Existing `default-src 'self'` CSP authorizes local fonts without relaxing
-security or adding a CDN. `typography.js` waits for actual faces, including RU
+TTFs. Explicit `font-src 'self'` authorizes only bundled local fonts; other CSP
+directives remain unchanged, with no CDN. `typography.js` waits for actual faces, including RU
 glyphs, before revealing the first frame. A missing face is a package failure,
 not an accepted silent fallback. Fonts are cached by CEF, not re-registered on
 every paint. This works offline and does not require Windows font installation.

@@ -23,6 +23,7 @@ license=(ROOT/'ui/fonts/OFL.txt').read_text(encoding='utf-8')
 assert 'SIL OPEN FONT LICENSE' in license and 'Onest' in license
 for html in (ROOT/'ui').rglob('*.html'):
     text=html.read_text(encoding='utf-8')
+    if 'Content-Security-Policy' in text:assert "font-src 'self'" in text,html
     assert 'typography.css' in text and 'typography.js' in text,html
     assert text.count('as="font"')==3,html
     assert 'https://' not in ''.join(re.findall(r'<link[^>]*(?:as="font"|stylesheet)[^>]*>',text)),html
