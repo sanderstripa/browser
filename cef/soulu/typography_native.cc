@@ -52,9 +52,15 @@ struct Dialog {
   std::vector<std::wstring> lines;
   int bodyHeight=0,clientWidth=0,clientHeight=0,scroll=0,visibleLines=1;
   int Px(int value)const{return MulDiv(value,dpi,96);}
+  int Line()const{return Px(static_cast<int>(typography::body.lineHeight));}
 };
 thread_local std::vector<Dialog*> activeDialogs;
-struct MenuText {HMENU menu;UINT position,type;ULONG_PTR data;UINT dpi;std::wstring label,shortcut;bool submenu;};
+struct MenuText {
+  // MSAAMENUINFO layout lets Windows expose owner-drawn labels to accessibility.
+  DWORD signature=0xAA0DF00D,length=0;LPWSTR accessibleText=nullptr;
+  HMENU menu;UINT position,type;ULONG_PTR data;UINT dpi;
+  std::wstring label,shortcut,accessibleLabel;bool submenu;
+};
 thread_local std::vector<MenuText*> activeMenuText;
 std::vector<std::wstring> Wrap(HDC dc,const std::wstring& text,int width){
   std::vector<std::wstring> lines;
@@ -97,9 +103,9 @@ INT_PTR CALLBACK Procedure(HWND window,UINT message,WPARAM wParam,LPARAM lParam)
     HDC dc=GetDC(window);auto old=SelectObject(dc,Service().Get(typography::body,d.dpi));
     d.lines=Wrap(dc,d.text,d.Px(412));SelectObject(dc,old);ReleaseDC(window,dc);
     MONITORINFO monitor={sizeof(monitor)};GetMonitorInfoW(MonitorFromWindow(d.owner?d.owner:window,MONITOR_DEFAULTTONEAREST),&monitor);
-    const int available=std::max(d.Px(20),static_cast<int>(monitor.rcWork.bottom-monitor.rcWork.top)-d.Px(250));
-    d.visibleLines=std::max(1,std::min(static_cast<int>(d.lines.size()),available/d.Px(20)));
-    d.bodyHeight=d.visibleLines*d.Px(20);
+    const int available=std::max(d.Line(),static_cast<int>(monitor.rcWork.bottom-monitor.rcWork.top)-d.Px(250));
+    d.visibleLines=std::max(1,std::min(static_cast<int>(d.lines.size()),available/d.Line()));
+    d.bodyHeight=d.visibleLines*d.Line();
     if(d.visibleLines<static_cast<int>(d.lines.size())){
       SetWindowLongW(window,GWL_STYLE,GetWindowLongW(window,GWL_STYLE)|WS_VSCROLL);
       SetScrollRange(window,SB_VERT,0,static_cast<int>(d.lines.size())-d.visibleLines,FALSE);
@@ -139,7 +145,7 @@ INT_PTR CALLBACK Procedure(HWND window,UINT message,WPARAM wParam,LPARAM lParam)
     int titleLeft=24;LPCWSTR icon=nullptr;
     switch(d.flags&MB_ICONMASK){case MB_ICONERROR:icon=IDI_ERROR;break;case MB_ICONWARNING:icon=IDI_WARNING;break;case MB_ICONQUESTION:icon=IDI_QUESTION;break;case MB_ICONINFORMATION:icon=IDI_INFORMATION;break;}
     if(icon){DrawIconEx(dc,d.Px(24),d.Px(20),LoadIconW(nullptr,icon),d.Px(24),d.Px(24),0,nullptr,DI_NORMAL);titleLeft=58;}
-    RECT title={d.Px(titleLeft),d.Px(20),d.Px(436),d.Px(48)};
+    RECT title={d.Px(titleLeft),d.Px(20),d.Px(436),d.Px(20)+d.Px(static_cast<int>(typography::heading2.lineHeight))};
     std::wstring heading=d.title;SIZE extent={};GetTextExtentPoint32W(dc,heading.c_str(),static_cast<int>(heading.size()),&extent);
     if(extent.cx>title.right-title.left){
       do{if(!heading.empty())heading.pop_back();const auto shortened=heading+L"…";GetTextExtentPoint32W(dc,shortened.c_str(),static_cast<int>(shortened.size()),&extent);}while(!heading.empty()&&extent.cx>title.right-title.left);
@@ -147,7 +153,7 @@ INT_PTR CALLBACK Procedure(HWND window,UINT message,WPARAM wParam,LPARAM lParam)
     }
     DrawLine(dc,heading,title,typography::heading2,d.dpi);
     SelectObject(dc,Service().Get(typography::body,d.dpi));
-    for(int i=0;i<d.visibleLines;++i){RECT line={d.Px(24),d.Px(58)+i*d.Px(20),d.Px(436),d.Px(78)+i*d.Px(20)};
+    for(int i=0;i<d.visibleLines;++i){RECT line={d.Px(24),d.Px(58)+i*d.Line(),d.Px(436),d.Px(58)+(i+1)*d.Line()};
       DrawLine(dc,d.lines[d.scroll+i],line,typography::body,d.dpi);}
     SelectObject(dc,old);EndPaint(window,&paint);return TRUE;
   }
@@ -208,6 +214,7 @@ int TypographyTrackPopupMenu(HMENU menu,UINT flags,int x,int y,int reserved,HWND
       auto item=std::make_unique<MenuText>();item->menu=current;item->position=i;item->type=info.fType;item->data=info.dwItemData;
       item->dpi=dpi;item->label=label;item->submenu=info.hSubMenu!=nullptr;
       auto tab=item->label.find(L'\t');if(tab!=std::wstring::npos){item->shortcut=item->label.substr(tab+1);item->label.resize(tab);}
+      item->accessibleLabel=label;item->length=static_cast<DWORD>(item->accessibleLabel.size());item->accessibleText=item->accessibleLabel.data();
       info.fMask=MIIM_FTYPE|MIIM_DATA;info.fType|=MFT_OWNERDRAW;info.dwItemData=reinterpret_cast<ULONG_PTR>(item.get());
       if(SetMenuItemInfoW(current,i,TRUE,&info)){activeMenuText.push_back(item.get());entries.push_back(std::move(item));}
     }
@@ -233,13 +240,14 @@ bool TypographyMenuMessage(UINT message,LPARAM parameter){
     HDC dc=GetDC(nullptr);auto old=SelectObject(dc,Service().Get(typography::compactControl,item->dpi));SIZE label={},shortcut={};
     GetTextExtentPoint32W(dc,item->label.c_str(),static_cast<int>(item->label.size()),&label);
     GetTextExtentPoint32W(dc,item->shortcut.c_str(),static_cast<int>(item->shortcut.size()),&shortcut);
-    measure->itemWidth=label.cx+shortcut.cx+px(item->shortcut.empty()?48:80);measure->itemHeight=px(30);
+    measure->itemWidth=label.cx+shortcut.cx+px(item->shortcut.empty()?48:80);measure->itemHeight=px(static_cast<int>(typography::compactControl.lineHeight)+12);
     SelectObject(dc,old);ReleaseDC(nullptr,dc);return true;
   }
   HDC dc=draw->hDC;const bool selected=(draw->itemState&ODS_SELECTED)!=0,disabled=(draw->itemState&(ODS_DISABLED|ODS_GRAYED))!=0;
   FillRect(dc,&draw->rcItem,GetSysColorBrush(selected?COLOR_HIGHLIGHT:COLOR_MENU));
   auto background=SetBkMode(dc,TRANSPARENT);auto color=SetTextColor(dc,GetSysColor(disabled?COLOR_GRAYTEXT:selected?COLOR_HIGHLIGHTTEXT:COLOR_MENUTEXT));
-  RECT line=draw->rcItem;line.left+=px(28);line.right-=px(20);line.top+=(line.bottom-line.top-px(18))/2;line.bottom=line.top+px(18);
+  const int lineHeight=px(static_cast<int>(typography::compactControl.lineHeight));
+  RECT line=draw->rcItem;line.left+=px(28);line.right-=px(20);line.top+=(line.bottom-line.top-lineHeight)/2;line.bottom=line.top+lineHeight;
   DrawLine(dc,item->label,line,typography::compactControl,item->dpi);
   if(!item->shortcut.empty()){
     auto old=SelectObject(dc,Service().Get(typography::compactControl,item->dpi));SIZE size={};
