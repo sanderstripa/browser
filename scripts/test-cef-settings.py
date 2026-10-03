@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import winreg
 
 spec=importlib.util.spec_from_file_location('storage',Path(__file__).with_name('test-cef-storage.py'))
 s=importlib.util.module_from_spec(spec);spec.loader.exec_module(s)
@@ -153,6 +154,25 @@ def main():
             section('vpn');change('#vpn-link','unsupported://invalid')
             check(evaluate('souluSettings.apply()') is False and json.loads((data/'settings.json').read_text())['vpn']==vpn,'Invalid VPN key retains saved config and editable draft')
             evaluate('souluSettings.cancel()')
+            # Run helper save only on the fresh disposable Windows runner.
+            # Never invoke a VPN helper against the user's actual desktop store.
+            if os.environ.get('GITHUB_ACTIONS')=='true':
+                def proxySnapshot():
+                    result={}
+                    with winreg.OpenKey(winreg.HKEY_CURRENT_USER,r'Software\Microsoft\Windows\CurrentVersion\Internet Settings') as key:
+                        for name in ['ProxyEnable','ProxyServer','AutoConfigURL']:
+                            try:result[name]=winreg.QueryValueEx(key,name)[0]
+                            except FileNotFoundError:result[name]=None
+                    return result
+                proxyBefore=proxySnapshot()
+                valid='vless://11111111-1111-4111-8111-111111111111@vpn-fixture.invalid:443?encryption=none&security=tls&type=xhttp&path=%2Ffixture&host=vpn-fixture.invalid&sni=vpn-fixture.invalid#Settings%20fixture'
+                section('vpn');change('#vpn-link',valid)
+                check(evaluate('souluSettings.apply()'),'Valid VPN key saves through real native helper')
+                vpnSaved=json.loads((data/'settings.json').read_text())['vpn']
+                check(vpnSaved['link']==valid and vpnSaved['lastProfileId'],'VPN uses canonical helper profile id and global settings')
+                check(proxySnapshot()==proxyBefore and not evaluate("window.vpn.send('status')").get('connected',False),'VPN save does not connect or change Windows proxy')
+                change('#vpn-link',valid.replace('Settings%20fixture','Unapplied'));evaluate('souluSettings.cancel()')
+                check(json.loads((data/'settings.json').read_text())['vpn']==vpnSaved,'Cancel preserves saved VPN config')
             section('interface');click('[name="settings-theme"][value="light"]');wait(lambda:s.evaluate(shell,"document.body.dataset.theme==='light'"))
             settingsId=shellcall('getState')['activeTabId'];shellcall('closeTab',settingsId)
             wait(lambda:evaluate("document.querySelector('#closeDialog').open"));click('#cancelClose')

@@ -60,7 +60,9 @@ the actual persisted state. Apply validates values, rebases only changed keys
 on the live model and refuses concurrent changes to the same key. Home shortcut
 validation is shared with the Home backend. Existing atomic writers commit each
 canonical store separately: profile settings, SitePolicy, Reader, then VPN.
-There is no cross-file all-or-nothing transaction. If a later group fails, the
+There is no cross-file all-or-nothing transaction. VPN helper storage and the
+Soulu global JSON are separate existing stores; if helper save succeeds but
+the JSON write fails, the error explicitly reports this partial save. If a later group fails, the
 reply includes the actual persisted snapshot; already committed groups are
 reported honestly and the remaining draft remains editable for retry.
 

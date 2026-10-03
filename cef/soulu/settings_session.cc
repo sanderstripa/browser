@@ -164,7 +164,7 @@ bool BrowserWindow::ApplySettingsSession(std::string& error) {
     auto old=vpn_settings_;vpn_settings_=vpn->Copy(false);
     std::string id=saved->GetString("id");if(id.empty())id=saved->GetString("profileId");
     if(!id.empty())vpn_settings_->SetString("lastProfileId",id);
-    if(!SaveSettings()){vpn_settings_=old;error="VPN: не удалось сохранить конфигурацию Soulu.";return false;}
+    if(!SaveSettings()){vpn_settings_=old;error="VPN-helper сохранил профиль, но конфигурация Soulu не записана. Повторите Apply.";return false;}
   }
   return true;
 }
