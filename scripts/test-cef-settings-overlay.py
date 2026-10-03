@@ -64,6 +64,11 @@ def rect(hwnd):
     assert u.GetWindowRect(hwnd, c.byref(r))
     return (r.left, r.top, r.right, r.bottom)
 
+def client_rect(hwnd):
+    r=w.RECT();p=w.POINT()
+    u.GetClientRect(hwnd,c.byref(r));u.ClientToScreen(hwnd,c.byref(p))
+    return (p.x,p.y,p.x+r.right,p.y+r.bottom)
+
 def focus(hwnd):
     g = GUI(); g.cbSize = c.sizeof(g)
     tid = u.GetWindowThreadProcessId(hwnd, None)
@@ -73,7 +78,7 @@ def focus(hwnd):
 class Fixture(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         body = b'''<!doctype html><title>Overlay live browser fixture</title>
-<style>body{margin:0;min-height:4000px;background:repeating-linear-gradient(90deg,#101020 0px,#101020 4px,#fafaff 4px,#fafaff 8px)}article{margin:30px 160px;background:#fff;padding:40px}p{font:20px sans-serif}</style>
+<style>body{margin:0;min-height:4000px;background:repeating-linear-gradient(0deg,transparent 0px,transparent 120px,#0671ff88 120px,#0671ff88 240px),repeating-linear-gradient(90deg,#101020 0px,#101020 4px,#fafaff 4px,#fafaff 8px)}article{margin:30px 160px;background:#fff;padding:40px}p{font:20px sans-serif}</style>
 <article><h1>Live article</h1>''' + b'<p>A real article paragraph with enough readable content to test Reader and scrolling. The background remains alive throughout Settings transitions.</p>' * 35 + b'''</article><canvas id=c width=64 height=64 hidden></canvas><video id=v autoplay muted></video>
 <script>window.loads=1;window.clicks=0;window.keys=0;window.ticks=0;document.addEventListener('click',()=>clicks++);document.addEventListener('keydown',()=>keys++);sessionStorage.marker='preserved';setInterval(()=>{ticks++;c.getContext('2d').fillRect(0,0,64,64)},40);v.srcObject=c.captureStream(25);v.play();</script>'''
         self.send_response(200)
@@ -84,6 +89,7 @@ class Fixture(http.server.BaseHTTPRequestHandler):
         pass
 
 def main():
+    os.environ['SOULU_REGRESSION_SKIP_FIRST_RUN']='1'
     exe = str(Path(sys.argv[1]).resolve())
     output = Path(sys.argv[2]); visuals = output.parent / 'settings-overlay-visuals'
     visuals.mkdir(parents=True, exist_ok=True)
@@ -121,7 +127,7 @@ def main():
             nonlocal settings
             before = state(); start = time.monotonic(); call('openSettingsWindow')
             settings = socket('/ui/settings.html')
-            wait(lambda:edit("document.body.classList.contains('ready')"))
+            wait(lambda:edit("document.body?.classList.contains('ready')"))
             wait(lambda:state()['settingsOverlayReady'])
             timings.append((time.monotonic()-start)*1000)
             after = state()
@@ -134,12 +140,13 @@ def main():
             settings.close()
         try:
             shell = socket('/ui/index.html')
-            wait(lambda:s.evaluate(shell,"typeof browserShell?.getState==='function'"))
+            wait(lambda:s.evaluate(shell,"typeof window.browserShell?.getState==='function'"))
             main_window = wait(lambda:windows(process.pid,'SouluBrowserWindow'))[0]
+            wait(lambda:s.targets() and u.IsWindowVisible(main_window))
             u.MoveWindow(main_window, 50, 50, 1280, 900, True)
             u.ShowWindow(main_window, 9); u.SetForegroundWindow(main_window)
             call('navigate', origin+'/fixture'); content=socket(origin+'/fixture')
-            wait(lambda:s.evaluate(content,"document.readyState==='complete' && !!v.srcObject"))
+            wait(lambda:s.evaluate(content,"document.readyState==='complete' && !!window.v?.srcObject"))
             s.evaluate(content,'scrollTo(0,320)'); time.sleep(.5)
             page_before = s.evaluate(content,"({url:location.href,scroll:scrollY,marker:sessionStorage.marker,loads,media:v.currentTime,paused:v.paused})")
             nav_before = s.command(content,'Page.getNavigationHistory')
@@ -179,24 +186,24 @@ def main():
             count=len(state()['tabs']); s.evaluate(shell,"cefQuery({request:JSON.stringify({action:'browser.test.pageShortcut',payload:84}),onSuccess:()=>{}})")
             time.sleep(.2);check(len(state()['tabs'])==count,'Background Ctrl+T cannot change tabs while Settings is open')
             for theme in ['light','dark','system']:
-                call('setSettings', {'theme':theme})
+                edit('souluSettings.openSection("interface");document.querySelector('[name="settings-theme"][value="'+theme+'"]').click()')
                 for matte in [False,True]:
-                    call('setSettings', {'mattePanel':matte})
+                    edit('(()=>{const n=document.querySelector("#mattePanel");if(n.checked!=='+str(matte).lower()+')n.click();})()')
                     u.MoveWindow(main_window,50,50,1280,900,True);time.sleep(.15)
-                    check(rect(overlay)==rect(main_window),'Backdrop covers the current window in '+theme+' matte='+str(matte))
+                    check(rect(overlay)==client_rect(main_window),'Backdrop covers the current window in '+theme+' matte='+str(matte))
                     ImageGrab.grab(bbox=rect(main_window)).save(visuals/(theme+'-matte-'+str(matte)+'.png'))
             u.ShowWindow(main_window,3);time.sleep(.25)
-            check(rect(overlay)==rect(main_window),'Maximize keeps overlay bound to the owner')
+            check(rect(overlay)==client_rect(main_window),'Maximize keeps overlay bound to the owner')
             u.ShowWindow(main_window,9);time.sleep(.2)
             for width,height in [(640,480),(800,600),(1280,900)]:
                 u.MoveWindow(main_window,50,50,width,height,True);time.sleep(.15)
-                check(rect(overlay)==rect(main_window),'Resize preserves backdrop bounds '+str((width,height)))
+                check(rect(overlay)==client_rect(main_window),'Resize preserves backdrop bounds '+str((width,height)))
             for scale in [1,1.25,1.5,1.75,2]:
                 s.command(settings,'Emulation.setDeviceMetricsOverride',{'width':760,'height':560,'deviceScaleFactor':scale,'mobile':False})
                 check(edit("document.documentElement.scrollWidth<=innerWidth && document.querySelector('.settings-footer').getBoundingClientRect().bottom<=innerHeight+1"),
                       'Settings controls and footer fit at device scale '+str(scale))
             s.command(settings,'Emulation.clearDeviceMetricsOverride')
-            call('setSettings',{'theme':'light','mattePanel':False})
+            edit('souluSettings.cancel()')
             edit('souluSettingsRequestClose()')
             time.sleep(.06)
             transition=state()
