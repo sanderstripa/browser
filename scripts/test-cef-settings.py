@@ -144,6 +144,9 @@ def main():
             rulesFile.rmdir();rulesBackup.rename(rulesFile)
             check(evaluate('souluSettings.apply()'),'Apply can retry after writer recovery')
             section('search');change('#searchEngine','google');check(evaluate('souluSettings.apply()'),'Restore Profile A search after failure fixture')
+            evaluate("souluSettings.staged.settings.homeShortcuts=[{name:'Unsafe',url:'javascript:alert(1)'}]")
+            check(evaluate('souluSettings.apply()') is False and saved()['homeShortcuts']==legacy['homeShortcuts'],'Native shared Home validator rejects unsafe shortcuts')
+            evaluate('souluSettings.cancel()')
             section('vpn');change('#vpn-link','unsupported://invalid')
             check(evaluate('souluSettings.apply()') is False and json.loads((data/'settings.json').read_text())['vpn']==vpn,'Invalid VPN key retains saved config and editable draft')
             evaluate('souluSettings.cancel()')
@@ -171,9 +174,24 @@ def main():
                 section('sites');capture('sites-dpi-'+str(scale))
                 check(evaluate("document.documentElement.scrollWidth<=innerWidth && document.querySelector('aside').getBoundingClientRect().width<=64"),'Responsive section/rail at DPI '+str(scale))
             s.command(settings,'Emulation.clearDeviceMetricsOverride')
+            evaluate('souluSettings.cancel()');section('interface');click('[name="settings-theme"][value="dark"]')
+            # Actual Win32 close request must keep the entire browser alive on Cancel.
+            handles=[];callbackType=ctypes.WINFUNCTYPE(ctypes.c_bool,ctypes.c_void_p,ctypes.c_void_p)
+            @callbackType
+            def findWindow(hwnd,_):
+                pid=ctypes.c_ulong();ctypes.windll.user32.GetWindowThreadProcessId(hwnd,ctypes.byref(pid))
+                name=ctypes.create_unicode_buffer(128);ctypes.windll.user32.GetClassNameW(hwnd,name,128)
+                if pid.value==process.pid and name.value=='SouluBrowserWindow':handles.append(hwnd)
+                return True
+            ctypes.windll.user32.EnumWindows(findWindow,0)
+            check(bool(handles),'Native Settings window host found')
+            ctypes.windll.user32.PostMessageW(handles[0],0x0010,0,0)
+            wait(lambda:evaluate("document.querySelector('#closeDialog').open"));click('#cancelClose')
+            check(process.poll() is None and evaluate('souluSettings.dirty()'),'Cancel on whole-window close retains browser and draft')
             evaluate('souluSettings.cancel()');stop();start()
             check(evaluate('souluSettings.persisted.settings.startupUrl')=='https://example.com/start' and evaluate('souluSettings.persisted.settings.theme')=='light','Applied settings survive real restart')
-            a=saved();shellcall('createProfile','Settings B');bId=shellcall('getState')['activeProfileId']
+            a=saved();settingsA=settings;shellcall('createProfile','Settings B');bId=shellcall('getState')['activeProfileId']
+            check(s.evaluate(settingsA,"!document.body.classList.contains('ready') && !souluSettings.persisted && !document.querySelector('#actionDialog').open"),'Background Settings clears stale profile state')
             wait(lambda:not any('/ui/onboarding.html' in t.get('url','') for t in s.targets()))
             shellcall('openSettingsWindow');settings=socket('/ui/settings.html');wait(lambda:evaluate("document.body.classList.contains('ready')"))
             check(evaluate('souluSettings.persisted.profile')==bId and evaluate('souluSettings.persisted.settings.searchEngine')==legacy['searchEngine'],'Profile B keeps legacy template and does not inherit A edits')

@@ -60,7 +60,7 @@ bool BrowserWindow::GuardSettingsClose(int id,bool all) {
   SwitchTab(settings_tab_);return true;
 }
 bool BrowserWindow::GuardSettingsNavigation(int id,const std::string& url) {
-  if(id!=settings_tab_)return false;
+  if(!settings_tab_||id!=settings_tab_)return false;
   if(settings_dirty_){settings_pending_url_=url;return GuardSettingsClose(id);}
   ResetSettingsPreview();settings_tab_=0;settings_loaded_=nullptr;settings_staged_=nullptr;
   return false;
@@ -173,8 +173,14 @@ bool BrowserWindow::HandleSettingsBridge(int id,const std::string& request,
   auto parsed=CefParseJSON(request,JSON_PARSER_RFC);
   if(!parsed||parsed->GetType()!=VTYPE_DICTIONARY)return false;
   auto root=parsed->GetDictionary();const std::string action=root->GetString("action");
-  if(action.rfind("settings.",0)!=0)return false;
   auto* tab=FindTab(id);
+  // Also gate legacy manager actions from a background Settings document.
+  // They must never resolve against a different active profile.
+  if(tab&&tab->browser&&tab->url.find("/ui/settings.html")!=std::string::npos&&
+      (tab->incognito||tab->profile_id!=active_profile_id_)){
+    callback->Failure(403,"Профиль настроек больше не активен.");return true;
+  }
+  if(action.rfind("settings.",0)!=0)return false;
   if(!tab||!tab->browser||tab->incognito||tab->profile_id!=active_profile_id_||
       tab->browser->GetMainFrame()->GetURL().ToString().find("/ui/settings.html")==std::string::npos){
     callback->Failure(403,"Настройки доступны в обычном активном профиле.");return true;}
