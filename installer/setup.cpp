@@ -354,7 +354,9 @@ LRESULT CALLBACK Proc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp){
 int WINAPI wWinMain(HINSTANCE instance,HINSTANCE,wchar_t* arguments,int){
  SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
  GdiplusStartupInput input;GdiplusStartup(&graphicsToken,&input,nullptr);
- if(!LoadTypography()){MessageBoxW(nullptr,L"Bundled Onest resources are missing or invalid.",L"Soulu Setup",MB_ICONERROR);GdiplusShutdown(graphicsToken);return 1;}
+ if(!LoadTypography()){MessageBoxW(nullptr,L"Bundled Onest resources are missing or invalid.",L"Soulu Setup",MB_ICONERROR);
+  for(auto& family:fontFamilies)family.reset();for(auto& collection:fontCollections)collection.reset();
+  GdiplusShutdown(graphicsToken);return 1;}
  logo=LoadPngResource(102,&logoStream);
  int count=0;wchar_t** args=CommandLineToArgvW(GetCommandLineW(),&count);
  if(args&&count==3&&std::wstring(args[1])==L"--typography-check"){

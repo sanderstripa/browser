@@ -67,6 +67,11 @@ selects the actual Onest Medium/SemiBold families, and paints headings/body
 in semantic line boxes using the font's hhea ascent/descent. Native button and
 edit controls receive those private fonts before display. Result IDs, safe
 default rejection and CEF dialog cancellation remain explicit.
+Toolbar/page/link and CEF content context menus retain Win32 menu tracking and
+command routing, while the shared owner-draw layer selects compactControl Onest
+and canonical line boxes. Enabled/checked states and nested menu items are retained.
+Own-page title tooltips use a shared caption DOM bubble; native CEF tooltips
+are suppressed only for those internal URLs. External page tooltips are untouched.
 The custom installer paints through GDI+. It embeds the same
 three canonical TTFs as RCDATA before showing its window, keeps one private
 collection/family for each face and caches the ten semantic Font objects.

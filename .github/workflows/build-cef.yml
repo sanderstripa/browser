@@ -200,6 +200,12 @@ jobs:
           python browser/scripts/test-cef-typography.py "$env:build_dir/Soulu.exe" browser/artifacts/typography-runtime.json
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+      - name: Test native Onest dialog consent and Unicode prompts
+        shell: pwsh
+        run: |
+          python browser/scripts/test-cef-native-typography.py "$env:build_dir/Soulu.exe" browser/artifacts/typography-native.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - name: Upload typography evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -208,6 +214,7 @@ jobs:
           path: |
             browser/artifacts/typography-static.json
             browser/artifacts/typography-runtime.json
+            browser/artifacts/typography-native.json
             browser/artifacts/typography-visuals/
           if-no-files-found: ignore
 

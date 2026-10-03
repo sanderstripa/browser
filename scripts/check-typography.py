@@ -58,6 +58,7 @@ assert 'L"Onest Medium"' in dialogs and 'L"Onest SemiBold"' in dialogs
 assert 'typography::onestAscent' in dialogs and 'TA_BASELINE' in dialogs
 for source in ('browser_window.cc','browser_client.cc'):
     assert 'MessageBoxW(' not in (ROOT/'cef/soulu'/source).read_text(encoding='utf-8')
+    assert not re.search(r'(?<!Typography)TrackPopupMenu\(', (ROOT/'cef/soulu'/source).read_text(encoding='utf-8'))
 report['checks']=['generated outputs current','actual 400/500/600','RU/EN/URL/symbol glyph coverage','bundled OFL attribution','every internal HTML preloads local fonts','all UI CSS uses semantic tokens','Reader article exceptions explicit','no JS-generated legacy text','private native faces without synthetic bold','installer embeds all faces']
 if len(sys.argv)>1:Path(sys.argv[1]).write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
 print('PASS:', '; '.join(report['checks']))

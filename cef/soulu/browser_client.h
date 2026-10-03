@@ -43,6 +43,7 @@ class BrowserClient final : public CefClient,
   bool OnBeforeUnloadDialog(CefRefPtr<CefBrowser>, const CefString&, bool,
                             CefRefPtr<CefJSDialogCallback>) override;
   void OnResetDialogState(CefRefPtr<CefBrowser>) override;
+  bool OnTooltip(CefRefPtr<CefBrowser>,CefString&) override;
   bool OnPreKeyEvent(CefRefPtr<CefBrowser>, const CefKeyEvent&, CefEventHandle, bool*) override;
   CefRefPtr<CefResourceRequestHandler> GetResourceRequestHandler(
       CefRefPtr<CefBrowser>, CefRefPtr<CefFrame>, CefRefPtr<CefRequest>,

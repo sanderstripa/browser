@@ -9,6 +9,11 @@
 #include "include/cef_parser.h"
 
 namespace soulu {
+bool BrowserClient::OnTooltip(CefRefPtr<CefBrowser> browser,CefString&){
+  const std::string url=browser->GetMainFrame()->GetURL();
+  // Internal pages draw title tooltips with their shared DOM typography.
+  return owner_->IsTrustedUi(url)||owner_->IsHomeUi(url)||owner_->IsHistoryUi(url)||owner_->IsOnboardingUi(url);
+}
 bool BrowserClient::OnJSDialog(CefRefPtr<CefBrowser>, const CefString& origin, JSDialogType type,
     const CefString& message, const CefString& initial,
     CefRefPtr<CefJSDialogCallback> callback, bool& suppress) {
@@ -173,17 +178,22 @@ bool BrowserClient::RunContextMenu(CefRefPtr<CefBrowser> browser,
     CefRefPtr<CefFrame>, CefRefPtr<CefContextMenuParams> params,
     CefRefPtr<CefMenuModel> model, CefRefPtr<CefRunContextMenuCallback> callback) {
   CEF_REQUIRE_UI_THREAD();
-  if (role_ != BrowserRole::kContent || params->GetLinkUrl().empty()) return false;
+  if (role_ != BrowserRole::kContent) return false;
   HMENU menu = CreatePopupMenu();
   if (!menu) { callback->Cancel(); return true; }
-  for (size_t i = 0; i < model->GetCount(); ++i) {
-    const auto label = model->GetLabelAt(i).ToWString();
-    AppendMenuW(menu, MF_STRING | (model->IsEnabledAt(i) ? 0 : MF_GRAYED),
-                model->GetCommandIdAt(i), label.c_str());
-  }
+  auto populate=[&](auto&& recurse,HMENU target,CefRefPtr<CefMenuModel> source)->void{
+    for(size_t i=0;i<source->GetCount();++i){
+      if(source->GetTypeAt(i)==MENUITEMTYPE_SEPARATOR){AppendMenuW(target,MF_SEPARATOR,0,nullptr);continue;}
+      const auto label=source->GetLabelAt(i).ToWString();
+      UINT flags=MF_STRING|(source->IsEnabledAt(i)?0:MF_GRAYED)|(source->IsCheckedAt(i)?MF_CHECKED:0);
+      if(auto child=source->GetSubMenuAt(i)){HMENU nested=CreatePopupMenu();recurse(recurse,nested,child);AppendMenuW(target,flags|MF_POPUP,reinterpret_cast<UINT_PTR>(nested),label.c_str());}
+      else AppendMenuW(target,flags,source->GetCommandIdAt(i),label.c_str());
+    }
+  };
+  populate(populate,menu,model);
   POINT point = {params->GetXCoord(), params->GetYCoord()};
   ClientToScreen(browser->GetHost()->GetWindowHandle(), &point);
-  const int command = TrackPopupMenu(menu, TPM_RETURNCMD | TPM_RIGHTBUTTON,
+  const int command = TypographyTrackPopupMenu(menu, TPM_RETURNCMD | TPM_RIGHTBUTTON,
       point.x, point.y, 0, owner_->hwnd(), nullptr);
   DestroyMenu(menu);
   if (command) callback->Continue(command, EVENTFLAG_NONE);

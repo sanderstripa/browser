@@ -2128,7 +2128,7 @@ void BrowserWindow::HandleBridge(const std::string& request,
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(menu, MF_STRING, 3, L"Новая вкладка");
     AppendMenuW(menu, MF_STRING, 4, L"Новая вкладка инкогнито");
-    const int command = TrackPopupMenu(menu, TPM_RETURNCMD | TPM_RIGHTBUTTON,
+    const int command = TypographyTrackPopupMenu(menu, TPM_RETURNCMD | TPM_RIGHTBUTTON,
                                        point.x, point.y, 0, hwnd_, nullptr);
     DestroyMenu(menu);
     if (command == 5) OpenHistory();
@@ -2146,7 +2146,7 @@ void BrowserWindow::HandleBridge(const std::string& request,
     auto* current=ActiveTab();auto policy=current?PolicyForTab(current->id):nullptr;
     if(current&&policy&&!WebOrigin(current->url).empty())AppendMenuW(menu,MF_STRING,4,
       policy->Blocking(current->url)?L"Отключить блокировку рекламы на этом сайте":L"Включить блокировку рекламы на этом сайте");
-    const int command = TrackPopupMenu(menu, TPM_RETURNCMD | TPM_RIGHTBUTTON,
+    const int command = TypographyTrackPopupMenu(menu, TPM_RETURNCMD | TPM_RIGHTBUTTON,
                                        point.x, point.y, 0, hwnd_, nullptr);
     DestroyMenu(menu);
     if (command == 1) {
@@ -2215,6 +2215,7 @@ void BrowserWindow::FinishClose() {
 }
 
 LRESULT CALLBACK BrowserWindow::WindowProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam) {
+  if(TypographyMenuMessage(message,lparam))return TRUE;
   BrowserWindow* self = reinterpret_cast<BrowserWindow*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
   if (message == WM_NCCREATE) {
     auto create = reinterpret_cast<CREATESTRUCT*>(lparam);
