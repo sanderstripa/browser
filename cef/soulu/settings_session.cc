@@ -77,7 +77,7 @@ bool BrowserWindow::ApplySettingsSession(std::string& error) {
   auto reader=settings_staged_->GetDictionary("reader");
   auto rules=settings_staged_->GetDictionary("rules");
   auto vpn=settings_staged_->GetDictionary("vpn");
-  if(!config||!rules||!vpn||!ValidatePagePatch(config)||!ValidReader(reader)) {
+  if(!config||!rules||!vpn||!ValidReader(reader)) {
     error="Проверьте адреса страниц и настройки чтения.";return false;
   }
   // Rebase only edited keys on the live dictionary, retaining onboarding and
@@ -103,6 +103,12 @@ bool BrowserWindow::ApplySettingsSession(std::string& error) {
   for(const auto& [key,allowed]:enums){const std::string value=next->GetString(key);
     if(std::find(allowed.begin(),allowed.end(),value)==allowed.end()){
       error="Некорректное значение: "+std::string(key);return false;}}
+  auto pagePatch=CefDictionaryValue::Create();
+  for(const char* kind:{"startup","newTab","home"})for(const char* suffix:{"Mode","Url"}){
+    const std::string key=std::string(kind)+suffix;
+    if(!config->GetValue(key)->IsEqual(base->GetValue(key)))pagePatch->SetValue(key,config->GetValue(key)->Copy());
+  }
+  if(!ValidatePagePatch(pagePatch)){error="Проверьте HTTP/HTTPS-адреса страниц.";return false;}
   auto homePatch=CefDictionaryValue::Create();
   for(const char* key:{"homeShortcuts","homeWeatherCity","homeShowLogo","homeShowSearch",
       "homeShowWeather","homeShowShortcuts","homeShowBackground"}){
@@ -112,13 +118,13 @@ bool BrowserWindow::ApplySettingsSession(std::string& error) {
   if(!ValidateHomePatch(homePatch,next,error))return false;
   for(const char* kind:{"startup","newTab","home"}){
     const std::string mode=std::string(kind)+"Mode",url=std::string(kind)+"Url";
-    if(next->GetString(mode)=="custom"&&next->GetString(url).empty()){
+    if((pagePatch->HasKey(mode)||pagePatch->HasKey(url))&&next->GetString(mode)=="custom"&&next->GetString(url).empty()){
       error="Укажите HTTP/HTTPS-адрес страницы.";return false;
     }
   }
   const auto download=next->GetString("downloadPath").ToWString();
   std::error_code folderError;
-  if(!download.empty()&&!std::filesystem::is_directory(download,folderError)){
+  if(!config->GetValue("downloadPath")->IsEqual(base->GetValue("downloadPath"))&&!download.empty()&&!std::filesystem::is_directory(download,folderError)){
     error="Папка загрузок не существует или недоступна.";return false;
   }
   if(!Same(next,settings_)){
