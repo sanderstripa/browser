@@ -17,16 +17,23 @@
   --glyph-tiny:8px;--glyph-medium:20px;--glyph-large:32px;
 }
 html,body{font:var(--type-body);letter-spacing:normal;font-synthesis:none}
-:where(button){font:var(--type-control)}
-:where(input,textarea,select){font:var(--type-body)}
-:where(h1){font:var(--type-heading1)}
-:where(h2){font:var(--type-heading2)}
-:where(h3,h4,h5,h6){font:var(--type-heading3)}
-:where(small){font:var(--type-caption)}
+button{font:var(--type-control)}
+input,textarea,select{font:var(--type-body)}
+:where(h1):not(:where(.reader-article *)){font:var(--type-heading1)}
+:where(h2):not(:where(.reader-article *)){font:var(--type-heading2)}
+:where(h3,h4,h5,h6):not(:where(.reader-article *)){font:var(--type-heading3)}
+:where(small):not(:where(.reader-article *)){font:var(--type-caption)}
 :where(strong,b){font-weight:500}
 html:not(.typography-ready) body{visibility:hidden}
 .shortcut-initial{display:grid;place-items:center;font:var(--type-heading3);color:#89919e}
 .country-code{display:inline-grid;place-items:center;font:var(--type-compactControl);color:#fff;background:#344256;border-radius:3px;min-width:28px;height:20px}
 /* Reader article remains a separate user-controlled content mode. */
 .reader-article strong,.reader-article b{font-weight:bold}
+.reader-article{font-synthesis:weight style}
 .reader-toolbar,.reader-settings,.reader-link-menu{font-family:var(--font-ui);font-synthesis:none}
+/* Shared semantic roles for inherited text and compact action menus. */
+.bookmark-context .nav-action,.bookmark-actions .nav-action,.reader-link-menu button,.site-menu-content>button{font:var(--type-compactControl)}
+.overview-caption strong{font:var(--type-compactControl)}
+.overview-caption small,.reader-notice{font:var(--type-caption)}
+.site-heading strong{font:var(--type-heading3)}
+.reader-toolbar button{font:var(--type-compactControl)}

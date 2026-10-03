@@ -26,7 +26,7 @@ try:
     ws.settimeout(1)
     s.command(ws, 'Network.enable')
     s.command(ws, 'Page.enable')
-    for host in ['youtube.com', 'facebook.com', 'ozon.ru', 'google.com',
+    for host in ['youtube.com', 'github.com', 'facebook.com', 'ozon.ru', 'google.com',
                  'sanderstripa.com', 'apps.sanderstripa.com']:
         s.sequence += 1
         ident = s.sequence
@@ -73,6 +73,10 @@ try:
                 break
         ws.settimeout(30)
         row['page'] = s.evaluate(ws, '({url:location.href,title:document.title,ready:document.readyState})')
+        row['typography'] = s.evaluate(ws, '''({bodyFamily:document.body?getComputedStyle(document.body).fontFamily:null,
+          noSouluInjection:typeof window.souluTypographyReady==='undefined' &&
+            !performance.getEntriesByType('resource').some(r=>r.name.startsWith('file:')&&r.name.includes('/fonts/Onest-'))})''')
+        assert row['typography']['noSouluInjection'], 'Soulu font injection on external site: '+host
         row['opened'] = (not row['page']['url'].startswith('chrome-error:')
                          and any(e.get('response', {}).get('status') == 200 for e in row['events'])
                          and row['page']['ready'] == 'complete')

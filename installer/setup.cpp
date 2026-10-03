@@ -14,6 +14,8 @@
 #include <thread>
 #include <objidl.h>
 #include <memory>
+#include <filesystem>
+#include <fstream>
 #include "typography_metrics.h"
 #pragma comment(lib,"gdiplus.lib")
 #pragma comment(lib,"dwmapi.lib")
@@ -65,7 +67,7 @@ bool LoadTypography(){
   fontCollections[i]=std::make_unique<PrivateFontCollection>();
   if(fontCollections[i]->AddMemoryFont(fontBytes[i].data(),length)!=Ok)return false;
   fontFamilies[i]=std::make_unique<FontFamily>(names[i],fontCollections[i].get());
-  if(fontFamilies[i]->GetLastStatus()!=Ok)return false;
+  if(fontFamilies[i]->GetLastStatus()!=Ok||!fontFamilies[i]->IsStyleAvailable(FontStyleRegular))return false;
  }
  return true;
 }
@@ -160,9 +162,8 @@ void DrawControl(Graphics& g,int id,bool pressed,bool focused){
    if(focused){Pen focus(muted,1);g.DrawRectangle(&focus,5.0f,5.0f,38.0f,34.0f);}
  }
 }
-void Paint(HDC dc){
- Bitmap buffer(Px(kWidth),Px(kHeight),PixelFormat32bppPARGB);Graphics g(&buffer);
- g.ScaleTransform(scale,scale);g.SetSmoothingMode(SmoothingModeAntiAlias);g.SetInterpolationMode(InterpolationModeHighQualityBicubic);g.SetPixelOffsetMode(PixelOffsetModeHighQuality);g.SetTextRenderingHint(TextRenderingHintAntiAliasGridFit);
+void PaintContent(Graphics& g){
+ g.SetSmoothingMode(SmoothingModeAntiAlias);g.SetInterpolationMode(InterpolationModeHighQualityBicubic);g.SetPixelOffsetMode(PixelOffsetModeHighQuality);g.SetTextRenderingHint(TextRenderingHintAntiAliasGridFit);
  Background(g);
  const Color ink(255,10,19,65),muted(255,86,113,166);
  if(stage==Stage::Welcome||stage==Stage::Finished){
@@ -184,8 +185,36 @@ void Paint(HDC dc){
    Text(g,L"Не удалось завершить установку",soulu::typography::heading2,RectF(35,207,650,58),ink);
    Text(g,errorText.c_str(),soulu::typography::body,RectF(75,274,570,66),muted);
  }
+}
+void Paint(HDC dc){
+ Bitmap buffer(Px(kWidth),Px(kHeight),PixelFormat32bppPARGB);Graphics g(&buffer);
+ g.ScaleTransform(scale,scale);PaintContent(g);
  Graphics screen(dc);screen.DrawImage(&buffer,0,0);
 }
+// Explicit diagnostics do not install, register, or launch the application.
+int TypographyDiagnostics(const std::filesystem::path& directory){
+ std::error_code error;std::filesystem::create_directories(directory,error);if(error)return 2;
+ const CLSID png={0x557cf406,0x1a04,0x11d3,{0x9a,0x73,0x00,0x00,0xf8,0x1e,0xf3,0x2e}};
+ std::ofstream report(directory/L"installer-typography.json");
+ report<<"{\"privateFaces\":3,\"syntheticBold\":false,\"dpi\":[";
+ const int dpis[]={96,120,144,192};bool first=true;
+ for(int dpi:dpis){
+  scale=dpi/96.0f*kReferenceScale;
+  if(!first)report<<",";first=false;report<<dpi;
+  for(int value=0;value<4;++value){
+   stage=static_cast<Stage>(value);errorText=L"Проверьте соединение и повторите попытку.";
+   Bitmap buffer(Px(kWidth),Px(kHeight),PixelFormat32bppPARGB);Graphics g(&buffer);
+   g.ScaleTransform(scale,scale);PaintContent(g);
+   if(stage!=Stage::Installing){auto saved=g.Save();g.TranslateTransform(200,stage==Stage::Finished?358.0f:365.0f);DrawControl(g,kMain,false,false);g.Restore(saved);}
+   if(stage==Stage::Finished){auto saved=g.Save();g.TranslateTransform(258,431);DrawControl(g,kLaunch,false,false);g.Restore(saved);}
+   auto file=directory/(L"installer-"+std::to_wstring(dpi)+L"-"+std::to_wstring(value)+L".png");
+   if(buffer.Save(file.c_str(),&png,nullptr)!=Ok)return 3;
+  }
+ }
+ for(const auto& font:textFonts)if(font&&font->GetLastStatus()!=Ok)return 5;
+ report<<"],\"passed\":true}";return report.good()?0:4;
+}
+
 void DrawButton(DRAWITEMSTRUCT* item){
  RECT bounds={};GetWindowRect(item->hwndItem,&bounds);
  POINT origin={bounds.left,bounds.top};ScreenToClient(window,&origin);
@@ -317,14 +346,22 @@ LRESULT CALLBACK Proc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp){
  return DefWindowProcW(hwnd,msg,wp,lp);
 }
 }
-int WINAPI wWinMain(HINSTANCE instance,HINSTANCE,wchar_t*,int){
+int WINAPI wWinMain(HINSTANCE instance,HINSTANCE,wchar_t* arguments,int){
  SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
  GdiplusStartupInput input;GdiplusStartup(&graphicsToken,&input,nullptr);
  if(!LoadTypography()){MessageBoxW(nullptr,L"Bundled Onest resources are missing or invalid.",L"Soulu Setup",MB_ICONERROR);GdiplusShutdown(graphicsToken);return 1;}
+ logo=LoadPngResource(102,&logoStream);
+ int count=0;wchar_t** args=CommandLineToArgvW(GetCommandLineW(),&count);
+ if(args&&count==3&&std::wstring(args[1])==L"--typography-check"){
+  int result=TypographyDiagnostics(args[2]);LocalFree(args);
+  for(auto& font:textFonts)font.reset();for(auto& family:fontFamilies)family.reset();for(auto& collection:fontCollections)collection.reset();
+  delete logo;logo=nullptr;if(logoStream){logoStream->Release();logoStream=nullptr;}
+  GdiplusShutdown(graphicsToken);return result;
+ }
+ if(args)LocalFree(args);
  wchar_t local[MAX_PATH]={};GetEnvironmentVariableW(L"LOCALAPPDATA",local,MAX_PATH);installDir=std::wstring(local)+L"\\Programs\\Soulu";
  icon=static_cast<HICON>(LoadImageW(instance,MAKEINTRESOURCEW(101),IMAGE_ICON,GetSystemMetrics(SM_CXICON),GetSystemMetrics(SM_CYICON),LR_DEFAULTCOLOR));
  smallIcon=static_cast<HICON>(LoadImageW(instance,MAKEINTRESOURCEW(101),IMAGE_ICON,GetSystemMetrics(SM_CXSMICON),GetSystemMetrics(SM_CYSMICON),LR_DEFAULTCOLOR));
- logo=LoadPngResource(102,&logoStream);
  WNDCLASSEXW cls={sizeof(cls)};cls.lpfnWndProc=Proc;cls.hInstance=instance;cls.lpszClassName=L"SouluInstaller";
  cls.hCursor=LoadCursor(nullptr,IDC_ARROW);cls.hIcon=icon;cls.hIconSm=smallIcon;RegisterClassExW(&cls);
  scale=GetDpiForSystem()/96.0f*kReferenceScale;

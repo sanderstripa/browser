@@ -389,6 +389,17 @@ jobs:
           $setupIcon.ToBitmap().Save((Join-Path $PWD "browser/artifacts/installer-exe-icon.png"))
           "SOULU_SCREENSHOT:installer-exe-icon="+[Convert]::ToBase64String([IO.File]::ReadAllBytes((Join-Path $PWD "browser/artifacts/installer-exe-icon.png")))
 
+      - name: Render installer typography at four native DPI scales
+        if: ${{ !(inputs.native_only || (github.ref != 'refs/heads/main' && github.ref != 'refs/tags/beta-1.0.51')) }}
+        shell: pwsh
+        run: |
+          $installer = Join-Path $PWD "browser/artifacts/Soulu-Beta-1.0.$env:BETA_NUMBER-x64.exe"
+          $evidence = Join-Path $PWD 'browser/artifacts/installer-typography'
+          $process = Start-Process -FilePath $installer -ArgumentList "--typography-check `"$evidence`"" -WindowStyle Hidden -PassThru -Wait
+          if ($process.ExitCode -ne 0) { throw "Installer typography diagnostics failed: $($process.ExitCode)" }
+          $report = Get-Content (Join-Path $evidence 'installer-typography.json') -Raw | ConvertFrom-Json
+          if (!$report.passed -or $report.privateFaces -ne 3 -or $report.syntheticBold) { throw 'Installer faces were not verified' }
+
       - name: Verify ZIP and installer payload before upload or release
         if: ${{ !(inputs.native_only || (github.ref != 'refs/heads/main' && github.ref != 'refs/tags/beta-1.0.51')) }}
         id: verified
@@ -873,6 +884,14 @@ jobs:
           path: browser/artifacts/data-security.json
           if-no-files-found: ignore
 
+      - name: Upload installer typography diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Soulu-installer-typography-${{ github.sha }}
+          path: browser/artifacts/installer-typography/
+          if-no-files-found: ignore
+
       - name: Verify release source is the current main commit
         if: ${{ !(inputs.native_only || (github.ref != 'refs/heads/main' && github.ref != 'refs/tags/beta-1.0.51')) && (success() && (github.ref == 'refs/tags/beta-1.0.51' || (github.ref == 'refs/heads/main' && inputs.publish))) }}
         shell: pwsh
@@ -897,7 +916,7 @@ jobs:
             throw 'Publication blocked: real authenticated sessions, YouTube playback, VPN and remaining manual checks must be verified for this exact SHA'
           }
           $sites = Get-Content browser/artifacts/sites-evidence.json -Raw | ConvertFrom-Json
-          if (@($sites).Count -ne 6 -or @($sites | Where-Object { !$_.opened }).Count) {
+          if (@($sites).Count -ne 7 -or @($sites | Where-Object { !$_.opened }).Count) {
             throw 'Publication blocked: one or more required sites did not serve usable content'
           }
 
