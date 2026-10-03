@@ -15,7 +15,8 @@ try:
     ws.settimeout(1)
     s.command(ws, 'Network.enable')
     s.command(ws, 'Page.enable')
-    for host in ['youtube.com', 'facebook.com', 'sanderstripa.com']:
+    for host in ['youtube.com', 'facebook.com', 'ozon.ru', 'google.com',
+                 'sanderstripa.com', 'apps.sanderstripa.com']:
         s.sequence += 1
         ident = s.sequence
         ws.send(json.dumps({'id': ident, 'method': 'Page.navigate', 'params': {'url': 'https://' + host}}))

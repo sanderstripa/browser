@@ -20,7 +20,7 @@ try {
     throw "Engine version probe failed: exit $($process.ExitCode)"
   }
   $version = Get-Content -LiteralPath $probe -Raw | ConvertFrom-Json
-  if ($version.cef -cne '154.0.32' -or $version.chromium -cne '154.0.8037.58') {
+  if ($version.cef -cne '154.0.33' -or $version.chromium -cne '154.0.8037.94') {
     throw "Unsupported engine: CEF $($version.cef), Chromium $($version.chromium)"
   }
   $report = [ordered]@{
