@@ -71,6 +71,7 @@ def main():
                 r=bounds(selector)
                 return r['visible'] and r['y']>=0 and r['h']>40 and r['y']+r['h']<=r['viewport']+1
             def captions(layout):
+                s.command(ws,'Input.dispatchMouseEvent',{'type':'mouseMoved','x':2,'y':E('innerHeight-1')})
                 s.command(ws,'DOM.enable');s.command(ws,'CSS.enable')
                 doc=s.command(ws,'DOM.getDocument')['root']['nodeId']
                 prefix='#window' if layout=='classic' else '#compactWindow'
@@ -81,14 +82,19 @@ def main():
                     colors=[]
                     for pseudo in ([],['hover'],['hover','active']):
                         s.command(ws,'CSS.forcePseudoState',{'nodeId':node,'forcedPseudoClasses':pseudo})
+                        # Preserve production motion: sample the final color,
+                        # not the first frame of the hover/pressed transition.
+                        E('''(async()=>{const p=getComputedStyle(document.querySelector('''+json.dumps(selector)+'''),'::before');const d=p.transitionDuration.split(',')[0].trim();await new Promise(r=>setTimeout(r,parseFloat(d)*(d.endsWith('ms')?1:1000)+34));})()''')
                         data=E('''(()=>{const n=document.querySelector('''+json.dumps(selector)+'''),r=n.getBoundingClientRect(),g=n.querySelector('svg').getBoundingClientRect(),c=getComputedStyle(n),p=getComputedStyle(n,'::before');return {w:r.width,h:r.height,bg:c.backgroundColor,pw:p.width,ph:p.height,radius:p.borderRadius,fill:p.backgroundColor,glyph:{w:g.width,h:g.height,x:g.x-r.x,y:g.y-r.y},transform:getComputedStyle(n.querySelector('svg')).transform}})()''')
                         check(data['w']==42 and data['h']==48 and data['bg'] in ('rgba(0, 0, 0, 0)','transparent'),f'{layout}/{action}/{pseudo}: full caption target transparent')
                         check(data['pw']=='30px' and data['ph']=='30px' and data['radius']=='50%' and data['transform']=='none',f'{layout}/{action}/{pseudo}: circular 30px feedback')
                         check(data['glyph']=={'w':16,'h':16,'x':13,'y':16},f'{layout}/{action}/{pseudo}: stable centered glyph')
                         colors.append(data['fill'])
-                        if pseudo==['hover']:capture(layout+'-'+action+'-hover')
+                        if pseudo==['hover']:
+                            label='Restore' if action=='Maximize' and E('document.querySelector('+json.dumps(selector)+'+" rect").getAttribute("width")==="7"') else action
+                            capture(layout+'-'+label+'-hover')
                     s.command(ws,'CSS.forcePseudoState',{'nodeId':node,'forcedPseudoClasses':[]})
-                    check(colors[0]!=colors[1] and colors[1]!=colors[2],f'{layout}/{action}: hover and pressed fills')
+                    check(colors[0]!=colors[1] and colors[1]!=colors[2],f'{layout}/{action}: hover and pressed fills '+json.dumps(colors))
             for layout in ('compact','classic','compact'):
                 E('browserShell.setSettings('+json.dumps({'layout':layout,'showSidebar':True,'showBack':True,'showFavorites':True,'showNewTab':True,'showDownloads':True,'vpnToolbarVisible':True,'downloadsVisibility':'always'})+')')
                 wait(lambda:E('document.body.dataset.layout')==layout)
