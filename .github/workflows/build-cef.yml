@@ -159,6 +159,16 @@ jobs:
           & ./browser/scripts/verify-cef-engine.ps1 -BuildDir $env:build_dir -DistributionDir $distribution.FullName -ReportPath (Join-Path $env:build_dir 'engine-version.json')
           Remove-Item -LiteralPath (Join-Path $env:build_dir 'cef-runtime-list.txt')
 
+      - name: Upload candidate native executable before runtime checks
+        if: ${{ always() && steps.native_build.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Soulu-cef-candidate-${{ github.sha }}
+          path: |
+            ${{ env.build_dir }}/Soulu.exe
+            ${{ env.build_dir }}/ui/
+          if-no-files-found: error
+
       - name: Test native web platform, GPU, media and downloads
         shell: pwsh
         run: |
@@ -173,16 +183,6 @@ jobs:
           name: Soulu-platform-${{ github.sha }}
           path: browser/artifacts/platform-evidence.json
           if-no-files-found: ignore
-
-      - name: Upload candidate native executable before runtime checks
-        if: ${{ always() && steps.native_build.outcome == 'success' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: Soulu-overlay-candidate-${{ github.sha }}
-          path: |
-            ${{ env.build_dir }}/Soulu.exe
-            ${{ env.build_dir }}/ui/
-          if-no-files-found: error
 
       - name: Test native history, browsing data clearing and visual layouts
         shell: pwsh
