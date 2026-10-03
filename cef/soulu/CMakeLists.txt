@@ -64,7 +64,14 @@ if(MSVC)
 endif()
 set_target_properties(${EXAMPLE_TARGET} PROPERTIES OUTPUT_NAME "Soulu" CXX_STANDARD 20 CXX_STANDARD_REQUIRED YES)
 
+# Use this distribution's own file lists, including architecture-specific DLLs.
+file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/cef-runtime-list.txt"
+     "${CEF_BINARY_FILES};${CEF_RESOURCE_FILES}")
+
 add_custom_command(TARGET ${EXAMPLE_TARGET} POST_BUILD
+  COMMAND ${CMAKE_COMMAND} -E copy
+          "${CMAKE_CURRENT_BINARY_DIR}/cef-runtime-list.txt"
+          "$<TARGET_FILE_DIR:${EXAMPLE_TARGET}>/cef-runtime-list.txt"
   COMMAND ${CMAKE_COMMAND} -E copy_directory
           "${CMAKE_CURRENT_SOURCE_DIR}/assets/ui"
           "$<TARGET_FILE_DIR:${EXAMPLE_TARGET}>/ui"
