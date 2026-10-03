@@ -111,6 +111,8 @@ maps relocated mouse coordinates back to CEF, and restores the main frame
 on dismissal. Resize invalidates stale popup buffers. The Reader suite opens
 actual widgets and checks paint delivery, bounds and Escape dismissal in both
 layouts; diagnostic counters are restricted to the existing UI test mode.
+Unchanged site/Reader preferences no longer replace their controls on unrelated
+state notifications, preserving focus and an already open native select.
 
 `test-cef-toolbar.py` runs real CEF, checks computed button/glyph bounds,
 caption default/hover/pressed surfaces, native maximize/minimize, Main →

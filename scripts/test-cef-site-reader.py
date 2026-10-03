@@ -105,22 +105,56 @@ with tempfile.TemporaryDirectory(prefix='soulu-reader-', ignore_cleanup_errors=T
         def popup_state():
             return s.evaluate(shell,"new Promise((resolve,reject)=>cefQuery({request:JSON.stringify({action:'browser.surfaceDiagnostics'}),onSuccess:s=>resolve(JSON.parse(s)),onFailure:reject}))")
         def exercise_select(selector, name):
+            # Native state/Reader probe notifications can replace menu controls
+            # after opening. Let the current rendered control settle first.
+            time.sleep(.3)
             before = popup_state()['popupPaintCount']
-            point = s.evaluate(shell,"(()=>{const n=document.querySelector("+json.dumps(selector)+");n.scrollIntoView({block:'nearest'});const r=n.getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height/2}})()")
-            for kind in ('mousePressed','mouseReleased'):
-                s.command(shell,'Input.dispatchMouseEvent',dict(point,type=kind,button='left',clickCount=1))
-            state = wait(lambda: (p if (p:=popup_state())['popupVisible'] and p['popupPaintCount']>before else None))
+            s.evaluate(shell,"document.querySelector("+json.dumps(selector)+").focus()")
+            user32 = ctypes.windll.user32
+            handles = []
+            callback_type = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
+            user32.EnumWindows.argtypes = [callback_type, ctypes.c_void_p]
+            user32.EnumChildWindows.argtypes = [ctypes.c_void_p, callback_type, ctypes.c_void_p]
+            @callback_type
+            def visit(hwnd, unused):
+                pid = ctypes.c_ulong(); user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+                if pid.value == process.pid:
+                    user32.EnumChildWindows(hwnd, child, 0)
+                return True
+            @callback_type
+            def child(hwnd, unused):
+                class_name = ctypes.create_unicode_buffer(128)
+                user32.GetClassNameW(hwnd, class_name, 128)
+                if class_name.value == 'SouluAlphaToolbar': handles.append(hwnd)
+                return True
+            user32.EnumWindows(visit, 0)
+            assert handles, 'Native toolbar HWND found'
+            hwnd = handles[0]
+            user32.GetDpiForWindow.argtypes = [ctypes.c_void_p]
+            user32.PostMessageW.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_size_t, ctypes.c_ssize_t]
+            user32.PostMessageW(hwnd,0x7,0,0)
+            user32.PostMessageW(hwnd,0x100,32,0)
+            user32.PostMessageW(hwnd,0x102,32,0)
+            user32.PostMessageW(hwnd,0x101,32,0)
+            try:
+                state = wait(lambda: (p if (p:=popup_state())['popupVisible'] and p['popupPaintCount']>before else None))
+            except AssertionError:
+                print(json.dumps({'name':name,'state':popup_state(),'dom':s.evaluate(shell,'({active:document.activeElement?.tagName,menuHidden:document.querySelector(".site-popover").hidden,permissionsOpen:document.querySelector(".site-permissions")?.open,readerSettingsHidden:document.querySelector(".reader-settings").hidden})')}),flush=True)
+                raise
             viewport = s.evaluate(shell,'({width:innerWidth,height:innerHeight})')
             assert_check(state['popupWidth']>0 and state['popupHeight']>0 and state['popupX']>=0 and state['popupY']>=0 and state['popupX']+state['popupWidth']<=viewport['width'] and state['popupY']+state['popupHeight']<=viewport['height'],name+' native select painted inside client')
-            for kind in ('rawKeyDown','keyUp'):
-                s.command(shell,'Input.dispatchKeyEvent',{'type':kind,'key':'Escape','code':'Escape','windowsVirtualKeyCode':27})
+            s.evaluate(shell,'browserShell.getSettings().then(settings=>browserShell.setSettings({theme:settings.theme}))')
+            time.sleep(.2)
+            assert_check(popup_state()['popupVisible'],name+' unchanged state preserves native select')
+            user32.PostMessageW(hwnd,0x100,27,0)
+            user32.PostMessageW(hwnd,0x101,27,0)
             wait(lambda:not popup_state()['popupVisible'])
             assert_check(True,name+' native select dismiss restores surface')
         for layout in ('compact','classic'):
             s.evaluate(shell,'browserShell.setSettings('+json.dumps({'layout':layout})+')')
             wait(lambda:s.evaluate(shell,'document.body.dataset.layout')==layout)
             s.evaluate(shell,'browserShell.pageMenu()');wait(lambda:visible_surface('.site-popover'))
-            s.evaluate(shell,"document.querySelector('.site-permissions summary').click()")
+            s.evaluate(shell,"(()=>{const n=document.querySelector('.site-permissions');if(!n.open)n.querySelector('summary').click()})()")
             assert_check(visible_surface('.site-popover'),layout+' permissions expansion stays in client')
             exercise_select('.site-permissions select',layout+' permissions')
             s.evaluate(shell,"(()=>{const n=document.querySelector('.site-permissions select');n.value='2';n.dispatchEvent(new Event('change'))})()")

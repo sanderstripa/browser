@@ -3,6 +3,7 @@
   const api = window.browserShell, safe = window.souluReaderSafe;
   if (!api?.getCurrentSite || !safe) return;
   let state = {}, site = null, key = '', revision = 0, anchor = null, articleKey = '', saving = Promise.resolve(), probing = false;
+  let menuSignature = '', preferencesSignature = '';
   const el = (tag, cls, text) => { const n = document.createElement(tag); n.className = cls || ''; if (text !== undefined) n.textContent = text; return n; };
   const error = e => { status.textContent = e.message || String(e); status.hidden = false; if (!reader.hidden) { readerNotice.textContent = status.textContent; readerNotice.hidden = false; } };
   const button = (text, fn, cls = '') => { const n = el('button', cls, text); n.type = 'button'; n.onclick = () => Promise.resolve().then(fn).catch(error); return n; };
@@ -86,6 +87,9 @@
   }
   function renderMenu() {
     if (!site) return;
+    const signature = JSON.stringify([probing, ...['tabId','url','generation','origin','domain','favicon','secureConnection','readerActive','readerAvailable','mainLoading','zoom','rules'].map(name => site[name])]);
+    if (content.childElementCount && menuSignature === signature) return;
+    menuSignature = signature;
     const expanded = content.querySelector('details')?.open, focused = content.contains(document.activeElement), focusedLabel = document.activeElement?.getAttribute('aria-label');
     content.replaceChildren();
     const head = el('header', 'site-heading'), icon = el('img');
@@ -160,6 +164,9 @@
       }
       for (let i = 0; i < 4; i++) loadImages();
     }
+    const signature = JSON.stringify(prefs);
+    if (settings.childElementCount && preferencesSignature === signature) return;
+    preferencesSignature = signature;
     const wasFocused = settings.contains(document.activeElement), label = document.activeElement?.getAttribute('aria-label');
     settings.replaceChildren(select('Тема', [['light','Светлая'],['sepia','Сепия'],['dark','Тёмная']], prefs.theme, theme => preferences({theme})),
       select('Шрифт', [['sans','Sans-serif'],['serif','Serif'],['system','Системный']], prefs.font, font => preferences({font})),
