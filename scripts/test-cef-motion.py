@@ -54,7 +54,9 @@ def main():
                 check(evaluate('!!document.querySelector(".motion-shared") && document.querySelector(".motion-shared").inert && document.querySelector(".motion-shared").getAttribute("aria-hidden")==="true"'),key+': shared container is visual only')
                 if key=='interface':
                     capture('interface-transition')
-                    o.ImageGrab.grab(bbox=o.rect(host)).save(visuals/'interface-transition-composed.png')
+                    if o.u.GetForegroundWindow()==host:
+                        o.ImageGrab.grab(bbox=o.rect(host)).save(visuals/'interface-transition-composed.png')
+                    else:report['limitations'].append('Composed motion capture omitted because the native host was not foreground.')
                 settled()
                 check(evaluate('document.querySelector("main").dataset.view==="section" && document.querySelector(".nav-item.active").dataset.section==='+json.dumps(key)),key+': correct destination')
                 check(evaluate('document.activeElement.id==="settingsContent"'),key+': section focus')
@@ -142,14 +144,18 @@ def main():
             # Tab sidebar is an overlay: webpage geometry must stay unchanged.
             target=next(t for t in s.targets() if t.get('type')=='page' and '/ui/index.html' not in t.get('url','') and '/ui/settings.html' not in t.get('url',''))
             page=s.websocket.create_connection(target['webSocketDebuggerUrl'],timeout=30,origin=s.BASE);sockets.append(page)
+            def surface():return s.evaluate(shell,'new Promise((resolve,reject)=>cefQuery({request:JSON.stringify({action:"browser.surfaceDiagnostics"}),onSuccess:v=>resolve(JSON.parse(v)),onFailure:(_,m)=>reject(Error(m))}))')
             for layout in ['compact','classic']:
                 s.evaluate(shell,'browserShell.setSettings({layout:'+json.dumps(layout)+'})')
                 dimensions=s.evaluate(page,'[innerWidth,innerHeight]')
                 for cycle in range(30):
                     s.evaluate(shell,'browserShell.toggleSidebar()');time.sleep(.025)
+                    if cycle==0:check(surface()['shellFrameRate']==60,layout+': OSR uses the motion frame budget')
                     check(s.evaluate(page,'[innerWidth,innerHeight]')==dimensions,f'{layout} cycle {cycle}: webpage is not resized')
                     s.evaluate(shell,'browserShell.toggleSidebar()')
                 time.sleep(.35)
+                check(surface()['shellFrameRate']==30,layout+': OSR returns to idle frame budget')
+                check(surface()['paintError']==0,layout+': OSR presentation has no native paint error')
                 check(s.evaluate(shell,'browserShell.getState().then(s=>!s.sidebarVisible)'),'Sidebar repeated close: '+layout)
             s.evaluate(shell,'browserShell.toggleSidebar()');time.sleep(.3)
             check(s.evaluate(shell,'document.querySelector("#sidebar").classList.contains("visible") && !document.querySelector("#sidebar").inert'),'Tab sidebar visible and interactive')

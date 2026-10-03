@@ -40,7 +40,10 @@ tab panel. The tab panel overlays the page, using CSS transform and opacity.
 The webpage HWND does not move or resize during tab-panel transitions. The
 native OSR host remains mapped through exit with a generation-checked bounded
 deadline, including close initiated by Escape or Tab Overview. Rapid toggles
-retarget the CSS transition and invalidate older host deadlines.
+retarget the CSS transition and invalidate older host deadlines. The existing
+OSR shell's 30 fps idle cap temporarily becomes 60 fps during tab-panel motion,
+then returns to its idle budget. This still uses the existing OSR bitmap
+presentation; it does not claim a new native GPU surface or verified 120 fps.
 
 Closing makes the real panel inert immediately and restores focus to its
 visible toolbar button when focus was inside it. The panel's top edge follows

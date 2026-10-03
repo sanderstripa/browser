@@ -6,6 +6,8 @@ inline constexpr int kSurfaceMs = 180;
 inline constexpr int kStructuralMs = 260;
 inline constexpr int kReducedOverlayMs = 90;
 inline constexpr int kSidebarCloseMs = 180;
+inline constexpr int kShellIdleFrameRate = 30;
+inline constexpr int kShellMotionFrameRate = 60;
 // CSS cubic-bezier(.22,1,.36,1), sampled by monotonic native timers.
 inline float EaseOut(float x) {
   float lo = 0, hi = 1, t = x;

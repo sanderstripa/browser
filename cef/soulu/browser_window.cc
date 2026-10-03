@@ -487,7 +487,7 @@ void BrowserWindow::CreateShellBrowser() {
   info.runtime_style = CEF_RUNTIME_STYLE_ALLOY;
   CefBrowserSettings settings;
   settings.background_color = CefColorSetARGB(0, 0, 0, 0);
-  settings.windowless_frame_rate = 30;
+  settings.windowless_frame_rate = motion::kShellIdleFrameRate;
   const auto url = FileUrl(std::filesystem::u8path(ExecutableDirectory()) / "ui" / "index.html");
   CefBrowserHost::CreateBrowser(info, new BrowserClient(this, BrowserRole::kShell),
                                 url, settings, nullptr, nullptr);
@@ -1735,6 +1735,7 @@ void BrowserWindow::HandleBridge(const std::string& request,
     result->SetBool("windowless", shell_ && shell_->GetHost()->IsWindowRenderingDisabled());
     result->SetInt("paintError", surface_ ? surface_->paint_error() : -1);
     result->SetInt("paintCount", surface_ ? surface_->paint_count() : 0);
+    result->SetInt("shellFrameRate", shell_ ? shell_->GetHost()->GetWindowlessFrameRate() : 0);
     result->SetInt("toolbarAlpha", surface_ ? surface_->toolbar_alpha() : 255);
     return Reply(callback, result);
   }
@@ -1842,12 +1843,15 @@ void BrowserWindow::HandleBridge(const std::string& request,
     }
     if (tab_toggle || closing_tabs) {
       sidebar_motion_ = true; const auto generation = ++sidebar_motion_generation_;
+      if (shell_) shell_->GetHost()->SetWindowlessFrameRate(motion::kShellMotionFrameRate);
       CefRefPtr<BrowserWindow> self = this;
       // Keep the OSR host mapped throughout exit, including Escape/overview.
       // A bounded deadline handles frontend interruption or failure.
       CefPostDelayedTask(TID_UI, new FunctionTask([self,generation] {
         if (self->sidebar_motion_generation_ != generation) return;
-        self->sidebar_motion_ = false; self->Layout();
+        self->sidebar_motion_ = false;
+        if (self->shell_) self->shell_->GetHost()->SetWindowlessFrameRate(motion::kShellIdleFrameRate);
+        self->Layout();
       }), motion::kStructuralMs);
     }
     Layout(); EmitState();
