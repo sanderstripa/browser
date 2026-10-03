@@ -22,5 +22,10 @@
       "sha256": "a2b3339cc901cbd63597df0b9319898c8f1071c30fa87013f1dac480797ce6fb",
       "glyphs": 780
     }
-  ]
+  ],
+  "metrics": {
+    "unitsPerEm": 1000,
+    "ascent": 970,
+    "descent": 305
+  }
 }

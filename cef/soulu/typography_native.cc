@@ -35,7 +35,7 @@ struct Fonts {
     auto& font=cache[key];
     if(!font)font=CreateFontW(-MulDiv(static_cast<int>(role.size),dpi,96),0,0,0,role.weight,
         FALSE,FALSE,FALSE,DEFAULT_CHARSET,OUT_TT_ONLY_PRECIS,CLIP_DEFAULT_PRECIS,CLEARTYPE_QUALITY,
-        DEFAULT_PITCH|FF_DONTCARE,L"Onest");
+        DEFAULT_PITCH|FF_DONTCARE,role.weight==600?L"Onest SemiBold":role.weight==500?L"Onest Medium":L"Onest");
     return font;
   }
   ~Fonts(){for(auto& item:cache)if(item.second)DeleteObject(item.second);for(auto resource:resources)RemoveFontMemResourceEx(resource);}
@@ -74,6 +74,17 @@ std::vector<std::wstring> Wrap(HDC dc,const std::wstring& text,int width){
   }
   if(lines.empty())lines.emplace_back();return lines;
 }
+void DrawLine(HDC dc,const std::wstring& text,RECT bounds,typography::Metrics role,UINT dpi,bool center=false){
+  auto old=SelectObject(dc,Service().Get(role,dpi));
+  // GDI's WinAscent is larger than Onest's typographic ascent. Position by
+  // hhea metrics so explicit line boxes match CEF instead of clipping at the
+  // bottom of a default Win32 DrawText box.
+  const float em=static_cast<float>(MulDiv(static_cast<int>(role.size),dpi,96));
+  const int baseline=bounds.top+static_cast<int>((bounds.bottom-bounds.top-em*(typography::onestAscent+typography::onestDescent))/2+em*typography::onestAscent+.5f);
+  auto align=SetTextAlign(dc,TA_BASELINE|(center?TA_CENTER:TA_LEFT));
+  ExtTextOutW(dc,center?(bounds.left+bounds.right)/2:bounds.left,baseline,ETO_CLIPPED,&bounds,text.c_str(),static_cast<UINT>(text.size()),nullptr);
+  SetTextAlign(dc,align);SelectObject(dc,old);
+}
 INT_PTR CALLBACK Procedure(HWND window,UINT message,WPARAM wParam,LPARAM lParam){
   auto* dialog=reinterpret_cast<Dialog*>(GetWindowLongPtrW(window,DWLP_USER));
   if(message==WM_INITDIALOG){
@@ -83,7 +94,7 @@ INT_PTR CALLBACK Procedure(HWND window,UINT message,WPARAM wParam,LPARAM lParam)
     HDC dc=GetDC(window);auto old=SelectObject(dc,Service().Get(typography::body,d.dpi));
     d.lines=Wrap(dc,d.text,d.Px(412));SelectObject(dc,old);ReleaseDC(window,dc);
     MONITORINFO monitor={sizeof(monitor)};GetMonitorInfoW(MonitorFromWindow(d.owner?d.owner:window,MONITOR_DEFAULTTONEAREST),&monitor);
-    const int available=std::max(d.Px(20),monitor.rcWork.bottom-monitor.rcWork.top-d.Px(250));
+    const int available=std::max(d.Px(20),static_cast<int>(monitor.rcWork.bottom-monitor.rcWork.top)-d.Px(250));
     d.visibleLines=std::max(1,std::min(static_cast<int>(d.lines.size()),available/d.Px(20)));
     d.bodyHeight=d.visibleLines*d.Px(20);
     if(d.visibleLines<static_cast<int>(d.lines.size())){
@@ -125,10 +136,16 @@ INT_PTR CALLBACK Procedure(HWND window,UINT message,WPARAM wParam,LPARAM lParam)
     int titleLeft=24;LPCWSTR icon=nullptr;
     switch(d.flags&MB_ICONMASK){case MB_ICONERROR:icon=IDI_ERROR;break;case MB_ICONWARNING:icon=IDI_WARNING;break;case MB_ICONQUESTION:icon=IDI_QUESTION;break;case MB_ICONINFORMATION:icon=IDI_INFORMATION;break;}
     if(icon){DrawIconEx(dc,d.Px(24),d.Px(20),LoadIconW(nullptr,icon),d.Px(24),d.Px(24),0,nullptr,DI_NORMAL);titleLeft=58;}
-    RECT title={d.Px(titleLeft),d.Px(20),d.Px(436),d.Px(48)};DrawTextW(dc,d.title.c_str(),-1,&title,DT_SINGLELINE|DT_END_ELLIPSIS|DT_NOPREFIX);
+    RECT title={d.Px(titleLeft),d.Px(20),d.Px(436),d.Px(48)};
+    std::wstring heading=d.title;SIZE extent={};GetTextExtentPoint32W(dc,heading.c_str(),static_cast<int>(heading.size()),&extent);
+    if(extent.cx>title.right-title.left){
+      do{if(!heading.empty())heading.pop_back();const auto shortened=heading+L"…";GetTextExtentPoint32W(dc,shortened.c_str(),static_cast<int>(shortened.size()),&extent);}while(!heading.empty()&&extent.cx>title.right-title.left);
+      heading+=L"…";
+    }
+    DrawLine(dc,heading,title,typography::heading2,d.dpi);
     SelectObject(dc,Service().Get(typography::body,d.dpi));
     for(int i=0;i<d.visibleLines;++i){RECT line={d.Px(24),d.Px(58)+i*d.Px(20),d.Px(436),d.Px(78)+i*d.Px(20)};
-      DrawTextW(dc,d.lines[d.scroll+i].c_str(),-1,&line,DT_SINGLELINE|DT_NOPREFIX);}
+      DrawLine(dc,d.lines[d.scroll+i],line,typography::body,d.dpi);}
     SelectObject(dc,old);EndPaint(window,&paint);return TRUE;
   }
   if(message==WM_VSCROLL||message==WM_MOUSEWHEEL){

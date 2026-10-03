@@ -43,6 +43,9 @@ html:not(.typography-ready) body{visibility:hidden}
 namespace soulu::typography {
 struct Metrics { float size, lineHeight; int weight; };
 '''
+    font_metrics=json.loads((ROOT/'ui/fonts/manifest.json').read_text())['metrics']
+    header += f'inline constexpr float onestAscent={font_metrics["ascent"] / font_metrics["unitsPerEm"]}f;\n'
+    header += f'inline constexpr float onestDescent={font_metrics["descent"] / font_metrics["unitsPerEm"]}f;\n'
     for name,(size,line,weight) in tokens.items():
         header += f'inline constexpr Metrics {name}{{{size}.0f,{line}.0f,{weight}}};\n'
     header += '}\n'

@@ -7,7 +7,8 @@ Target: Beta 1.0.51. Engine remains CEF 154.0.33+ga03e714 and Chromium
 ## One semantic model
 
 `typography.json` is authoritative. Run `python scripts/generate-typography.py`
-to produce `ui/typography.css` and `installer/typography_metrics.h`.
+to produce `ui/typography.css`, `installer/typography_metrics.h` and
+`cef/soulu/typography_metrics.h`.
 CI checks that generated files are current.
 
 | Role | Size (CSS px / DIP) | Line box | Real weight |
@@ -59,8 +60,14 @@ They share the same resource loader and semantic model. Unknown favicon initials
 and VPN country codes are DOM labels so they use the bundled face rather than a
 standalone SVG with an unavailable font.
 
-The native browser windows host CEF and composition; they do not paint a second
-text interface. The custom installer paints through GDI+. It embeds the same
+Native confirmations, permission/password/profile prompts and JavaScript
+alert/confirm/prompt dialogs use the shared Win32 dialog helper. It registers
+the same bundled faces privately once, caches HFONT handles by role and DPI,
+selects the actual Onest Medium/SemiBold families, and paints headings/body
+in semantic line boxes using the font's hhea ascent/descent. Native button and
+edit controls receive those private fonts before display. Result IDs, safe
+default rejection and CEF dialog cancellation remain explicit.
+The custom installer paints through GDI+. It embeds the same
 three canonical TTFs as RCDATA before showing its window, keeps one private
 collection/family for each face and caches the ten semantic Font objects.
 Medium and SemiBold use their real regular-style static families, avoiding GDI+
@@ -90,7 +97,8 @@ Remaining text-family exceptions:
 * `scripts/`: historical test fixture CSS describes external article content;
   typography audit tests contain font names as rejected search patterns.
 
-File pickers, security prompts, the silent NSIS payload and system uninstaller
+Only the emergency missing-font error uses an OS message box. Window nonclient
+captions, file pickers, OS security prompts, the silent NSIS payload and system uninstaller
 surfaces are Windows-owned. Soulu does not hook their font configuration.
 No stylesheet/font loader is injected into external sites; only bundled HTML
 links it. Navigation/auth/storage/CEF preferences remain unchanged.

@@ -2,6 +2,8 @@
 #pragma once
 namespace soulu::typography {
 struct Metrics { float size, lineHeight; int weight; };
+inline constexpr float onestAscent=0.97f;
+inline constexpr float onestDescent=0.305f;
 inline constexpr Metrics display{32.0f,40.0f,600};
 inline constexpr Metrics heading1{28.0f,36.0f,600};
 inline constexpr Metrics heading2{22.0f,28.0f,600};
