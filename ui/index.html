@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="theme.css">
   <link rel="stylesheet" href="navigation.css">
   <link rel="stylesheet" href="site-reader.css">
+  <link rel="stylesheet" href="toolbar-ui.css">
 <link rel="stylesheet" href="motion.css"><link rel="preload" href="fonts/Onest-Regular.ttf" as="font" type="font/ttf" crossorigin><link rel="preload" href="fonts/Onest-Medium.ttf" as="font" type="font/ttf" crossorigin><link rel="preload" href="fonts/Onest-SemiBold.ttf" as="font" type="font/ttf" crossorigin><link rel="stylesheet" href="typography.css"><script src="typography.js" defer></script></head>
 <body data-layout="compact" data-theme="system" data-matte="true" data-address-position="center" data-extensions-position="left">
   <div class="window-drag-strip" aria-hidden="true"></div>
@@ -43,7 +44,6 @@
         <span class="downloads-badge" id="compactDownloadsBadge"></span>
       </button>
       <span class="compact-drag-space" aria-hidden="true"></span>
-      <span class="compact-divider compact-divider-window" aria-hidden="true"></span>
       <button class="compact-window-button" id="compactWindowMinimize" data-i18n-title="minimize"><svg viewBox="0 0 16 16"><path d="M3 8.5h10"/></svg></button>
       <button class="compact-window-button" id="compactWindowMaximize" data-i18n-title="maximize"><svg viewBox="0 0 16 16"><rect x="3.5" y="3.5" width="9" height="9"/></svg></button>
       <button class="compact-window-button window-close" id="compactWindowClose" data-i18n-title="close"><svg viewBox="0 0 16 16"><path d="m4 4 8 8m0-8-8 8"/></svg></button>
@@ -71,7 +71,7 @@
           <button class="address-menu-button" type="button" id="classicPageMenu" data-i18n-title="pageMenu"><svg viewBox="0 0 20 20"><path d="M4 5.5h12M4 10h12M4 14.5h7"/></svg></button>
           <input id="classicAddress" data-i18n-placeholder="addressPlaceholder" placeholder="Поиск или адрес" autocomplete="off" spellcheck="false">
           <button class="tab-action address-favorite" type="button" id="favoritesButton" data-i18n-title="favorites"><svg viewBox="0 0 24 24"><path d="m12 3 2.75 5.57 6.15.9-4.45 4.33 1.05 6.12L12 17.03l-5.5 2.89 1.05-6.12L3.1 9.47l6.15-.9L12 3Z"/></svg></button>
-          <button class="tab-action classic-reload" type="button" data-reload data-i18n-title="reload"><svg class="reload-svg" viewBox="0 0 20 20"><path d="M15.4 7A6 6 0 1 0 16 12M15.5 4v3.5H12"/></svg><svg class="stop-svg" viewBox="0 0 20 20"><rect x="6.5" y="6.5" width="7" height="7" rx="1"/></svg></button>
+          <button class="tab-action classic-reload" type="button" data-reload data-i18n-title="reload"><svg class="reload-svg" viewBox="0 0 20 20"><path d="M15.4 7A6 6 0 1 0 16 12M15.5 4v3.5H12"/></svg><svg class="stop-svg" viewBox="0 0 20 20"><rect x="4.5" y="4.5" width="11" height="11" rx="2"/></svg></button>
           <button class="tab-action close-action classic-close-tab" id="classicCloseTab" type="button" data-i18n-title="close"><svg viewBox="0 0 20 20"><path d="M5.5 5.5l9 9m0-9-9 9"/></svg></button>
           <div class="suggestions classic-suggestions" id="classicSuggestions"></div>
         </form>

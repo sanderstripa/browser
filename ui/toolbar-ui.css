@@ -1,0 +1,52 @@
+/* One geometry policy for both layouts, including dynamically created actions. */
+:root {
+  --toolbar-target: 30px;
+  --toolbar-glyph: 16px;
+  --toolbar-radius: 50%;
+  --toolbar-stroke: 1;
+  --toolbar-disabled: .32;
+  --caption-target: 42px;
+  --caption-hover: color-mix(in srgb, var(--text) 8%, transparent);
+  --caption-pressed: color-mix(in srgb, var(--text) 14%, transparent);
+  --caption-danger: color-mix(in srgb, #ef4964 22%, var(--solid));
+  --caption-danger-pressed: color-mix(in srgb, #ef4964 34%, var(--solid));
+}
+.browser-toolbar :is(.toolbar-button,.compact-control,.tab-action,.address-menu-button,.navigation-toolbar-button) {
+  position:relative; display:grid; place-items:center; flex:0 0 var(--toolbar-target);
+  width:var(--toolbar-target); height:var(--toolbar-target); min-width:var(--toolbar-target);
+  padding:0; border:0; border-radius:var(--toolbar-radius); background:transparent;
+  transform:none; transition:background var(--motion-micro) ease,color var(--motion-micro) ease;
+}
+.browser-toolbar :is(.toolbar-button,.compact-control,.tab-action,.address-menu-button,.navigation-toolbar-button):hover {background:var(--caption-hover)}
+.browser-toolbar :is(.toolbar-button,.compact-control,.tab-action,.address-menu-button,.navigation-toolbar-button):active {background:var(--caption-pressed);transform:none}
+.browser-toolbar :is(.toolbar-button,.compact-control,.tab-action,.address-menu-button,.navigation-toolbar-button):disabled {opacity:var(--toolbar-disabled);pointer-events:auto}
+.browser-toolbar :is(.toolbar-button,.compact-control,.tab-action,.address-menu-button,.navigation-toolbar-button):focus-visible {outline:2px solid var(--blue);outline-offset:-2px}
+.browser-toolbar :is(.toolbar-button,.compact-control,.tab-action,.address-menu-button,.navigation-toolbar-button) svg {
+  width:var(--toolbar-glyph);height:var(--toolbar-glyph);fill:none;stroke:currentColor;
+  stroke-width:var(--toolbar-stroke);stroke-linecap:round;stroke-linejoin:round;
+}
+.browser-toolbar .vpn-button img {width:var(--toolbar-glyph);height:var(--toolbar-glyph);object-fit:contain}
+.browser-toolbar :is(.toolbar-button,.compact-control,.tab-action,.address-menu-button,.navigation-toolbar-button) svg :is(path,rect,circle,line,polyline) {vector-effect:non-scaling-stroke}
+/* Keep the address capsule height; its action columns use the shared target. */
+.compact-active-tab {grid-template-columns:var(--toolbar-target) 16px minmax(60px,1fr) repeat(3,var(--toolbar-target));gap:0;padding:0 3px}
+.compact-active-tab.no-favicon {grid-template-columns:var(--toolbar-target) minmax(60px,1fr) repeat(3,var(--toolbar-target))}
+.classic-toolbar .tabs-zone {padding-block:2px}
+.classic-main-row {grid-template-columns:minmax(70px,1fr) minmax(0,760px) minmax(170px,1fr)}
+/* A caption keeps its full edge-accessible rectangle. Only the feedback is circular. */
+.browser-toolbar :is(.compact-window-button,.window-controls button):not(.navigation-toolbar-button) {
+  position:relative;display:grid;place-items:center;flex:0 0 var(--caption-target);
+  width:var(--caption-target);height:48px;padding:0;border:0;border-radius:0;
+  color:var(--text);background:transparent;transform:none;
+}
+.browser-toolbar :is(.compact-window-button,.window-controls button):not(.navigation-toolbar-button)::before {
+  content:"";position:absolute;width:var(--toolbar-target);height:var(--toolbar-target);
+  border-radius:var(--toolbar-radius);background:transparent;pointer-events:none;
+  transition:background var(--motion-micro) ease;
+}
+.browser-toolbar :is(.compact-window-button,.window-controls button):not(.navigation-toolbar-button):hover::before {background:var(--caption-hover)}
+.browser-toolbar :is(.compact-window-button,.window-controls button):not(.navigation-toolbar-button):active::before {background:var(--caption-pressed)}
+.browser-toolbar :is(.compact-window-button,.window-controls button).window-close:hover::before {background:var(--caption-danger)}
+.browser-toolbar :is(.compact-window-button,.window-controls button).window-close:active::before {background:var(--caption-danger-pressed)}
+.browser-toolbar :is(.compact-window-button,.window-controls button):not(.navigation-toolbar-button) svg {position:relative;width:var(--toolbar-glyph);height:var(--toolbar-glyph);stroke-width:1;transform:none}
+.browser-toolbar :is(.compact-window-button,.window-controls button):focus-visible {outline:2px solid var(--blue);outline-offset:-3px}
+@media(prefers-reduced-motion:reduce){.browser-toolbar button,.browser-toolbar button::before{transition-duration:var(--motion-reduced)}}

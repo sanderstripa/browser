@@ -144,11 +144,13 @@ $("#addFavoriteButton").onclick=async()=>renderBookmarks(await window.browserShe
 [$("#windowMaximize"),$("#compactWindowMaximize")].forEach((button)=>button.onclick=()=>window.browserShell.maximize());
 $(".classic-reload").onclick=()=>window.browserShell.reload();
 $("#classicCloseTab").onclick=()=>window.browserShell.closeTab(state.activeTabId);
-let windowDragging=false,windowDragPointer=null,windowDragTarget=null;
-document.addEventListener("pointerdown",(event)=>{const target=event.target.closest(".compact-drag-space,.classic-tabs-drag");if(event.button!==0||!target)return;event.preventDefault();windowDragging=true;windowDragPointer=event.pointerId;windowDragTarget=target;target.setPointerCapture?.(event.pointerId);window.browserShell.dragStart();});
-document.addEventListener("pointermove",(event)=>{if(windowDragging&&event.pointerId===windowDragPointer)window.browserShell.dragMove();});
-function stopWindowDrag(event){if(!windowDragging||event&&event.pointerId!==windowDragPointer)return;windowDragTarget?.releasePointerCapture?.(windowDragPointer);windowDragging=false;windowDragPointer=null;windowDragTarget=null;window.browserShell.dragEnd();}
-document.addEventListener("pointerup",stopWindowDrag);document.addEventListener("pointercancel",stopWindowDrag);window.addEventListener("blur",()=>stopWindowDrag());
+// CEF OSR does not implement -webkit-app-region. Resolve current DOM geometry
+// on each gesture so layout switches cannot leave stale drag rectangles.
+document.addEventListener("mousedown",(event)=>{
+  if(event.button!==0 || !event.target.closest('[data-toolbar-surface]'))return;
+  if(event.target.closest('button,input,select,textarea,form,a,[role="tab"],.compact-tab,.compact-tab-flow,.extension-slot,.bookmarks-bar'))return;
+  event.preventDefault();window.browserShell.dragStart(event.detail);
+});
 document.addEventListener("contextmenu",(event)=>{if(!event.target.closest(".browser-toolbar")||event.target.closest("button,input,.classic-tab,.compact-tab,.compact-active-tab,.classic-address-pill"))return;event.preventDefault();window.browserShell.toolbarMenu();},true);
 
 

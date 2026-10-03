@@ -28,6 +28,9 @@
     });
   });
 
+  // Independent surfaces may overlap during a transition. Closing one must
+  // not shrink the OSR host while another still owns client-area content.
+  const popovers = new Set();
   window.browserShell = {
     openHistory: (clear = false) => invoke("browser.history.open", clear),
     navigate: value => invoke("browser.navigate", value),
@@ -58,11 +61,14 @@
     siteAction: (action, value) => invoke("browser.site." + action, value),
     testFindShortcut: () => invoke("browser.test.findShortcut"),
     shareMenu: () => invoke("browser.shareMenu"),
-    find: value => invoke("browser.find", value),
+    find: (value, forward = true) => invoke("browser.find", {text:value, forward}),
     suggestions: value => invoke("browser.suggestions", value),
     getDownloads: () => invoke("browser.downloads.get"),
     setOverview: value => invoke("browser.overview", value),
-    setPopover: value => invoke("browser.popover", value),
+    setPopover: (value, owner = 'default') => {
+      if (value) popovers.add(owner); else popovers.delete(owner);
+      return invoke("browser.popover", popovers.size > 0);
+    },
     setBookmarksAuto: value => invoke("browser.bookmarks.auto", value),
     openTab: (url, background = false) => invoke("browser.openTab", {url, background}),
     replaceBookmarks: rows => invoke("browser.bookmarks.replace", rows),
@@ -86,7 +92,7 @@
     minimize: () => invoke("window.minimize"),
     maximize: () => invoke("window.maximize"),
     close: () => invoke("window.close"),
-    dragStart: () => invoke("window.beginDrag"),
+    dragStart: (clicks = 1) => invoke("window.beginDrag", clicks),
     dragMove: () => Promise.resolve(),
     dragEnd: () => Promise.resolve(),
     toolbarMenu: () => invoke("window.toolbarMenu"),

@@ -1395,6 +1395,8 @@ void BrowserWindow::ApplyContentTheme() {
 
 CefRefPtr<CefDictionaryValue> BrowserWindow::State() const {
   auto state = CefDictionaryValue::Create();
+  const auto client = CurrentGeometry();
+  state->SetInt("clientHeight", static_cast<int>(std::ceil(client.height / client.scale)));
   state->SetBool("settingsOverlayOpen", settings_overlay_ != nullptr);
   state->SetBool("settingsOverlayReady", settings_overlay_ && settings_overlay_->ready());
   state->SetDouble("settingsOverlayProgress", settings_overlay_ ? settings_overlay_->progress() : 0);
@@ -1863,10 +1865,12 @@ void BrowserWindow::HandleBridge(const std::string& request,
   else if (action == "browser.find") {
     if (auto* t = ActiveTab(); t && t->browser) {
       auto browser=t->reader_active?shell_:t->browser;
-      const std::string text=payload->GetString();
+      const auto options=payload->GetDictionary();
+      const std::string text=options ? options->GetString("text").ToString() : payload->GetString().ToString();
+      const bool forward=!options || options->GetBool("forward");
       if(text.empty()){browser->GetHost()->StopFinding(true);if(shell_)shell_->GetHost()->StopFinding(true);find_text_.clear();find_browser_id_=0;}
       else {const bool next=find_text_==text&&find_browser_id_==browser->GetIdentifier();
-        browser->GetHost()->Find(text,true,false,next);find_text_=text;find_browser_id_=browser->GetIdentifier();}
+        browser->GetHost()->Find(text,forward,false,next);find_text_=text;find_browser_id_=browser->GetIdentifier();}
     }
   }
   else if (action == "browser.downloads.get") return Reply(callback, Wrap(ProfileDownloads()));
@@ -2117,7 +2121,11 @@ void BrowserWindow::HandleBridge(const std::string& request,
   else if (action == "window.minimize") ShowWindow(hwnd_, SW_MINIMIZE);
   else if (action == "window.maximize") ShowWindow(hwnd_, IsZoomed(hwnd_) ? SW_RESTORE : SW_MAXIMIZE);
   else if (action == "window.close") PostMessage(hwnd_, WM_CLOSE, 0, 0);
-  else if (action == "window.beginDrag") { ReleaseCapture(); SendMessage(hwnd_, WM_NCLBUTTONDOWN, HTCAPTION, 0); }
+  else if (action == "window.beginDrag") {
+    POINT cursor = {}; GetCursorPos(&cursor); ReleaseCapture();
+    SendMessage(hwnd_, payload->GetInt() == 2 ? WM_NCLBUTTONDBLCLK : WM_NCLBUTTONDOWN,
+                HTCAPTION, MAKELPARAM(cursor.x, cursor.y));
+  }
   else if (action == "window.toolbarMenu") {
     POINT point = {}; GetCursorPos(&point);
     HMENU menu = CreatePopupMenu();

@@ -20,8 +20,20 @@
   style.setAttribute('aria-expanded', 'false');
   readerBar.append(exit, el('span', '', 'Режим чтения'), style); reader.append(readerBar, readerNotice, settings, article);
   let linkMenu = null;
+  async function expandSurface() {
+    await api.setPopover(true, 'site-reader');
+    const current = await api.getState();
+    const height = current.clientHeight || 200;
+    // A bridge reply precedes CEF's asynchronous WasResized frame. Focusing
+    // before the viewport arrives can scroll the document above the titlebar.
+    await new Promise(resolve => {
+      const deadline = performance.now() + 2000;
+      const ready = () => { if (innerHeight >= height || performance.now() >= deadline) resolve(); else requestAnimationFrame(ready); };
+      ready();
+    });
+  }
   const closeLink = () => { linkMenu?.remove(); linkMenu = null; };
-  function updateSurface() { api.setPopover(!menu.hidden || !findBox.hidden || Boolean(linkMenu)); }
+  function updateSurface() { return api.setPopover(!menu.hidden || !findBox.hidden || Boolean(linkMenu), 'site-reader'); }
   function close(focus = false) {
     menu.hidden = shield.hidden = true; closeLink(); updateSurface();
     anchor?.setAttribute('aria-expanded', 'false'); if (focus && anchor?.isConnected) anchor.focus();
@@ -37,17 +49,27 @@
   }
   function position() {
     const rect = anchor?.isConnected ? anchor.getBoundingClientRect() : {left: 12, bottom: state.settings?.layout === 'classic' ? 82 : 48};
-    menu.style.left = `${Math.max(8, Math.min(rect.left, innerWidth - 344))}px`;
-    menu.style.top = `${Math.min(rect.bottom + 8, innerHeight - 80)}px`;
-    menu.style.maxHeight = `${Math.max(50, innerHeight - rect.bottom - 20)}px`;
+    // The closed OSR viewport is only toolbar-height. Do not use that height
+    // to move a newly opened surface above its anchor. CSS tracks the expanded
+    // viewport and supplies scrolling for long/nested content.
+    const top = Math.max(8, rect.bottom + 8);
+    menu.style.left = `${Math.max(8, Math.min(rect.left, innerWidth - menu.offsetWidth - 8))}px`;
+    menu.style.top = `${top}px`;
+    menu.style.maxHeight = `max(0px, calc(100% - ${top + 8}px))`;
+    const toolbar = (state.settings?.layout === 'classic' ? 82 : 48) + (state.bookmarksBarVisible ? 28 : 0);
+    findBox.style.top = `${toolbar + 8}px`;
+    findBox.style.maxHeight = `max(0px, calc(100% - ${toolbar + 16}px))`;
   }
   async function open() {
     closeLink(); settings.hidden = true; style.setAttribute('aria-expanded', 'false');
     anchor = document.querySelector('body[data-layout=classic] #classicPageMenu') || document.querySelector('[data-page-menu]') || document.querySelector('#classicPageMenu');
     const request = ++revision; const snapshot = await api.getCurrentSite();
     if (request !== revision) return;
+    // Request native bounds before exposing or focusing client-area content.
+    await expandSurface();
+    if (request !== revision) { updateSurface(); return; }
     site = snapshot; probing = Boolean(site.origin && !site.mainLoading && !site.readerActive); menu.hidden = shield.hidden = false; status.hidden = true;
-    anchor?.setAttribute('aria-expanded', 'true'); renderMenu(); position(); await api.setPopover(true);
+    anchor?.setAttribute('aria-expanded', 'true'); renderMenu(); position();
     menu.querySelector('button:not(:disabled)')?.focus();
     if (site.origin && !site.mainLoading && !site.readerActive) {
       const result = await act('reader.probe', {}, snapshot).catch(e => { if (request === revision && !menu.hidden) error(e); });
@@ -168,9 +190,12 @@
   const findBox = el('section', 'site-find'), findInput = el('input'); findBox.hidden = true;
   findInput.setAttribute('aria-label', 'Найти на странице'); findInput.placeholder = 'Найти на странице';
   const closeFind = () => { findBox.hidden = true; api.find(''); updateSurface(); };
-  findBox.append(findInput, button('Найти', () => api.find(findInput.value)), button('×', closeFind)); document.body.append(findBox);
-  findInput.oninput = () => api.find(findInput.value); findInput.onkeydown = e => { if (e.key === 'Enter') api.find(findInput.value); };
-  api.onRequestFind(() => { close(); findBox.hidden = false; updateSurface(); findInput.focus(); findInput.select(); });
+  const previous = button('↑', () => api.find(findInput.value, false)), next = button('↓', () => api.find(findInput.value));
+  previous.setAttribute('aria-label', 'Предыдущее совпадение'); next.setAttribute('aria-label', 'Следующее совпадение');
+  const dismiss = button('×', closeFind); dismiss.setAttribute('aria-label', 'Закрыть поиск');
+  findBox.append(findInput, previous, next, dismiss); document.body.append(findBox);
+  findInput.oninput = () => api.find(findInput.value); findInput.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); api.find(findInput.value, !e.shiftKey); } };
+  api.onRequestFind(async () => { await expandSurface(); findBox.hidden = false; close(); position(); findInput.focus(); findInput.select(); });
   document.addEventListener('pointerdown', e => {
     if (linkMenu && !linkMenu.contains(e.target)) { closeLink(); updateSurface(); }
     if (!settings.hidden && !settings.contains(e.target) && e.target !== style) { settings.hidden = true; style.setAttribute('aria-expanded', 'false'); }
