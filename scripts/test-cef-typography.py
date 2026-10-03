@@ -36,7 +36,7 @@ def main():
         def connect(fragment):
             target=wait(lambda:next((t for t in s.targets() if fragment in t.get('url','')),None))
             ws=s.websocket.create_connection(target['webSocketDebuggerUrl'],timeout=30,origin=s.BASE);sockets.append(ws)
-            wait(lambda:s.evaluate(ws,'document.documentElement.classList.contains("typography-ready")'))
+            wait(lambda:s.evaluate(ws,'document.documentElement?.classList.contains("typography-ready")'))
             return ws
         def audit(ws,name):
             check(s.evaluate(ws,'document.fonts.check("400 14px Onest") && document.fonts.check("500 14px Onest") && document.fonts.check("600 14px Onest")'),name+': all real faces loaded')
@@ -80,8 +80,14 @@ def main():
             s.evaluate(settings,'souluSettings.cancel()')
             s.evaluate(shell,"browserShell.openHistory()")
             history=connect('/ui/history.html');audit(history,'History');actual_face(history,'h1','History title');capture(history,'history')
-            # The bundled VPN document is actually loaded inside the chrome iframe.
-            check(s.evaluate(shell,'''new Promise((resolve,reject)=>{const f=document.querySelector('iframe[src*="vpn/"]');if(!f){resolve(false);return;}const d=f.contentDocument;const done=()=>resolve(d.documentElement.classList.contains('typography-ready')&&d.fonts.check('500 14px Onest'));if(d.readyState==='complete')done();else f.addEventListener('load',done,{once:true});})'''),'VPN iframe bundled face')
+            # File-origin iframes are isolated by CEF; inspect their own execution
+            # context through CDP rather than weakening file-origin security.
+            tree=s.command(shell,'Page.getFrameTree')['frameTree']
+            frame=next(f['frame'] for f in tree.get('childFrames',[]) if '/vpn/popup.html' in f['frame']['url'])
+            context=s.command(shell,'Page.createIsolatedWorld',{'frameId':frame['id'],'worldName':'soulu-typography-test'})['executionContextId']
+            result=s.command(shell,'Runtime.evaluate',{'contextId':context,'expression':'document.documentElement.classList.contains("typography-ready") && document.fonts.check("500 14px Onest")','returnByValue':True})
+            check(result['result'].get('value'),'VPN iframe bundled face')
+            s.evaluate(shell,'document.querySelector("#compactVpnButton").click()');time.sleep(.4);capture(shell,'vpn-panel')
             report['passed']=True
         finally:
             for ws in sockets:
