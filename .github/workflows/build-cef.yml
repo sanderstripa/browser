@@ -315,7 +315,11 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           foreach ($suite in @('bookmarks-overview', 'site-reader', 'profile-isolation', 'content-policy', 'navigation', 'link-menu', 'storage')) {
             $env:LOCALAPPDATA = Join-Path $env:RUNNER_TEMP "soulu-native-$suite"
-            python "browser/scripts/test-cef-$suite.py" $exe.FullName
+              if ($suite -eq 'link-menu') {
+                python "browser/scripts/test-cef-$suite.py" $exe.FullName browser/artifacts/native-menu-visuals
+              } else {
+                python "browser/scripts/test-cef-$suite.py" $exe.FullName
+              }
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
           python browser/scripts/test-cef-layout.py $exe.FullName browser/artifacts/home-layout-evidence
@@ -559,7 +563,7 @@ jobs:
           python browser/scripts/test-cef-navigation.py $installedExe
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $env:LOCALAPPDATA = Join-Path $env:RUNNER_TEMP 'soulu-preview36-menu'
-          python browser/scripts/test-cef-link-menu.py $installedExe
+          python browser/scripts/test-cef-link-menu.py $installedExe browser/artifacts/native-menu-visuals
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Verify retained layout and native resize
@@ -897,6 +901,14 @@ jobs:
         with:
           name: Soulu-installer-typography-${{ github.sha }}
           path: browser/artifacts/installer-typography/
+          if-no-files-found: ignore
+
+      - name: Upload native menu typography visuals
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Soulu-native-menu-typography-${{ github.sha }}
+          path: browser/artifacts/native-menu-visuals/
           if-no-files-found: ignore
 
       - name: Verify release source is the current main commit

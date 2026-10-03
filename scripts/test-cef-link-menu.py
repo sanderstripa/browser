@@ -7,6 +7,7 @@ import pathlib
 import sys
 import threading
 import time
+from PIL import ImageGrab
 
 spec = importlib.util.spec_from_file_location('storage', pathlib.Path(__file__).with_name('test-cef-storage.py'))
 s = importlib.util.module_from_spec(spec)
@@ -99,6 +100,10 @@ try:
             u.GetMenuStringW(menu,i,buf,200,0x400)
             labels.append(buf.value)
         assert len(labels)==5,labels
+        if len(sys.argv)>2:
+            directory=pathlib.Path(sys.argv[2]);directory.mkdir(parents=True,exist_ok=True)
+            bounds=Rect();u.GetWindowRect(ctypes.c_void_p(hwnd),ctypes.byref(bounds));time.sleep(.35)
+            ImageGrab.grab(bbox=(bounds.left,bounds.top,bounds.right,bounds.bottom),all_screens=True).save(directory/f'link-menu-{index}.png')
         # Drive the actual Windows menu, rather than invoke a bridge action.
         rect=Rect()
         assert u.GetMenuItemRect(None,menu,index,ctypes.byref(rect))
