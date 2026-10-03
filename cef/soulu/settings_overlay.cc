@@ -80,6 +80,13 @@ void SettingsOverlay::Layout() {
   SetWindowRgn(hwnd_, region, FALSE);
   if (IsIconic(owner_)) ShowWindow(hwnd_, SW_HIDE);
   else if (state_ != State::Closed) ShowWindow(hwnd_, SW_SHOWNOACTIVATE);
+  if (browser_) {
+    const int corner = static_cast<int>(std::round(24 * scale));
+    HRGN panel = CreateRoundRectRgn(0, 0, panel_width_+1, panel_height_+1, corner, corner);
+    HRGN top = CreateRectRgn(0, 0, panel_width_, std::min(corner, panel_height_));
+    CombineRgn(panel, panel, top, RGN_OR); DeleteObject(top);
+    SetWindowRgn(browser_, panel, FALSE);
+  }
   PlacePanel();
 }
 void SettingsOverlay::PlacePanel() {

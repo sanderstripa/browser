@@ -98,6 +98,7 @@ def main():
         env = os.environ.copy(); env['LOCALAPPDATA'] = folder
         env['APPDATA'] = str(Path(folder) / 'roaming')
         env['SOULU_REGRESSION_SKIP_FIRST_RUN'] = '1'
+        env['SOULU_UI_TEST_PORT'] = str(s.DEBUG_PORT)
         data = Path(folder) / 'Soulu' / 'User Data'; data.mkdir(parents=True)
         (data / 'settings.json').write_text(json.dumps({'settings': {'startupMode':'blank',
             'newTabMode':'blank','theme':'light','mattePanel':False,'matteDefaultV15':True}}))
@@ -143,7 +144,11 @@ def main():
             page_before = s.evaluate(content,"({url:location.href,scroll:scrollY,marker:sessionStorage.marker,loads,media:v.currentTime,paused:v.paused})")
             nav_before = s.command(content,'Page.getNavigationHistory')
             baseline = ImageGrab.grab(bbox=rect(main_window)); baseline.save(visuals/'background-sharp.png')
+            previous_focus=focus(main_window)
             overlay = open_settings()
+            panel=u.GetWindow(overlay,5)
+            pr,br=rect(panel),rect(overlay)
+            check(pr[1]==br[1] and abs((pr[0]+pr[2])-(br[0]+br[2]))<=1,'Native panel is top anchored and horizontally centered')
             check(u.GetWindow(overlay,4)==main_window, 'Native host is owned by the current Soulu window')
             check(bool(u.IsChild(overlay,focus(main_window))), 'Real Windows keyboard focus is inside Settings')
             check(state()['settingsOverlayDuration']==260, 'Normal transition duration is 260 ms')
@@ -191,7 +196,13 @@ def main():
                 check(edit("document.documentElement.scrollWidth<=innerWidth && document.querySelector('.settings-footer').getBoundingClientRect().bottom<=innerHeight+1"),
                       'Settings controls and footer fit at device scale '+str(scale))
             s.command(settings,'Emulation.clearDeviceMetricsOverride')
-            call('setSettings',{'theme':'light','mattePanel':False});close_settings()
+            call('setSettings',{'theme':'light','mattePanel':False})
+            edit('souluSettingsRequestClose()')
+            time.sleep(.06)
+            transition=state()
+            check(transition['settingsOverlayOpen'] and 0<transition['settingsOverlayProgress']<1,'Close transition retains the overlay and blocker while blur fades')
+            wait(lambda:not state()['settingsOverlayOpen']);settings.close()
+            check(focus(main_window)==previous_focus or bool(u.IsChild(main_window,focus(main_window))),'Closing restores a valid previous browser focus target')
             after=s.evaluate(content,"({url:location.href,scroll:scrollY,marker:sessionStorage.marker,loads,media:v.currentTime,paused:v.paused})")
             check({k:after[k] for k in ['url','scroll','marker','loads']}=={k:page_before[k] for k in ['url','scroll','marker','loads']},
                   'Closing preserves live URL, scroll, DOM and session state')
@@ -199,9 +210,17 @@ def main():
             check(s.command(content,'Page.getNavigationHistory')==nav_before,'Navigation history and back/forward stack are unchanged')
             check(not windows(process.pid,'SouluSettingsOverlay'),'Native host is released after close')
             expected=len(s.targets())
+            class FT(c.Structure):
+                _fields_=[('low',w.DWORD),('high',w.DWORD)]
+            def cpu_ms():
+                times=[FT() for _ in range(4)]
+                c.windll.kernel32.GetProcessTimes(w.HANDLE(int(process._handle)),*[c.byref(t) for t in times])
+                return sum((t.high<<32)+t.low for t in times[2:])/10000
+            cpu_start,wall_start=cpu_ms(),time.monotonic()
             for i in range(30):
                 open_settings();close_settings()
-                check(len(s.targets())==expected,'Repeated cycle '+str(i+1)+' releases its CEF browser')
+                check(wait(lambda:len(s.targets())==expected),'Repeated cycle '+str(i+1)+' releases its CEF browser')
+            metrics.append({'hostCpuMsFor30Cycles':cpu_ms()-cpu_start,'wallMsFor30Cycles':(time.monotonic()-wall_start)*1000})
             for background in ['soulu://home','soulu://history','about:blank']:
                 call('navigate',background);time.sleep(.4)
                 open_settings();close_settings()

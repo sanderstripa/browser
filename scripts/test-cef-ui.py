@@ -146,6 +146,8 @@ try:
     persisted = evaluate(shell, """(async () => await window.browserShell.getSettings())()""")
     assert persisted["theme"] == "dark" and persisted["mattePanel"] is True
     assert persisted["vpnToolbarVisible"] is True
+    evaluate(settings, "souluSettingsRequestClose()")
+    wait_for(lambda:not evaluate(shell,"browserShell.getState().then(s=>s.settingsOverlayOpen)"), "Settings close before background input checks")
     # The native OSR buffer must contain actual non-opaque toolbar pixels.
     surface = evaluate(shell, "new Promise((resolve,reject)=>cefQuery({request:JSON.stringify({action:'browser.surfaceDiagnostics'}),onSuccess:s=>resolve(JSON.parse(s)),onFailure:reject}))")
     print("Native toolbar alpha:", surface)

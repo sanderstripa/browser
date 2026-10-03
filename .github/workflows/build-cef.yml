@@ -115,12 +115,23 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Build Soulu
+        id: native_build
         shell: pwsh
         run: |
           cmake --build cef-build --config Release --target soulu --parallel 2
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $exe = Get-ChildItem cef-build -Recurse -Filter Soulu.exe | Where-Object { $_.FullName -match "Release" } | Select-Object -First 1
           "build_dir=$($exe.Directory.FullName)" >> $env:GITHUB_ENV
+
+      - name: Upload candidate native executable before runtime checks
+        if: ${{ always() && steps.native_build.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Soulu-overlay-candidate-${{ github.sha }}
+          path: |
+            ${{ env.build_dir }}/Soulu.exe
+            ${{ env.build_dir }}/ui/
+          if-no-files-found: error
 
       - name: Test native history, browsing data clearing and visual layouts
         shell: pwsh
