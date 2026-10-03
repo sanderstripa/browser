@@ -54,11 +54,13 @@ try {
     throw "Engine version probe failed: exit $($process.ExitCode)"
   }
   $version = Get-Content -LiteralPath $probe -Raw | ConvertFrom-Json
-  if ($version.cef -cne '154.0.33' -or $version.chromium -cne '154.0.8037.94') {
+  if ($version.cef -cne '154.0.33' -or $version.chromium -cne '154.0.8037.94' -or
+      $version.cef_build -cne '154.0.33+ga03e714+chromium-154.0.8037.94') {
     throw "Unsupported engine: CEF $($version.cef), Chromium $($version.chromium)"
   }
   $report = [ordered]@{
     cef = $version.cef
+    cef_build = $version.cef_build
     chromium = $version.chromium
     commit = $env:GITHUB_SHA
     run_id = $env:GITHUB_RUN_ID

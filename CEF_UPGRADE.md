@@ -41,8 +41,9 @@ probe. ZIP extraction and installer payload extraction repeat both checks.
 Static libraries, debug symbols and the intermediate runtime file list are
 excluded from the distributed package.
 
-The native engine guard and version probe use `cef_version_info` from the loaded
-library. CDP `Browser.getVersion` reports the full Chromium version; the normal
+The native engine guard and version probe use `cef_version_info` and the actual
+CEF commit hash returned by `cef_api_hash` from the loaded library, confirming
+the full selected CEF build. CDP `Browser.getVersion` reports the full Chromium version; the normal
 reduced User-Agent reports `Chrome/154.0.0.0`, not the complete patch number.
 
 No changes were made to GPU flags, certificate validation, web security,

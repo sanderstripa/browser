@@ -5,7 +5,8 @@
 
 // Refuse compilation against any engine other than the approved distribution.
 static_assert(CEF_VERSION_MAJOR == 154 && CEF_VERSION_MINOR == 0 &&
-              CEF_VERSION_PATCH == 33, "Unsupported CEF headers");
+              CEF_VERSION_PATCH == 33 && CEF_COMMIT_NUMBER == 3632,
+              "Unsupported CEF headers");
 static_assert(CHROME_VERSION_MAJOR == 154 && CHROME_VERSION_MINOR == 0 &&
               CHROME_VERSION_BUILD == 8037 && CHROME_VERSION_PATCH == 94,
               "Unsupported Chromium headers");
@@ -19,8 +20,14 @@ inline std::string EngineVersion(int first, int count) {
   }
   return version;
 }
+inline std::string RuntimeCEFBuild() {
+  const char* commit = cef_api_hash(CEF_API_VERSION, 2);
+  return EngineVersion(0, 3) + "+g" +
+         (commit ? std::string(commit).substr(0, 7) : "unknown") +
+         "+chromium-" + EngineVersion(4, 4);
+}
 inline bool ApprovedEngine() {
-  return EngineVersion(0, 3) == "154.0.33" &&
-         EngineVersion(4, 4) == "154.0.8037.94";
+  return RuntimeCEFBuild() ==
+         "154.0.33+ga03e714+chromium-154.0.8037.94";
 }
 }
