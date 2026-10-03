@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' https: http: data:; object-src 'none'; base-uri 'none'"><title>История</title><link rel="icon" href="history-icon.svg"><link rel="stylesheet" href="history.css"></head>
+<body><main>
+  <header><div><p class="eyebrow" id="profileLabel">SOULU</p><h1 id="heading">История</h1></div><button id="clearData">Очистить данные браузера…</button></header>
+  <div class="tools"><label class="search"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="Поиск в истории" aria-label="Поиск в истории" autocomplete="off"></label><select id="filter" aria-label="Период истории"></select></div>
+  <p id="message" role="status" aria-live="polite"></p>
+  <section id="visits" aria-label="Записи истории"></section>
+  <div id="empty" hidden><div class="empty-icon" aria-hidden="true">◷</div><h2 id="emptyTitle"></h2><p id="emptyText"></p></div>
+  <button id="more" hidden>Показать ещё</button>
+</main>
+<dialog id="clearDialog" aria-labelledby="clearTitle" aria-describedby="clearDescription"><form id="clearForm">
+  <div class="dialog-body"><div class="dialog-heading"><p class="eyebrow">SOULU</p><h2 id="clearTitle">Очистить данные браузера</h2><p id="clearDescription"></p></div>
+  <label class="range-label"><span id="rangeLabel">Диапазон времени</span><select id="range"></select></label>
+  <div class="categories">
+    <label class="category"><input id="historyChoice" type="checkbox" checked><span><strong id="historyName">История браузера</strong><small id="historyHint"></small></span></label>
+    <label class="category"><input id="sitesChoice" type="checkbox"><span><strong id="sitesName">Файлы cookie и данные сайтов</strong><small id="sitesHint"></small></span></label>
+    <label class="category"><input id="cacheChoice" type="checkbox"><span><strong id="cacheName">Кэшированные файлы и изображения</strong><small id="cacheHint"></small></span></label>
+  </div>
+  <p class="note" id="autofillNote"></p>
+  <label id="allTimeLabel" class="acknowledge" hidden><input id="allTimeAck" type="checkbox"><span id="allTimeText"></span></label>
+  <p id="clearMessage" role="alert"></p>
+  </div><footer><button type="button" id="cancelClear">Отмена</button><button class="destructive" type="submit" id="confirmClear">Очистить</button></footer>
+</form></dialog>
+<script src="history.js"></script></body></html>

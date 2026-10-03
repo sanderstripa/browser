@@ -14,6 +14,11 @@ set(SOULU_SRCS
   onboarding.cc
   home_weather.h
   profile_data.h
+  history_store.h
+  history_store.cc
+  history_page.cc
+  clear_data.h
+  clear_data.cc
   profile_data.cc
   password_import.cc
   data_tests.cc

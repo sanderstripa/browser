@@ -1,5 +1,9 @@
 # Settings architecture
 
+History controls are in **Profiles and data**: recording, day grouping, default
+filter, History and Clear browsing data. They use the same staged profile settings
+model. See [HISTORY.md](HISTORY.md) for storage, shortcuts and clearing limitations.
+
 Baseline: main `1d1ac757276477ddf95918bdefa1c1ecea805e53`, Preview 45.
 CEF 154.0.32 / Chromium 154.0.8037.58 are pinned and remain unchanged.
 

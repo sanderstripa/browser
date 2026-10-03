@@ -64,6 +64,14 @@ The VPN works inside Soulu and does not change the Windows system proxy settings
 
 The address bar combines URL input and search, and uses suggestions from history, bookmarks, open tabs, and the search engine.
 
+### History and browsing data
+
+Use **History** in the top-toolbar context menu or **Ctrl+H** to search and filter
+profile history, open visits and delete entries. **Ctrl+Shift+Delete** opens the
+clearing dialog. History supports six time ranges; cookies/site data and cache
+are explicitly cleared for all time. Private visits are never recorded.
+See [HISTORY.md](HISTORY.md) for backend details and limitations.
+
 ## Download
 
 The latest version is always available in the **Releases** section.

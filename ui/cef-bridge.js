@@ -29,6 +29,7 @@
   });
 
   window.browserShell = {
+    openHistory: (clear = false) => invoke("browser.history.open", clear),
     navigate: value => invoke("browser.navigate", value),
     home: () => invoke("browser.home"),
     back: () => invoke("browser.back"),

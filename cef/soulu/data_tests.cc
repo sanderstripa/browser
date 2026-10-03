@@ -1,4 +1,5 @@
 #include "examples/soulu/profile_data.h"
+#include "examples/soulu/history_store.h"
 #include <windows.h>
 #include <wincrypt.h>
 #include <bcrypt.h>
@@ -41,6 +42,21 @@ int RunDataSecurityTests(const std::filesystem::path& report) {
     Check(ProfileRoot("personal")==ProfileRoot("personal"),"canonical-profile-root");
     Check(SiteDomain("HTTPS://Example.COM:443/")=="example.com","domain-normalization");
     Check(WebOrigin("https://example.com:443/path")=="https://example.com","origin-normalization");
+    {
+      HistoryStore visits("test-history-one"),separate("test-history-two");
+      Check(visits.Healthy()&&separate.Healthy(),"history-schema");
+      const auto old=visits.Add("https://example.com/old","Old visit","",1000);
+      const auto recent=visits.Add("https://example.com/recent","История","",2000);
+      Check(!old.empty()&&!recent.empty(),"history-insert");
+      Check(visits.Add("file:///ui/history.html","Internal","",3000).empty(),"history-excludes-internal-pages");
+      Check(visits.Query("ИСТОРИЯ",0,4000,0,100)->GetSize()==1,"history-unicode-title-search");
+      Check(visits.Query("EXAMPLE.COM",0,4000,0,100)->GetSize()==2,"history-url-search");
+      Check(separate.Query("",0,4000,0,100)->GetSize()==0,"history-profile-isolation");
+      Check(visits.Query("",0,4000,0,100)->GetDictionary(0)->GetString("id")==recent,"history-newest-first");
+      Check(visits.Clear(1500,3000)&&visits.Query("",0,4000,0,100)->GetSize()==1,"history-range-clear-preserves-older");
+      Check(visits.Update(recent,"Deleted","" )&&visits.Query("",0,4000,0,100)->GetSize()==1,"history-late-title-does-not-resurrect-deleted-visit");
+      Check(visits.Remove(old)&&visits.Query("",0,4000,0,100)->GetSize()==0,"history-delete-persist");
+    }
     PasswordVault first("test-one"),other("test-two");
     Check(first.Put("https://example.com/login","tester",test,true),"vault-save");
     auto list=first.List();Check(list->GetSize()==1&&!list->GetDictionary(0)->HasKey("secret"),"metadata-no-secret");

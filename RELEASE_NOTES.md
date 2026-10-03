@@ -1,3 +1,18 @@
+# History and browsing data (development)
+
+- Profile-scoped persistent History with native toolbar menu entries, Ctrl+H and
+  Ctrl+Shift+Delete; clean bilingual light/dark/system pages and day grouping.
+- Real title/URL/domain search, date filters, pagination, visit opening, individual
+  deletion and six time ranges for clearing history.
+- Real profile-wide cookies/site data and cache clearing through Chromium, with
+  explicit all-time labels and acknowledgement; passwords and bookmarks preserved.
+- Settings controls for recording, grouping and default history filter; private
+  browsing cannot record, read or clear ordinary history.
+- Native integration checks cover actual storage/cache effects, isolation,
+  keyboard/menu interaction and responsive layouts at 100–200% device scale.
+
+See HISTORY.md for storage and time-range limitations.
+
 # Soulu Preview 46
 
 - New Settings home with ten section cards and a compact icon rail inside sections, following the supplied visual reference.
