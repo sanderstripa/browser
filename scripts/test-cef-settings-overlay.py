@@ -28,6 +28,7 @@ u.GetWindow.argtypes = [w.HWND, w.UINT]
 u.GetWindow.restype = w.HWND
 u.GetWindowThreadProcessId.argtypes = [w.HWND, c.POINTER(w.DWORD)]
 u.SetForegroundWindow.argtypes = [w.HWND]
+u.GetForegroundWindow.restype = w.HWND
 u.PostMessageW.argtypes = [w.HWND, w.UINT, w.WPARAM, w.LPARAM]
 
 class GUI(c.Structure):
@@ -138,6 +139,18 @@ def main():
             edit('souluSettingsRequestClose()')
             wait(lambda:not state()['settingsOverlayOpen'])
             settings.close()
+        def composed_capture():
+            # Never treat pixels from an unrelated foreground app as evidence.
+            candidates=windows(process.pid,'SouluSettingsOverlay')
+            target=next((h for h in candidates if u.IsWindowVisible(h)),main_window)
+            pid=w.DWORD();u.GetWindowThreadProcessId(u.GetForegroundWindow(),c.byref(pid))
+            if pid.value!=process.pid:
+                u.keybd_event(0x12,0,0,0);u.keybd_event(0x12,0,2,0)
+                u.SetForegroundWindow(target)
+                wait(lambda:u.GetForegroundWindow() in [main_window,target],timeout=5)
+                time.sleep(.08)
+            assert u.GetForegroundWindow() in [main_window,target], 'Test Soulu must be foreground before composed capture'
+            return ImageGrab.grab(bbox=rect(main_window))
         try:
             shell = socket('/ui/index.html')
             wait(lambda:s.evaluate(shell,"typeof window.browserShell?.getState==='function'"))
@@ -150,7 +163,7 @@ def main():
             s.evaluate(content,'scrollTo(0,320)'); time.sleep(.5)
             page_before = s.evaluate(content,"({url:location.href,scroll:scrollY,marker:sessionStorage.marker,loads,media:v.currentTime,paused:v.paused})")
             nav_before = s.command(content,'Page.getNavigationHistory')
-            baseline = ImageGrab.grab(bbox=rect(main_window)); baseline.save(visuals/'background-sharp.png')
+            baseline = composed_capture(); baseline.save(visuals/'background-sharp.png')
             previous_focus=focus(main_window)
             overlay = open_settings()
             panel=u.GetWindow(overlay,5)
@@ -167,7 +180,7 @@ def main():
             check(len(windows(process.pid,'SouluSettingsOverlay'))==1 and edit('JSON.stringify(souluSettings.staged)')==initial,
                   'Repeated opening focuses one existing overlay without resetting staged state')
             time.sleep(.35)
-            blurred=ImageGrab.grab(bbox=rect(main_window)); blurred.save(visuals/'settings-composed-blur.png')
+            blurred=composed_capture(); blurred.save(visuals/'settings-composed-blur.png')
             # The native Settings panel is capped at 1020 DIP. Inspect the live
             # stripes in the uncovered margin; screenshots of the Settings DOM
             # cannot prove that a separate native CEF browser is blurred.
@@ -207,7 +220,7 @@ def main():
                     edit('(()=>{const n=document.querySelector("#mattePanel");if(n.checked!=='+str(matte).lower()+')n.click();})()')
                     u.MoveWindow(main_window,50,50,1280,900,True);time.sleep(.15)
                     check(rect(overlay)==client_rect(main_window),'Backdrop covers the current window in '+theme+' matte='+str(matte))
-                    ImageGrab.grab(bbox=rect(main_window)).save(visuals/(theme+'-matte-'+str(matte)+'.png'))
+                    composed_capture().save(visuals/(theme+'-matte-'+str(matte)+'.png'))
             u.ShowWindow(main_window,3);time.sleep(.25)
             check(rect(overlay)==client_rect(main_window),'Maximize keeps overlay bound to the owner')
             u.ShowWindow(main_window,9);time.sleep(.2)
