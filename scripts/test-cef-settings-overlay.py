@@ -157,7 +157,7 @@ def main():
             pr,br=rect(panel),rect(overlay)
             check(pr[1]==br[1] and abs((pr[0]+pr[2])-(br[0]+br[2]))<=1,'Native panel is top anchored and horizontally centered')
             check(u.GetWindow(overlay,4)==main_window, 'Native host is owned by the current Soulu window')
-            check(bool(u.IsChild(overlay,focus(main_window))), 'Real Windows keyboard focus is inside Settings')
+            check(wait(lambda: bool(u.IsChild(overlay,focus(main_window)))), 'Real Windows keyboard focus is inside Settings')
             animations = w.BOOL()
             assert u.SystemParametersInfoW(0x1042, 0, c.byref(animations), 0)
             duration = 260 if animations.value else 90

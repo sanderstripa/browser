@@ -69,7 +69,7 @@ with tempfile.TemporaryDirectory(prefix='soulu-reader-public-',ignore_cleanup_er
    print(json.dumps(rows[-1],ensure_ascii=False),flush=True)
    action('reader.exit');assert s.evaluate(page,'location.href')==result['url']
   # Reported sites continue to navigate in the same CEF content target.
-  for host in ('youtube.com','sanderstripa.com','google.com','ozon.ru'):
+  for host in ('youtube.com','facebook.com','sanderstripa.com','apps.sanderstripa.com','google.com','ozon.ru'):
    s.evaluate(shell,'browserShell.navigate('+json.dumps('https://'+host)+')')
    wait(lambda:s.evaluate(shell,'browserShell.getState().then(s=>!s.page.loading&&s.page.url.includes('+json.dumps(host)+'))'))
    loaded=s.evaluate(page,'({url:location.href,title:document.title})')
