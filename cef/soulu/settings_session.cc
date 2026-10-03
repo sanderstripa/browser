@@ -1,4 +1,5 @@
 #include "examples/soulu/browser_window.h"
+#include "examples/soulu/frosted_backdrop.h"
 #include "include/cef_parser.h"
 #include "include/wrapper/cef_helpers.h"
 #include <shellapi.h>
@@ -193,6 +194,8 @@ bool BrowserWindow::HandleSettingsBridge(int id,const std::string& request,
       if(RegGetValueW(HKEY_CURRENT_USER,key.c_str(),L"ProgId",RRF_RT_REG_SZ,nullptr,progid,&size)!=ERROR_SUCCESS||
           std::wstring(progid)!=L"Soulu.Url")is_default=false;
     }
+    const int backdrop=BackdropCapabilities();
+    result->SetBool("matteAvailable",(backdrop&3)==3&&!(backdrop&8));
     result->SetBool("defaultBrowser",is_default);Reply(callback,result);return true;
   }
   if(action=="settings.begin"){

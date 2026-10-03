@@ -72,6 +72,10 @@ Settings documents receive profile-change notifications, clear stale drafts
 and close sensitive manager dialogs. Incognito opens ordinary profile Settings;
 its ephemeral permission/storage context is not persisted as profile settings.
 
+Matte capability is derived from the existing DWM/Windows advanced-effects and
+high-contrast checks. Unavailable effects are explained without overwriting
+the saved value. An already enabled value can still be turned off.
+
 No exposed preference needs a browser restart. Startup preferences naturally
 change the next browser startup; page defaults affect future page openings.
 Existing pages are not navigated as an editing side effect.
