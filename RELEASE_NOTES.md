@@ -1,4 +1,4 @@
-# History and browsing data (development)
+# Soulu Preview 47 — History and browsing data
 
 - Profile-scoped persistent History with native toolbar menu entries, Ctrl+H and
   Ctrl+Shift+Delete; clean bilingual light/dark/system pages and day grouping.
