@@ -195,7 +195,7 @@ def main():
                 section('');capture('cards-dpi-'+str(scale))
                 check(evaluate("document.documentElement.scrollWidth<=innerWidth && document.querySelector('#applySettings').getBoundingClientRect().bottom<=innerHeight"),'Responsive cards/footer at DPI '+str(scale))
                 section('sites');capture('sites-dpi-'+str(scale))
-                check(evaluate("document.documentElement.scrollWidth<=innerWidth && document.querySelector('aside').getBoundingClientRect().width<=64"),'Responsive section/rail at DPI '+str(scale))
+                check(evaluate("document.documentElement.scrollWidth<=innerWidth && document.querySelector('aside').getBoundingClientRect().width<=64 && document.querySelector('aside').scrollWidth<=document.querySelector('aside').clientWidth"),'Responsive section/rail at DPI '+str(scale))
             s.command(settings,'Emulation.clearDeviceMetricsOverride')
             evaluate('souluSettings.cancel()');section('interface');click('[name="settings-theme"][value="dark"]')
             wait(lambda:s.evaluate(shell,"document.body.dataset.theme==='dark'"))
