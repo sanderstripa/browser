@@ -6,6 +6,7 @@
 #include "include/views/cef_browser_view.h"
 #include "include/views/cef_browser_view_delegate.h"
 #include "include/views/cef_window.h"
+#include "include/views/cef_fill_layout.h"
 #include "include/views/cef_window_delegate.h"
 
 namespace soulu {
@@ -29,7 +30,8 @@ class ClearJob final:public CefClient,public CefLifeSpanHandler,
   cef_runtime_style_t GetBrowserRuntimeStyle() override{return CEF_RUNTIME_STYLE_CHROME;}
   CefRect GetInitialBounds(CefRefPtr<CefWindow>) override{return CefRect(0,0,800,600);}
   void OnWindowCreated(CefRefPtr<CefWindow> window) override {
-    window_=window;window->SetToFillLayout();window->AddChildView(view_);
+    window_=window;if(finished_){window->Close();return;}
+    window->SetToFillLayout();window->AddChildView(view_);
     // Deliberately never Show(): the Chrome WebUI worker must stay invisible.
   }
   bool CanClose(CefRefPtr<CefWindow>) override{return !browser_||browser_->GetHost()->TryCloseBrowser();}
@@ -48,6 +50,7 @@ class ClearJob final:public CefClient,public CefLifeSpanHandler,
     registration_=nullptr;browser_=nullptr;
     if(window_){window_->Close();return;}Complete(finished_&&result_);
   }
+  void OnLoadError(CefRefPtr<CefBrowser>,CefRefPtr<CefFrame> frame,cef_errorcode_t,const CefString&,const CefString&) override {if(frame->IsMain())Finish(false);}
   void OnLoadEnd(CefRefPtr<CefBrowser> browser,CefRefPtr<CefFrame> frame,int) override {
     if(!done_||finished_||!frame->IsMain()||started_)return;
     if(frame->GetURL()!="chrome://settings/"){Finish(false);return;}
@@ -73,7 +76,6 @@ class ClearJob final:public CefClient,public CefLifeSpanHandler,
   void Complete(bool ok){if(!done_)return;auto done=std::move(done_);done_=nullptr;done(ok);}
   void Finish(bool ok){if(finished_||!done_)return;finished_=true;result_=ok;
     registration_=nullptr;if(browser_){browser_->GetHost()->CloseBrowser(true);return;}
-    if(creating_)return;
     if(window_){window_->Close();return;}Complete(ok);}
   CefRefPtr<CefWindow> window_;CefRefPtr<CefBrowserView> view_;bool sites_,cache_,started_=false,creating_=false,finished_=false,result_=false;int message_=0;
   std::function<void(bool)> done_;CefRefPtr<CefBrowser> browser_;CefRefPtr<CefRegistration> registration_;

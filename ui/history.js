@@ -13,7 +13,7 @@
   function text(id,ru,en){$(id).textContent=t(ru,en);}
   function apply(next,initial=false){state=next;document.documentElement.dataset.theme=next.resolvedTheme;document.documentElement.lang=locale();document.title=t('История','History');
     text('heading','История','History');text('clearData','Очистить данные браузера…','Clear browsing data…');text('more','Показать ещё','Show more');
-    $('profileLabel').textContent=state.incognito?t('ИНКОГНИТО','INCOGNITO'):'SOULU · '+state.profile;
+    $('profileLabel').textContent=state.incognito?t('ИНКОГНИТО','INCOGNITO'):'SOULU · '+(state.profileName||t('Текущий профиль','Current profile'));
     $('search').placeholder=t('Поиск по названию, адресу или домену','Search titles, URLs or domains');$('search').setAttribute('aria-label',$('search').placeholder);
     $('filter').setAttribute('aria-label',t('Период истории','History period'));$('visits').setAttribute('aria-label',t('Записи истории','History visits'));
     const filter=initial?state.filter:$('filter').value,range=$('range').value||'all';

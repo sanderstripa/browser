@@ -199,6 +199,7 @@ def main():
                             image=s.command(history,'Page.captureScreenshot',dict(format='png'))['data'];(visuals/f'history-{theme}-{dpi}-{width}.png').write_bytes(base64.b64decode(image))
                             s.evaluate(history,"souluHistoryClear();document.getElementById('sitesChoice').click()")
                             check(s.evaluate(history,"(()=>{const r=document.getElementById('clearDialog').getBoundingClientRect();return r.left>=0&&r.right<=innerWidth&&r.top>=0&&r.bottom<=innerHeight})()"),f'Clear dialog fits: {theme}, {dpi}, {width}')
+                            check(s.evaluate(history,"(()=>{const d=document.getElementById('clearDialog').getBoundingClientRect(),r=document.getElementById('confirmClear').getBoundingClientRect();return r.top>=d.top&&r.bottom<=d.bottom})()"),f'Clear actions stay visible: {theme}, {dpi}, {width}')
                             image=s.command(history,'Page.captureScreenshot',dict(format='png'))['data'];(visuals/f'{theme}-{dpi}-{width}.png').write_bytes(base64.b64decode(image))
                             s.evaluate(history,"document.getElementById('clearDialog').close();document.getElementById('sitesChoice').checked=false")
                     s.command(history,'Emulation.clearDeviceMetricsOverride')

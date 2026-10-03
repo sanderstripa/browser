@@ -44,6 +44,7 @@ void BrowserWindow::HandleHistoryBridge(int id,const std::string& request,
   if(action=="history.state"){
     auto result=HomeState(*tab);auto config=PageSettings(*tab);
     result->SetString("profile",tab->incognito?"":tab->profile_id);
+    if(!tab->incognito)for(const auto& profile:profiles_)if(profile.id==tab->profile_id)result->SetString("profileName",profile.name);
     result->SetBool("groupDays",config->GetBool("historyGroupDays"));
     result->SetString("filter",config->GetString("historyDefaultFilter"));
     result->SetBool("saveHistory",config->GetBool("saveHistory"));

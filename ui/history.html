@@ -9,7 +9,7 @@
   <button id="more" hidden>Показать ещё</button>
 </main>
 <dialog id="clearDialog" aria-labelledby="clearTitle" aria-describedby="clearDescription"><form id="clearForm">
-  <div class="dialog-heading"><p class="eyebrow">SOULU</p><h2 id="clearTitle">Очистить данные браузера</h2><p id="clearDescription"></p></div>
+  <div class="dialog-body"><div class="dialog-heading"><p class="eyebrow">SOULU</p><h2 id="clearTitle">Очистить данные браузера</h2><p id="clearDescription"></p></div>
   <label class="range-label"><span id="rangeLabel">Диапазон времени</span><select id="range"></select></label>
   <div class="categories">
     <label class="category"><input id="historyChoice" type="checkbox" checked><span><strong id="historyName">История браузера</strong><small id="historyHint"></small></span></label>
@@ -19,6 +19,6 @@
   <p class="note" id="autofillNote"></p>
   <label id="allTimeLabel" class="acknowledge" hidden><input id="allTimeAck" type="checkbox"><span id="allTimeText"></span></label>
   <p id="clearMessage" role="alert"></p>
-  <footer><button type="button" id="cancelClear">Отмена</button><button class="destructive" type="submit" id="confirmClear">Очистить</button></footer>
+  </div><footer><button type="button" id="cancelClear">Отмена</button><button class="destructive" type="submit" id="confirmClear">Очистить</button></footer>
 </form></dialog>
 <script src="history.js"></script></body></html>
