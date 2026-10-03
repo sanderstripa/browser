@@ -111,6 +111,8 @@ def main():
                 path='Вкладки и страницы' if target in ['settings-newTabMode','settings-homeMode'] else ''
                 evaluate("(()=>{const found=[...document.querySelectorAll('.result')].find(n=>n.querySelector('strong').textContent==="+json.dumps(label)+" && n.textContent.includes("+json.dumps(path)+"));if(!found)throw Error('Result missing');found.click();})()")
                 check(evaluate('document.getElementById('+json.dumps('control-'+target)+').classList.contains("setting-highlight")'),'Search scroll/highlight: '+query)
+            change('#settingsSearch','CEF');check(evaluate("document.querySelectorAll('.result').length===1"),'Runtime components are searchable')
+            change('#settingsSearch','размытие');check(evaluate("document.querySelectorAll('.result').length===1"),'Search indexes control descriptions')
             change('#settingsSearch','VPN');check(len(evaluate("[...document.querySelectorAll('.result')].filter(n=>n.textContent.includes('Интерфейс'))"))>0,'VPN search includes toolbar canonical control')
             change('#settingsSearch','zz-no-such-setting');check(evaluate("document.querySelectorAll('.result').length===0"),'Search has no false results')
             section('interface');before=saved();click('[name="settings-theme"][value="light"]')
