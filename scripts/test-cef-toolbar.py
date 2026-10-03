@@ -49,6 +49,10 @@ def main():
             target=wait(lambda:next((t for t in s.targets() if '/ui/index.html' in t.get('url','')),None))
             ws=s.websocket.create_connection(target['webSocketDebuggerUrl'],timeout=30,origin=s.BASE)
             E=lambda js:s.evaluate(ws,js)
+            def click_target(selector, edge=False):
+                point=E('(()=>{const r=document.querySelector('+json.dumps(selector)+').getBoundingClientRect();return {x:r.right-'+('2' if edge else 'r.width/2')+',y:r.top+'+('4' if edge else 'r.height/2')+'}})()')
+                for kind in ('mousePressed','mouseReleased'):
+                    s.command(ws,'Input.dispatchMouseEvent',dict(point,type=kind,button='left',clickCount=1))
             wait(lambda:E('!!window.browserShell && document.documentElement.classList.contains("typography-ready")'))
             handles=[]
             @C.WINFUNCTYPE(W.BOOL,W.HWND,W.LPARAM)
@@ -90,13 +94,13 @@ def main():
                 wait(lambda:E('document.body.dataset.layout')==layout)
                 captions(layout)
                 max_selector='#windowMaximize' if layout=='classic' else '#compactWindowMaximize'
-                E('document.querySelector('+json.dumps(max_selector)+').click()')
+                click_target(max_selector)
                 wait(lambda:u.IsZoomed(hwnd) and E('document.querySelector('+json.dumps(max_selector)+'+" rect").getAttribute("width")==="7"'))
                 check(True,layout+': maximize updates Restore glyph immediately')
                 captions(layout)
-                E('document.querySelector('+json.dumps(max_selector)+').click()');wait(lambda:not u.IsZoomed(hwnd))
+                click_target(max_selector);wait(lambda:not u.IsZoomed(hwnd))
                 min_selector='#windowMinimize' if layout=='classic' else '#compactWindowMinimize'
-                E('document.querySelector('+json.dumps(min_selector)+').click()');wait(lambda:u.IsIconic(hwnd));u.ShowWindow(hwnd,9)
+                click_target(min_selector);wait(lambda:u.IsIconic(hwnd));u.ShowWindow(hwnd,9)
                 wait(lambda:not u.IsIconic(hwnd));check(True,layout+': minimize/restore native target')
                 for theme in ('light','dark','system'):
                     for matte in (False,True):
@@ -132,6 +136,9 @@ def main():
                     report['matrix'].append({'layout':layout,'scale':scale,'kind':'CDP emulation'})
                     E("document.querySelector('.site-shield').dispatchEvent(new PointerEvent('pointerdown'))")
                 s.command(ws,'Emulation.clearDeviceMetricsOverride')
+            click_target('#compactWindowClose',edge=True)
+            wait(lambda:process.poll() is not None)
+            check(True,'Close accepts input near the top-right target edge')
             report['passed']=True
         finally:
             if ws:
