@@ -122,6 +122,24 @@ jobs:
           $exe = Get-ChildItem cef-build -Recurse -Filter Soulu.exe | Where-Object { $_.FullName -match "Release" } | Select-Object -First 1
           "build_dir=$($exe.Directory.FullName)" >> $env:GITHUB_ENV
 
+      - name: Test native history, browsing data clearing and visual layouts
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check websocket-client
+          $exe = Get-ChildItem cef-build -Recurse -Filter Soulu.exe | Where-Object { $_.FullName -match 'Release' } | Select-Object -First 1
+          python browser/scripts/test-cef-history.py $exe.FullName browser/artifacts/history-evidence.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload history verification and native visual evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Soulu-history-${{ github.sha }}
+          path: |
+            browser/artifacts/history-evidence.json
+            browser/artifacts/history-visuals/
+          if-no-files-found: ignore
+
       - name: Test native encrypted vault, import and site policy
         shell: pwsh
         run: |
@@ -182,13 +200,12 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Upload validation executable and evidence
-        if: inputs.native_only || github.ref == 'refs/heads/codex/history-clear-data' && always()
+        if: (inputs.native_only || github.ref == 'refs/heads/codex/history-clear-data') && always()
         uses: actions/upload-artifact@v4
         with:
           name: Soulu-native-validation-${{ github.sha }}
           path: |
-            ${{ env.build_dir }}/Soulu.exe
-            ${{ env.build_dir }}/ui/
+            ${{ env.build_dir }}/
             browser/artifacts/
           if-no-files-found: error
 
