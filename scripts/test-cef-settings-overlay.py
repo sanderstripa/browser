@@ -188,6 +188,19 @@ def main():
             # CEF keyboard shortcut sent to the background must be consumed.
             count=len(state()['tabs']); s.evaluate(shell,"cefQuery({request:JSON.stringify({action:'browser.test.pageShortcut',payload:84}),onSuccess:()=>{}})")
             time.sleep(.2);check(len(state()['tabs'])==count,'Background Ctrl+T cannot change tabs while Settings is open')
+            # Existing managers must stay inside the editor and preserve both
+            # browser state and the currently staged settings transaction.
+            before_subviews=state(); draft=edit('JSON.stringify(souluSettings.staged)')
+            for section,action in [('profiles','passwords'),('profiles','import'),('sites','siteData'),('sites','exceptions'),('sites','adblockExceptions')]:
+                edit('souluSettings.openSection('+json.dumps(section)+');document.querySelector('+json.dumps('#control-settings-'+action+' button')+').click()')
+                wait(lambda:edit("document.querySelector('#actionDialog').open"))
+                check(state()['tabs']==before_subviews['tabs'] and state()['activeTabId']==before_subviews['activeTabId'],action+' subview stays inside Settings without changing browser tabs')
+                check(edit('JSON.stringify(souluSettings.staged)')==draft,action+' subview preserves staged settings')
+                if action=='siteData':
+                    snapshot=edit('browserShell.getSettingsSite('+str(before_subviews['activeTabId'])+')')
+                    check(snapshot['url']==page_before['url'],'Settings site-data backend addresses the original webpage directly')
+                edit("document.querySelector('#closeAction').click()")
+                wait(lambda:not edit("document.querySelector('#actionDialog').open"))
             for theme in ['light','dark','system']:
                 edit(f'''souluSettings.openSection("interface");document.querySelector('[name="settings-theme"][value="{theme}"]').click()''')
                 for matte in [False,True]:
