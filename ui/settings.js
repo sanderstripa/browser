@@ -73,7 +73,7 @@
     const data={returning,key:returning?section:id};
     if(visible&&!motion.reduced){
       const bounds=source.getBoundingClientRect(),glyph=source.querySelector('svg');
-      const viewport=$('settingsContent').getBoundingClientRect();
+      const viewport=(returning?document.querySelector('aside'):$('settingsContent')).getBoundingClientRect();
       // An offscreen card is not a visible spatial source.
       if(bounds.bottom>viewport.top&&bounds.top<viewport.bottom){
         data.bounds=bounds;data.iconBounds=glyph.getBoundingClientRect();
@@ -93,6 +93,7 @@
     old.setAttribute('aria-hidden','true');old.inert=true;
     Object.assign(old.style,{position:'fixed',left:bounds.left+'px',top:bounds.top+'px',width:bounds.width+'px',height:bounds.height+'px',zIndex:'999',pointerEvents:'none',margin:'0',background:getComputedStyle(document.querySelector('main')).backgroundColor});
     old.scrollTop=$('settingsContent').scrollTop;
+    if(returning){const nav=document.querySelector('aside'),r=nav.getBoundingClientRect(),copy=nav.cloneNode(true);copy.removeAttribute('id');for(const n of copy.querySelectorAll('[id]'))n.removeAttribute('id');copy.setAttribute('aria-hidden','true');copy.inert=true;Object.assign(copy.style,{position:'fixed',left:r.left+'px',top:r.top+'px',width:r.width+'px',height:r.height+'px',zIndex:'999',pointerEvents:'none',margin:'0'});data.oldNav=copy;data.navScroll=nav.scrollTop;}
     data.scrollTop=$('settingsContent').scrollTop;data.old=old;return data;
   }
   function finishSectionMotion(data,id){
@@ -100,6 +101,7 @@
     const motion=window.souluMotion,tx=motion.transaction(),duration=motion.tokens.structural;
     document.body.append(data.old);data.old.scrollTop=data.scrollTop;tx.cleanup(()=>data.old.remove());
     tx.animate(data.old,[{opacity:1},{opacity:0}],motion.tokens.surface);
+    if(data.oldNav){document.body.append(data.oldNav);data.oldNav.scrollTop=data.navScroll;tx.cleanup(()=>data.oldNav.remove());tx.animate(data.oldNav,[{opacity:1,transform:'none'},{opacity:0,transform:motion.reduced?'none':'translateX(-12px)'}],motion.tokens.surface);}
     const nav=document.querySelector('aside'),content=$('settingsContent');
     if(id)tx.animate(nav,[{opacity:0,transform:motion.reduced?'none':'translateX(-12px)'},{opacity:1,transform:'none'}]);
     tx.animate(content,[{opacity:0,transform:motion.reduced?'none':`translateX(${data.returning?-12:18}px)`},{opacity:1,transform:'none'}]);
@@ -118,6 +120,7 @@
       destination.classList.add('motion-source-hidden');
       // Suppress the outgoing copy of the source as well.
       data.old.querySelector('[data-section="'+data.key+'"]')?.classList.add('motion-source-hidden');
+      data.oldNav?.querySelector('[data-section="'+data.key+'"]')?.classList.add('motion-source-hidden');
       tx.cleanup(()=>{layer.remove();destination.classList.remove('motion-source-hidden');
         if(data.returning&&destination.isConnected&&(document.activeElement===content||document.activeElement===document.body))destination.focus({preventScroll:true});});
       const frame=(r,radius,background)=>({transform:`translate(${r.left}px,${r.top}px)`,width:r.width+'px',height:r.height+'px',borderRadius:radius,background});

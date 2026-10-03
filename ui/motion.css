@@ -11,4 +11,4 @@ html.cef-runtime body[data-layout=compact] #sidebar{top:48px}
 html.cef-runtime body[data-layout=classic] #sidebar{top:82px}
 html.cef-runtime body[data-bookmarks-bar=true][data-layout=compact] #sidebar{top:76px}
 html.cef-runtime body[data-bookmarks-bar=true][data-layout=classic] #sidebar{top:110px}
-@media(prefers-reduced-motion:reduce){#sidebar,#sidebar.visible{transform:none;transition-duration:var(--motion-reduced),var(--motion-reduced),0s}#sidebarTabs,#sidebar.visible #sidebarTabs{transition:opacity var(--motion-reduced);transition-delay:0s}}
+@media(prefers-reduced-motion:reduce){#sidebar,#sidebar.visible{transform:none;transition-duration:var(--motion-reduced),var(--motion-reduced),0s}#sidebar{transition-delay:0s,0s,var(--motion-reduced)}#sidebar.visible{transition-delay:0s}#sidebarTabs,#sidebar.visible #sidebarTabs{transition:opacity var(--motion-reduced);transition-delay:0s}}

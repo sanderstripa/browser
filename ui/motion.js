@@ -32,6 +32,7 @@
     };
   }
   preference.addEventListener('change', cancel);
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', cancel);
   addEventListener('resize', cancel);
   addEventListener('pagehide', cancel);
   window.souluMotion = Object.freeze({tokens, transaction, cancel,

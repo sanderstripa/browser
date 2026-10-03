@@ -46,12 +46,16 @@ def main():
             s.evaluate(shell,'browserShell.openSettingsWindow()');settings=connect('/ui/settings.html')
             o.wait(lambda:evaluate('document.body?.classList.contains("ready")'))
             host=o.wait(lambda:next(iter(o.windows(process.pid,'SouluSettingsOverlay')),None))
+            report['systemReducedAtLaunch']=evaluate('souluMotion.reduced')
+            s.command(settings,'Emulation.setEmulatedMedia',{'features':[{'name':'prefers-reduced-motion','value':'no-preference'}]})
             keys=evaluate('[...document.querySelectorAll("#homeCards [data-section]")].map(n=>n.dataset.section)')
             check(len(keys)==10,'Ten Settings categories preserved')
             for key in keys:
                 evaluate('document.querySelector('+json.dumps(card(key))+').scrollIntoView({block:"center"})')
-                click(card(key))
-                check(evaluate('!!document.querySelector(".motion-shared") && document.querySelector(".motion-shared").inert && document.querySelector(".motion-shared").getAttribute("aria-hidden")==="true"'),key+': shared container is visual only')
+                # Observe the ephemeral layer in the same renderer turn as activation.
+                # CI transport latency can exceed the entire 260 ms transition.
+                shared=evaluate('(async()=>{document.querySelector('+json.dumps(card(key))+').click();await Promise.resolve();const layer=document.querySelector(".motion-shared");return !!layer&&layer.inert&&layer.getAttribute("aria-hidden")==="true"})()')
+                check(shared,key+': shared container is visual only')
                 if key=='interface':
                     capture('interface-transition')
                     if o.u.GetForegroundWindow()==host:
@@ -114,7 +118,7 @@ def main():
             click(card('interface'))
             check(evaluate('souluMotion.reduced && !document.querySelector(".motion-shared")'),'Reduced motion removes spatial morph');settled()
             click('#sectionNav button:first-child');settled()
-            s.command(settings,'Emulation.setEmulatedMedia',{'features':[]})
+            s.command(settings,'Emulation.setEmulatedMedia',{'features':[{'name':'prefers-reduced-motion','value':'no-preference'}]})
             s.command(settings,'HeapProfiler.collectGarbage')
             heap_before=s.command(settings,'Runtime.getHeapUsage')['usedSize']
             s.command(settings,'Performance.enable')
