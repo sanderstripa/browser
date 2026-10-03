@@ -4,6 +4,7 @@
 
 #include "include/cef_client.h"
 #include "include/cef_permission_handler.h"
+#include "include/cef_jsdialog_handler.h"
 #include "include/cef_resource_request_handler.h"
 #include "examples/soulu/profile_data.h"
 #include <memory>
@@ -23,7 +24,8 @@ class BrowserClient final : public CefClient,
                             public CefPermissionHandler,
                             public CefResourceRequestHandler,
                             public CefContextMenuHandler,
-                            public CefKeyboardHandler {
+                            public CefKeyboardHandler,
+                            public CefJSDialogHandler {
  public:
   BrowserClient(CefRefPtr<BrowserWindow> owner, BrowserRole role, int tab_id = 0);
 
@@ -35,6 +37,12 @@ class BrowserClient final : public CefClient,
   CefRefPtr<CefContextMenuHandler> GetContextMenuHandler() override { return this; }
   CefRefPtr<CefPermissionHandler> GetPermissionHandler() override { return this; }
   CefRefPtr<CefKeyboardHandler> GetKeyboardHandler() override { return this; }
+  CefRefPtr<CefJSDialogHandler> GetJSDialogHandler() override { return this; }
+  bool OnJSDialog(CefRefPtr<CefBrowser>, const CefString&, JSDialogType,
+                  const CefString&, const CefString&, CefRefPtr<CefJSDialogCallback>, bool&) override;
+  bool OnBeforeUnloadDialog(CefRefPtr<CefBrowser>, const CefString&, bool,
+                            CefRefPtr<CefJSDialogCallback>) override;
+  void OnResetDialogState(CefRefPtr<CefBrowser>) override;
   bool OnPreKeyEvent(CefRefPtr<CefBrowser>, const CefKeyEvent&, CefEventHandle, bool*) override;
   CefRefPtr<CefResourceRequestHandler> GetResourceRequestHandler(
       CefRefPtr<CefBrowser>, CefRefPtr<CefFrame>, CefRefPtr<CefRequest>,
@@ -99,6 +107,7 @@ class BrowserClient final : public CefClient,
   std::shared_ptr<SitePolicy> policy_;
   CefRefPtr<BrowserClient> popup_opener_;
   int opener_popup_id_ = -1;
+  bool js_dialog_open_ = false;
   IMPLEMENT_REFCOUNTING(BrowserClient);
 };
 }

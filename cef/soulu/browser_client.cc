@@ -1,3 +1,4 @@
+#include "examples/soulu/typography_native.h"
 #include "examples/soulu/browser_client.h"
 
 #include <string>
@@ -5,8 +6,36 @@
 
 #include "examples/soulu/browser_window.h"
 #include "include/wrapper/cef_helpers.h"
+#include "include/cef_parser.h"
 
 namespace soulu {
+bool BrowserClient::OnJSDialog(CefRefPtr<CefBrowser>, const CefString& origin, JSDialogType type,
+    const CefString& message, const CefString& initial,
+    CefRefPtr<CefJSDialogCallback> callback, bool& suppress) {
+  CEF_REQUIRE_UI_THREAD();
+  if(js_dialog_open_){suppress=true;return false;}
+  js_dialog_open_=true;
+  std::wstring value;
+  const auto site=origin.empty()?std::wstring():CefFormatUrlForSecurityDisplay(origin).ToWString();
+  const auto text=site.empty()?message.ToWString():site+L"\n\n"+message.ToWString();
+  bool accepted=false;
+  if(type==JSDIALOGTYPE_PROMPT)accepted=TypographyPrompt(owner_->hwnd(),text,initial.ToWString(),value,this);
+  else accepted=TypographyMessageBox(owner_->hwnd(),text.c_str(),L"Soulu",
+      type==JSDIALOGTYPE_CONFIRM?(MB_YESNO|MB_DEFBUTTON2):MB_OK,this)==(type==JSDIALOGTYPE_CONFIRM?IDYES:IDOK);
+  js_dialog_open_=false;callback->Continue(accepted,CefString(value));return true;
+}
+bool BrowserClient::OnBeforeUnloadDialog(CefRefPtr<CefBrowser>,const CefString& text,bool,
+    CefRefPtr<CefJSDialogCallback> callback){
+  CEF_REQUIRE_UI_THREAD();
+  if(js_dialog_open_){callback->Continue(false,CefString());return true;}
+  js_dialog_open_=true;
+  const bool accepted=TypographyMessageBox(owner_->hwnd(),text.ToWString().c_str(),L"Soulu",MB_YESNO|MB_DEFBUTTON2,this)==IDYES;
+  js_dialog_open_=false;callback->Continue(accepted,CefString());return true;
+}
+void BrowserClient::OnResetDialogState(CefRefPtr<CefBrowser>){
+  CEF_REQUIRE_UI_THREAD();TypographyCancelDialogs(this);
+}
+
 namespace {
 enum LinkCommand {
   kLinkForeground = MENU_ID_USER_FIRST,
@@ -344,7 +373,7 @@ bool BrowserClient::OnBeforeDownload(CefRefPtr<CefBrowser> browser,
                                      CefRefPtr<CefBeforeDownloadCallback> callback) {
   const std::string site=browser->GetMainFrame()->GetURL();
   if(!owner_->AllowSite(tab_id_,site,"downloads")) {
-    MessageBoxW(owner_->hwnd(),L"Загрузка заблокирована правилом сайта. Изменить правило можно в настройках сайтов.",L"Soulu",MB_OK|MB_ICONINFORMATION);
+    TypographyMessageBox(owner_->hwnd(),L"Загрузка заблокирована правилом сайта. Изменить правило можно в настройках сайтов.",L"Soulu",MB_OK|MB_ICONINFORMATION);
     return true;
   }
   callback->Continue(suggested_name, true);

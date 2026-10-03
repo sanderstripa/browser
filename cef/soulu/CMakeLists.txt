@@ -30,6 +30,9 @@ set(SOULU_SRCS
   shell_surface.h
   shell_surface.cc
   main.cc
+  typography_native.h
+  typography_native.cc
+  typography_metrics.h
   resource.h
   win/resource.rc
 )

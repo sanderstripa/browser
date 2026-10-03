@@ -46,7 +46,8 @@ struct Metrics { float size, lineHeight; int weight; };
     for name,(size,line,weight) in tokens.items():
         header += f'inline constexpr Metrics {name}{{{size}.0f,{line}.0f,{weight}}};\n'
     header += '}\n'
-    return {'ui/typography.css':css, 'installer/typography_metrics.h':header}
+    return {'ui/typography.css':css, 'installer/typography_metrics.h':header,
+            'cef/soulu/typography_metrics.h':header}
 
 if __name__ == '__main__':
     parser=argparse.ArgumentParser();parser.add_argument('--check',action='store_true');args=parser.parse_args()

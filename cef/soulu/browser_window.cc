@@ -1,3 +1,4 @@
+#include "examples/soulu/typography_native.h"
 #include "examples/soulu/browser_window.h"
 #include "examples/soulu/app_version.h"
 #include "examples/soulu/motion.h"
@@ -631,7 +632,7 @@ bool BrowserWindow::AllowSite(int id,const std::string& origin,const std::string
     {"popups",L"всплывающее окно"},{"downloads",L"загрузку файла"}};
   auto label=labels.find(permission);if(label==labels.end())return false;
   const auto text=CefString(WebOrigin(origin)).ToWString()+L" запрашивает "+label->second+L". Разрешить один раз?";
-  return MessageBoxW(hwnd_,text.c_str(),L"Разрешение сайта — Soulu",MB_YESNO|MB_ICONQUESTION|MB_DEFBUTTON2)==IDYES;
+  return TypographyMessageBox(hwnd_,text.c_str(),L"Разрешение сайта — Soulu",MB_YESNO|MB_ICONQUESTION|MB_DEFBUTTON2)==IDYES;
 }
 void BrowserWindow::ApplySiteSound() {
   for(auto& tab:tabs_)if(tab.browser){auto policy=PolicyForTab(tab.id);
@@ -698,9 +699,9 @@ void BrowserWindow::OfferCredential(int id,CefRefPtr<CefFrame> frame,
       if(same){SecureZeroMemory(password.data(),password.size());return;}break;}}}
   const auto prompt=CefString(origin).ToWString()+L"\n"+
     (exists?L"Обновить сохранённый пароль после отправки формы входа?":L"Сохранить пароль после отправки формы входа?")+L"\nВход ещё может потребовать подтверждения на сайте.";
-  if(MessageBoxW(hwnd_,prompt.c_str(),L"Пароли Soulu",MB_YESNO|MB_ICONQUESTION|MB_DEFBUTTON2)==IDYES &&
+  if(TypographyMessageBox(hwnd_,prompt.c_str(),L"Пароли Soulu",MB_YESNO|MB_ICONQUESTION|MB_DEFBUTTON2)==IDYES &&
      !vault.Put(origin,username,password,true))
-    MessageBoxW(hwnd_,L"Не удалось сохранить пароль.",L"Soulu",MB_OK|MB_ICONERROR);
+    TypographyMessageBox(hwnd_,L"Не удалось сохранить пароль.",L"Soulu",MB_OK|MB_ICONERROR);
   if(auto* current=FindTab(id);current&&current==ActiveTab()&&current->browser)
     current->browser->GetHost()->SetFocus(true);
   SecureZeroMemory(password.data(),password.size());
@@ -850,7 +851,7 @@ void BrowserWindow::OpenSettingsOverlay() {
       [this] { FinishSettingsTransition(); }, [this] { GuardSettingsClose(kSettingsSession); });
   if (!settings_overlay_->Create()) {
     settings_overlay_.reset();
-    MessageBoxW(hwnd_, L"Не удалось создать слой настроек Windows Composition.", L"Soulu", MB_OK | MB_ICONERROR);
+    TypographyMessageBox(hwnd_, L"Не удалось создать слой настроек Windows Composition.", L"Soulu", MB_OK | MB_ICONERROR);
     return;
   }
   BlockSettingsBackground(true);
@@ -1636,7 +1637,7 @@ bool BrowserWindow::HandleSiteAction(const std::string& action,CefRefPtr<CefValu
     const std::wstring text=L"Очистить хранилища сайта "+CefString(origin).ToWString()+
       L" в текущем профиле?\n\nБудут удалены localStorage, sessionStorage, IndexedDB, Cache Storage и service workers только этого origin. Cookies и HTTP-кэш сохранятся. Пароли, закладки и другие сайты не затрагиваются.";
     const int id=tab->id,generation=tab->document_generation;const auto url=tab->url;
-    if(MessageBoxW(hwnd_,text.c_str(),L"Данные сайта",MB_YESNO|MB_ICONWARNING|MB_DEFBUTTON2)!=IDYES){callback->Success("{\"cleared\":false}");return true;}
+    if(TypographyMessageBox(hwnd_,text.c_str(),L"Данные сайта",MB_YESNO|MB_ICONWARNING|MB_DEFBUTTON2)!=IDYES){callback->Success("{\"cleared\":false}");return true;}
     tab=ActiveTab();if(!tab||tab->id!=id||tab->url!=url||tab->document_generation!=generation){callback->Failure(409,"Страница изменилась");return true;}
     CefRefPtr<SiteStorageJob> job=new SiteStorageJob(callback);job->Start(tab->browser,origin);return true;
   }
@@ -1684,7 +1685,7 @@ void BrowserWindow::HandleBridge(const std::string& request,
     }
     const std::wstring message = L"Очистить хранилища сайта " + CefString(origin).ToWString() +
       L"? Cookies, HTTP-кэш, пароли и закладки сохранятся.";
-    if (MessageBoxW(settings_overlay_->hwnd(),message.c_str(),L"Данные сайта",MB_YESNO|MB_ICONWARNING|MB_DEFBUTTON2) != IDYES) {
+    if (TypographyMessageBox(settings_overlay_->hwnd(),message.c_str(),L"Данные сайта",MB_YESNO|MB_ICONWARNING|MB_DEFBUTTON2) != IDYES) {
       callback->Success("{\"cleared\":false}");return;
     }
     tab = FindTab(id);
@@ -1774,7 +1775,7 @@ void BrowserWindow::HandleBridge(const std::string& request,
     if(found==profiles_.end()||profiles_.size()<2){callback->Failure(400,"Keep at least one profile");return;}
     const auto text=L"Удалить профиль «"+CefString(found->name).ToWString()+
       L"» и только его данные? Вкладки будут закрыты. Файлы удалятся после завершения Soulu.";
-    if(MessageBoxW(hwnd_,text.c_str(),L"Удаление профиля",MB_YESNO|MB_ICONWARNING|MB_DEFBUTTON2)!=IDYES)return Reply(callback,State());
+    if(TypographyMessageBox(hwnd_,text.c_str(),L"Удаление профиля",MB_YESNO|MB_ICONWARNING|MB_DEFBUTTON2)!=IDYES)return Reply(callback,State());
     auto pending=ReadJson(DataRoot()/L"soulu-delete-profiles.json");
     auto list=pending&&pending->GetType()==VTYPE_LIST?pending->GetList()->Copy():CefListValue::Create();
     list->SetString(list->GetSize(),id);
@@ -1813,7 +1814,7 @@ void BrowserWindow::HandleBridge(const std::string& request,
     if(action=="browser.sites.set")ok=policy->Set(domain,data->GetString("permission"),data->GetInt("value"));
     else if(action=="browser.sites.blocking")ok=policy->SetBlocking(domain,data->GetInt("value"));
     else if(action=="browser.sites.reset"){
-      if(domain.empty()&&MessageBoxW(hwnd_,L"Сбросить все исключения разрешений сайтов этого профиля?",L"Soulu",MB_YESNO|MB_DEFBUTTON2)!=IDYES)return Reply(callback,policy->Snapshot());
+      if(domain.empty()&&TypographyMessageBox(hwnd_,L"Сбросить все исключения разрешений сайтов этого профиля?",L"Soulu",MB_YESNO|MB_DEFBUTTON2)!=IDYES)return Reply(callback,policy->Snapshot());
       ok=policy->Reset(domain);
     }
     if(!ok){callback->Failure(400,"Rule could not be saved");return;}
