@@ -32,6 +32,10 @@ class BridgeHandler final : public CefMessageRouterBrowserSide::Handler {
       owner_->HandleOnboardingBridge(id_, request, callback);
       return true;
     }
+    if (owner_->IsHistoryUi(url)) {
+      owner_->HandleHistoryBridge(id_, request, callback);
+      return true;
+    }
     if (owner_->IsHomeUi(url)) {
       owner_->HandleHomeBridge(id_, request, callback);
       return true;
@@ -54,6 +58,10 @@ BrowserClient::BrowserClient(CefRefPtr<BrowserWindow> owner, BrowserRole role, i
       policy_(role!=BrowserRole::kShell?owner->PolicyForTab(tab_id):nullptr) {}
 
 bool BrowserClient::OnPreKeyEvent(CefRefPtr<CefBrowser>,const CefKeyEvent& event,CefEventHandle,bool*) {
+  if(event.type==KEYEVENT_RAWKEYDOWN&&(event.modifiers&EVENTFLAG_CONTROL_DOWN)&&!(event.modifiers&EVENTFLAG_ALT_DOWN)) {
+    if(event.windows_key_code=='H'){owner_->OpenHistory();return true;}
+    if(event.windows_key_code==VK_DELETE&&(event.modifiers&EVENTFLAG_SHIFT_DOWN)){owner_->OpenHistory(true);return true;}
+  }
   if(event.type==KEYEVENT_RAWKEYDOWN && owner_->HandlePageShortcut(tab_id_, event.windows_key_code,
       (event.modifiers&EVENTFLAG_CONTROL_DOWN)!=0, (event.modifiers&EVENTFLAG_ALT_DOWN)!=0)) return true;
   if(event.type==KEYEVENT_RAWKEYDOWN&&(event.modifiers&EVENTFLAG_CONTROL_DOWN)&&event.windows_key_code=='F') {
@@ -98,7 +106,8 @@ bool BrowserClient::OnShowPermissionPrompt(CefRefPtr<CefBrowser>,uint64_t,
   callback->Continue(allowed&&handled==requested&&handled!=0?CEF_PERMISSION_RESULT_ACCEPT:CEF_PERMISSION_RESULT_DENY);
   return true;
 }
-void BrowserClient::OnLoadEnd(CefRefPtr<CefBrowser>,CefRefPtr<CefFrame> frame,int) {
+void BrowserClient::OnLoadEnd(CefRefPtr<CefBrowser>,CefRefPtr<CefFrame> frame,int status) {
+  if(frame->IsMain()&&role_!=BrowserRole::kShell&&status>=200&&status<400)owner_->RecordHistory(tab_id_);
   if(frame->IsMain()&&role_!=BrowserRole::kShell){owner_->ReaderDocumentLoaded(tab_id_);owner_->ApplySiteSound();owner_->ContentPageLoaded(tab_id_);}
 }
 bool BrowserClient::OnBeforeBrowse(CefRefPtr<CefBrowser> browser,CefRefPtr<CefFrame> frame,
@@ -106,6 +115,7 @@ bool BrowserClient::OnBeforeBrowse(CefRefPtr<CefBrowser> browser,CefRefPtr<CefFr
   if (frame->IsMain() && owner_->GuardSettingsNavigation(tab_id_, request->GetURL())) return true;
   CEF_REQUIRE_UI_THREAD();if(router_)router_->OnBeforeBrowse(browser,frame);
   if(role_!=BrowserRole::kShell&&frame->IsMain()){
+    owner_->ResetHistoryVisit(tab_id_);
     owner_->ReaderDocumentNavigation(tab_id_);owner_->SyncSitePolicy(tab_id_,request->GetURL());
   }
   return false;

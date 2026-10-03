@@ -95,6 +95,7 @@ bool BrowserWindow::ApplySettingsSession(std::string& error) {
     next->SetValue(key,changed->Copy());
   }
   const std::pair<const char*,std::vector<std::string>> enums[]={
+    {"historyDefaultFilter",{"all","today","yesterday","week","older"}},
     {"theme",{"system","light","dark"}},{"language",{"ru","en"}},
     {"layout",{"compact","classic"}},{"searchEngine",{"google","yandex","bing","duckduckgo"}},
     {"addressPosition",{"left","center"}},{"extensionsPosition",{"left","right"}},

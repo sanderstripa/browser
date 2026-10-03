@@ -307,6 +307,9 @@ BrowserWindow::BrowserWindow()
       bookmarks_(CefListValue::Create()), downloads_(CefListValue::Create()) {
   WSADATA winsock = {};
   WSAStartup(MAKEWORD(2, 2), &winsock);
+  settings_->SetBool("saveHistory", true);
+  settings_->SetBool("historyGroupDays", true);
+  settings_->SetString("historyDefaultFilter", "all");
   settings_->SetString("layout", "compact");
   settings_->SetString("theme", "system");
   settings_->SetString("language", "ru");
@@ -1100,11 +1103,12 @@ std::string BrowserWindow::NormalizeAddress(const std::string& input) const {
 
 void BrowserWindow::UpdateTitle(int id, const std::string& title) {
   if (auto* tab = FindTab(id)) tab->title = title.empty() ? "New Tab" : title;
+  UpdateHistory(id);
   EmitState();
 }
 void BrowserWindow::UpdateAddress(int id, const std::string& url) {
   if (auto* tab = FindTab(id)) {
-    const std::string next = url == InternalUrl("about:blank") ? "about:blank" : (url == InternalUrl("soulu://home") ? "soulu://home" : (IsOnboardingUi(url)?"soulu://onboarding":url));
+    const std::string next = IsHistoryUi(url) ? "soulu://history" : url == InternalUrl("about:blank") ? "about:blank" : (url == InternalUrl("soulu://home") ? "soulu://home" : (IsOnboardingUi(url)?"soulu://onboarding":url));
     if (next != tab->url) {tab->thumbnail.clear();++tab->document_generation;tab->reader_active=false;tab->reader_article=nullptr;}
     tab->url = next;
   }
@@ -1113,6 +1117,7 @@ void BrowserWindow::UpdateAddress(int id, const std::string& url) {
 }
 void BrowserWindow::UpdateFavicon(int id, const std::string& url) {
   if (auto* tab = FindTab(id)) tab->favicon = url;
+  UpdateHistory(id);
   EmitState();
 }
 void BrowserWindow::UpdateLoading(int id, bool loading, bool can_go_back) {
@@ -1818,6 +1823,7 @@ void BrowserWindow::HandleBridge(const std::string& request,
     }
     return Reply(callback, settings_->Copy(false));
   }
+  else if (action == "browser.history.open") { OpenHistory(payload && payload->GetType()==VTYPE_BOOL && payload->GetBool()); }
   else if (action == "browser.suggestions") {
     auto result = CefListValue::Create();
     std::string query = payload->GetString();
@@ -1843,6 +1849,10 @@ void BrowserWindow::HandleBridge(const std::string& request,
       std::string hay = mark->GetString("title").ToString() + " " + mark->GetString("url").ToString();
       std::transform(hay.begin(), hay.end(), hay.begin(), ::tolower);
       if (hay.find(lower) != std::string::npos) { auto row = mark->Copy(false); row->SetString("source", "bookmark"); result->SetDictionary(out++, row); }
+    }
+    if(visible_profile!="__incognito__"&&!query.empty()){
+      auto visits=HistoryFor(visible_profile)->Query(query,0,HistoryNow()+1,0,8);
+      if(visits)for(size_t i=0;i<visits->GetSize()&&out<8;++i){auto row=visits->GetDictionary(i);row->SetString("source","history");result->SetDictionary(out++,row);}
     }
     if (!query.empty() && query.find(' ') == std::string::npos && query.find('.') != std::string::npos) {
       auto row = CefDictionaryValue::Create(); row->SetString("source", "website");
@@ -1982,13 +1992,17 @@ void BrowserWindow::HandleBridge(const std::string& request,
     HMENU menu = CreatePopupMenu();
     AppendMenuW(menu, MF_STRING, 1, L"Настройки");
     AppendMenuW(menu, MF_STRING, 2, L"Загрузки");
+    AppendMenuW(menu, MF_STRING, 5, L"История\tCtrl+H");
+    AppendMenuW(menu, MF_STRING, 6, L"Очистить данные браузера…\tCtrl+Shift+Delete");
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(menu, MF_STRING, 3, L"Новая вкладка");
     AppendMenuW(menu, MF_STRING, 4, L"Новая вкладка инкогнито");
     const int command = TrackPopupMenu(menu, TPM_RETURNCMD | TPM_RIGHTBUTTON,
                                        point.x, point.y, 0, hwnd_, nullptr);
     DestroyMenu(menu);
-    if (command == 1) OpenSettingsTab();
+    if (command == 5) OpenHistory();
+    else if (command == 6) OpenHistory(true);
+    else if (command == 1) OpenSettingsTab();
     else if (command == 2) Emit("openDownloads", EmptyValue());
     else if (command == 3) NewTab();
     else if (command == 4) NewTab("", true);
@@ -2031,6 +2045,7 @@ void BrowserWindow::HandleBridge(const std::string& request,
 }
 
 void BrowserWindow::CloseAll() {
+  if(clearing_data_){close_after_clear_=true;return;}
   if(GuardSettingsClose(settings_tab_,true))return;
   if(importing_){close_after_import_=true;return;}
   if (closing_) return;

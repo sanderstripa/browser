@@ -14,7 +14,7 @@ on:
         default: false
         type: boolean
   push:
-    branches: [main]
+    branches: [main, codex/history-clear-data]
     tags: [preview-46]
     paths:
       - "cef/**"
@@ -163,7 +163,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Validate native runtime before main packaging
-        if: inputs.native_only
+        if: inputs.native_only || github.ref == 'refs/heads/codex/history-clear-data'
         shell: pwsh
         run: |
           python -m pip install --disable-pip-version-check websocket-client pillow dxcam
@@ -182,7 +182,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Upload validation executable and evidence
-        if: inputs.native_only && always()
+        if: inputs.native_only || github.ref == 'refs/heads/codex/history-clear-data' && always()
         uses: actions/upload-artifact@v4
         with:
           name: Soulu-native-validation-${{ github.sha }}
@@ -193,7 +193,7 @@ jobs:
           if-no-files-found: error
 
       - name: Locate output and package ZIP
-        if: ${{ !inputs.native_only }}
+        if: ${{ !inputs.native_only && github.ref != 'refs/heads/codex/history-clear-data' }}
         id: package
         shell: pwsh
         run: |
@@ -213,7 +213,7 @@ jobs:
           "build_dir=$buildDir" >> $env:GITHUB_OUTPUT
 
       - name: Upload native executable for local runtime verification
-        if: ${{ !inputs.native_only }}
+        if: ${{ !inputs.native_only && github.ref != 'refs/heads/codex/history-clear-data' }}
         uses: actions/upload-artifact@v4
         with:
           name: Soulu-native-${{ github.sha }}
@@ -223,7 +223,7 @@ jobs:
           if-no-files-found: error
 
       - name: Build installer
-        if: ${{ !inputs.native_only }}
+        if: ${{ !inputs.native_only && github.ref != 'refs/heads/codex/history-clear-data' }}
         shell: pwsh
         run: |
           choco install nsis -y --no-progress
@@ -239,7 +239,7 @@ jobs:
           "SOULU_SCREENSHOT:installer-exe-icon="+[Convert]::ToBase64String([IO.File]::ReadAllBytes((Join-Path $PWD "browser/artifacts/installer-exe-icon.png")))
 
       - name: Verify ZIP and installer payload before upload or release
-        if: ${{ !inputs.native_only }}
+        if: ${{ !inputs.native_only && github.ref != 'refs/heads/codex/history-clear-data' }}
         id: verified
         shell: pwsh
         run: |
@@ -266,7 +266,7 @@ jobs:
           if-no-files-found: error
 
       - name: Test live CEF settings and toolbar on Windows
-        if: ${{ !inputs.native_only }}
+        if: ${{ !inputs.native_only && github.ref != 'refs/heads/codex/history-clear-data' }}
         # Cloud visual probes are diagnostic and must not block packaging.
         continue-on-error: true
         shell: pwsh

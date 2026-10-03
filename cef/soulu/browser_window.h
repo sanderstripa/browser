@@ -6,7 +6,9 @@
 #include <vector>
 #include <memory>
 #include <map>
+#include <set>
 #include "examples/soulu/profile_data.h"
+#include "examples/soulu/history_store.h"
 
 #include "include/cef_browser.h"
 #include "examples/soulu/shell_surface.h"
@@ -22,6 +24,13 @@ class BrowserWindow final : public CefBaseRefCounted {
   static void Create();
   static void OpenExternal(const std::string& url);
 
+  bool IsHistoryUi(const std::string& url) const;
+  void OpenHistory(bool clear = false);
+  void RecordHistory(int id);
+  void UpdateHistory(int id);
+  void ResetHistoryVisit(int id);
+  void HandleHistoryBridge(int id, const std::string& request,
+      CefRefPtr<CefMessageRouterBrowserSide::Callback> callback);
   bool IsHomeUi(const std::string& url) const;
   bool IsOnboardingUi(const std::string& url) const;
   bool OpenDefaultBrowserSettings();
@@ -86,6 +95,7 @@ class BrowserWindow final : public CefBaseRefCounted {
     std::string url = "about:blank";
     std::string favicon;
     std::string thumbnail;
+    std::string history_visit;
     CefRefPtr<CefRegistration> thumbnail_registration;
     std::string profile_id = "personal";
     bool incognito = false;
@@ -187,6 +197,11 @@ class BrowserWindow final : public CefBaseRefCounted {
   std::string find_text_;
   int find_browser_id_ = 0;
 
+  std::map<std::string, std::shared_ptr<HistoryStore>> histories_;
+  std::shared_ptr<HistoryStore> HistoryFor(const std::string& profile);
+  bool clearing_data_ = false;
+  bool close_after_clear_ = false;
+  std::set<int> history_clear_tabs_;
   HWND hwnd_ = nullptr;
   HWND resize_border_ = nullptr;
   bool native_blur_ = false;
