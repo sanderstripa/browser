@@ -28,7 +28,7 @@
     // before the viewport arrives can scroll the document above the titlebar.
     await new Promise(resolve => {
       const deadline = performance.now() + 2000;
-      const ready = () => { if (innerHeight >= height || performance.now() >= deadline) resolve(); else requestAnimationFrame(ready); };
+      const ready = () => { if (innerHeight >= height || performance.now() >= deadline) resolve(); else setTimeout(ready, 16); };
       ready();
     });
   }

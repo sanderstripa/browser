@@ -1,5 +1,6 @@
 #pragma once
 #include <windows.h>
+#include <vector>
 #include "include/cef_render_handler.h"
 #include "include/cef_browser.h"
 namespace soulu {
@@ -20,15 +21,23 @@ class ShellSurface final : public CefRenderHandler {
   int paint_error() const { return paint_error_; }
   int paint_count() const { return paint_count_; }
   int toolbar_alpha() const { return toolbar_alpha_; }
+  bool popup_visible() const { return popup_visible_; }
+  int popup_paint_count() const { return popup_paint_count_; }
+  CefRect popup_bounds() const { return AdjustedPopupRect(); }
   void GetViewRect(CefRefPtr<CefBrowser>, CefRect& rect) override;
   bool GetScreenPoint(CefRefPtr<CefBrowser>, int x, int y, int& sx, int& sy) override;
   bool GetScreenInfo(CefRefPtr<CefBrowser>, CefScreenInfo& info) override;
+  void OnPopupShow(CefRefPtr<CefBrowser>, bool show) override;
+  void OnPopupSize(CefRefPtr<CefBrowser>, const CefRect& rect) override;
   void OnPaint(CefRefPtr<CefBrowser>, PaintElementType type,
                const RectList&, const void* buffer, int width, int height) override;
  private:
   ~ShellSurface() override;
   static LRESULT CALLBACK Proc(HWND, UINT, WPARAM, LPARAM);
   void ReleaseBitmap();
+  CefRect AdjustedPopupRect() const;
+  void CompositePopup();
+  void Present();
   CefMouseEvent Mouse(LPARAM pos, bool screen = false) const;
   static uint32_t Modifiers();
   HWND parent_ = nullptr;
@@ -47,6 +56,10 @@ class ShellSurface final : public CefRenderHandler {
   bool first_frame_ = false;
   int paint_error_ = 0;
   int paint_count_ = 0, toolbar_alpha_ = 255;
+  bool popup_visible_ = false;
+  int popup_width_ = 0, popup_height_ = 0, popup_paint_count_ = 0;
+  CefRect popup_rect_;
+  std::vector<unsigned char> popup_pixels_, popup_background_;
   IMPLEMENT_REFCOUNTING(ShellSurface);
 };
 }

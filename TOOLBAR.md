@@ -103,6 +103,15 @@ Maximize/Restore glyph without re-rendering state during every resize tick.
 
 ## Evidence and practical limits
 
+Native HTML select widgets use CEF's separate PET_POPUP paint stream. The
+old shell discarded that stream, so nested permission/Reader controls could
+open without visible options. ShellSurface now composites those premultiplied
+frames over a saved main frame, clamps them to the client at the current DPI,
+maps relocated mouse coordinates back to CEF, and restores the main frame
+on dismissal. Resize invalidates stale popup buffers. The Reader suite opens
+actual widgets and checks paint delivery, bounds and Escape dismissal in both
+layouts; diagnostic counters are restricted to the existing UI test mode.
+
 `test-cef-toolbar.py` runs real CEF, checks computed button/glyph bounds,
 caption default/hover/pressed surfaces, native maximize/minimize, Main →
 Classic → Main mouse dragging, narrow/medium/large popup bounds, themes and

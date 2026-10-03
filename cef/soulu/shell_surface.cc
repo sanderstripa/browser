@@ -30,12 +30,14 @@ void ShellSurface::Detach() { browser_ = nullptr; }
 void ShellSurface::PrepareResize(int width, int height, float scale) {
   screen_pending_ |= scale != scale_;
   resize_pending_ |= width != width_ || height != height_ || screen_pending_;
+  if (resize_pending_) { popup_pixels_.clear(); popup_background_.clear(); }
   width_ = std::max(1, width); height_ = std::max(1, height); scale_ = scale;
 }
 void ShellSurface::CommitResize() {
   if (browser_ && resize_pending_) {
     if (screen_pending_) browser_->GetHost()->NotifyScreenInfoChanged();
     browser_->GetHost()->WasResized();
+    if (popup_visible_) browser_->GetHost()->Invalidate(PET_POPUP);
     resize_pending_ = screen_pending_ = false;
   }
 }
@@ -59,9 +61,59 @@ bool ShellSurface::GetScreenInfo(CefRefPtr<CefBrowser>, CefScreenInfo& info) {
       static_cast<int>((monitor.rcWork.right - monitor.rcWork.left) / scale_), static_cast<int>((monitor.rcWork.bottom - monitor.rcWork.top) / scale_));
   return true;
 }
+CefRect ShellSurface::AdjustedPopupRect() const {
+  const int width = static_cast<int>(std::ceil(width_ / scale_));
+  const int height = static_cast<int>(std::ceil(height_ / scale_));
+  const int w = std::min(popup_rect_.width, width), h = std::min(popup_rect_.height, height);
+  return CefRect(std::max(0, std::min(popup_rect_.x, width - w)),
+                 std::max(0, std::min(popup_rect_.y, height - h)), w, h);
+}
+void ShellSurface::OnPopupShow(CefRefPtr<CefBrowser>, bool show) {
+  if (show == popup_visible_) return;
+  popup_visible_ = show;
+  if (!show) {
+    if (pixels_ && popup_background_.size() == static_cast<size_t>(bitmap_width_) * bitmap_height_ * 4)
+      memcpy(pixels_, popup_background_.data(), popup_background_.size());
+    popup_rect_ = CefRect(); popup_pixels_.clear(); popup_background_.clear();
+    Present();
+  } else if (pixels_) {
+    const auto* data = static_cast<const unsigned char*>(pixels_);
+    popup_background_.assign(data, data + static_cast<size_t>(bitmap_width_) * bitmap_height_ * 4);
+  }
+}
+void ShellSurface::OnPopupSize(CefRefPtr<CefBrowser>, const CefRect& rect) {
+  popup_rect_ = rect;
+  CompositePopup(); Present();
+}
+void ShellSurface::CompositePopup() {
+  if (!pixels_ || !popup_visible_ || popup_pixels_.empty() ||
+      popup_background_.size() != static_cast<size_t>(bitmap_width_) * bitmap_height_ * 4) return;
+  memcpy(pixels_, popup_background_.data(), popup_background_.size());
+  const auto rect = AdjustedPopupRect();
+  const int x = static_cast<int>(std::round(rect.x * scale_)), y = static_cast<int>(std::round(rect.y * scale_));
+  const int width = std::min({popup_width_, static_cast<int>(std::round(rect.width * scale_)), bitmap_width_ - x});
+  const int height = std::min({popup_height_, static_cast<int>(std::round(rect.height * scale_)), bitmap_height_ - y});
+  if (width <= 0 || height <= 0) return;
+  for (int row = 0; row < height; ++row) {
+    auto* dest = static_cast<unsigned char*>(pixels_) + (static_cast<size_t>(y + row) * bitmap_width_ + x) * 4;
+    const auto* source = popup_pixels_.data() + static_cast<size_t>(row) * popup_width_ * 4;
+    for (int col = 0; col < width; ++col, dest += 4, source += 4) {
+      const int inverse = 255 - source[3];
+      for (int channel = 0; channel < 4; ++channel)
+        dest[channel] = static_cast<unsigned char>(source[channel] + (dest[channel] * inverse + 127) / 255);
+    }
+  }
+}
 void ShellSurface::OnPaint(CefRefPtr<CefBrowser>, PaintElementType type, const RectList&,
                             const void* buffer, int width, int height) {
-  if (type != PET_VIEW || !IsWindow(hwnd_) || width <= 0 || height <= 0) return;
+  if (!IsWindow(hwnd_) || width <= 0 || height <= 0) return;
+  if (type == PET_POPUP) {
+    if (!popup_visible_) return;
+    const auto* data = static_cast<const unsigned char*>(buffer);
+    popup_pixels_.assign(data, data + static_cast<size_t>(width) * height * 4);
+    popup_width_ = width; popup_height_ = height; ++popup_paint_count_;
+    CompositePopup(); Present(); return;
+  }
   // OSR frames arrive asynchronously, in physical pixels. A frame must never
   // become a second source of HWND geometry. Allow only DIP rounding padding.
   const int max_width = static_cast<int>(std::ceil(std::ceil(width_ / scale_) * scale_));
@@ -86,6 +138,16 @@ void ShellSurface::OnPaint(CefRefPtr<CefBrowser>, PaintElementType type, const R
            static_cast<size_t>(width) * 4);
   ++paint_count_;
   if (width > 120 && height > 5) toolbar_alpha_ = static_cast<const unsigned char*>(buffer)[(4 * stride + 110) * 4 + 3];
+  if (popup_visible_) {
+    const auto* data = static_cast<const unsigned char*>(pixels_);
+    popup_background_.assign(data, data + static_cast<size_t>(width) * height * 4);
+    CompositePopup();
+  }
+  Present();
+}
+void ShellSurface::Present() {
+  if (!pixels_ || bitmap_width_ != width_ || bitmap_height_ != height_) return;
+  const int width = bitmap_width_, height = bitmap_height_;
   SIZE size = {width, height}; POINT source = {0, 0};
   BLENDFUNCTION blend = {AC_SRC_OVER, 0, 255, AC_SRC_ALPHA};
   UPDATELAYEREDWINDOWINFO update = {sizeof(update)};
@@ -112,6 +174,13 @@ CefMouseEvent ShellSurface::Mouse(LPARAM pos, bool screen) const {
   POINT p = {GET_X_LPARAM(pos), GET_Y_LPARAM(pos)};
   if (screen) ScreenToClient(hwnd_, &p);
   CefMouseEvent event; event.x = static_cast<int>(p.x / scale_); event.y = static_cast<int>(p.y / scale_);
+  if (popup_visible_) {
+    const auto rect = AdjustedPopupRect();
+    if (event.x >= rect.x && event.x < rect.x + rect.width &&
+        event.y >= rect.y && event.y < rect.y + rect.height) {
+      event.x += popup_rect_.x - rect.x; event.y += popup_rect_.y - rect.y;
+    }
+  }
   event.modifiers = Modifiers(); return event;
 }
 LRESULT CALLBACK ShellSurface::Proc(HWND hwnd, UINT message, WPARAM wp, LPARAM lp) {

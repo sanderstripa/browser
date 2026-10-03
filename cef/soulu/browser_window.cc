@@ -1740,6 +1740,11 @@ void BrowserWindow::HandleBridge(const std::string& request,
     result->SetInt("paintCount", surface_ ? surface_->paint_count() : 0);
     result->SetInt("shellFrameRate", shell_ ? shell_->GetHost()->GetWindowlessFrameRate() : 0);
     result->SetInt("toolbarAlpha", surface_ ? surface_->toolbar_alpha() : 255);
+    result->SetBool("popupVisible", surface_ && surface_->popup_visible());
+    result->SetInt("popupPaintCount", surface_ ? surface_->popup_paint_count() : 0);
+    const auto popup = surface_ ? surface_->popup_bounds() : CefRect();
+    result->SetInt("popupX", popup.x); result->SetInt("popupY", popup.y);
+    result->SetInt("popupWidth", popup.width); result->SetInt("popupHeight", popup.height);
     return Reply(callback, result);
   }
   if (action == "browser.navigate") Navigate(payload->GetString());

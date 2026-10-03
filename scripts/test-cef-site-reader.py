@@ -102,12 +102,27 @@ with tempfile.TemporaryDirectory(prefix='soulu-reader-', ignore_cleanup_errors=T
         # model-only check misses viewport shrinking and focus scrolling.
         def visible_surface(selector):
             return s.evaluate(shell,"(()=>{const n=document.querySelector("+json.dumps(selector)+");const r=n.getBoundingClientRect();return !n.hidden&&r.top>=0&&r.height>40&&r.bottom<=innerHeight+1})()")
+        def popup_state():
+            return s.evaluate(shell,"new Promise((resolve,reject)=>cefQuery({request:JSON.stringify({action:'browser.surfaceDiagnostics'}),onSuccess:s=>resolve(JSON.parse(s)),onFailure:reject}))")
+        def exercise_select(selector, name):
+            before = popup_state()['popupPaintCount']
+            point = s.evaluate(shell,"(()=>{const n=document.querySelector("+json.dumps(selector)+");n.scrollIntoView({block:'nearest'});const r=n.getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height/2}})()")
+            for kind in ('mousePressed','mouseReleased'):
+                s.command(shell,'Input.dispatchMouseEvent',dict(point,type=kind,button='left',clickCount=1))
+            state = wait(lambda: (p if (p:=popup_state())['popupVisible'] and p['popupPaintCount']>before else None))
+            viewport = s.evaluate(shell,'({width:innerWidth,height:innerHeight})')
+            assert_check(state['popupWidth']>0 and state['popupHeight']>0 and state['popupX']>=0 and state['popupY']>=0 and state['popupX']+state['popupWidth']<=viewport['width'] and state['popupY']+state['popupHeight']<=viewport['height'],name+' native select painted inside client')
+            for kind in ('rawKeyDown','keyUp'):
+                s.command(shell,'Input.dispatchKeyEvent',{'type':kind,'key':'Escape','code':'Escape','windowsVirtualKeyCode':27})
+            wait(lambda:not popup_state()['popupVisible'])
+            assert_check(True,name+' native select dismiss restores surface')
         for layout in ('compact','classic'):
             s.evaluate(shell,'browserShell.setSettings('+json.dumps({'layout':layout})+')')
             wait(lambda:s.evaluate(shell,'document.body.dataset.layout')==layout)
             s.evaluate(shell,'browserShell.pageMenu()');wait(lambda:visible_surface('.site-popover'))
             s.evaluate(shell,"document.querySelector('.site-permissions summary').click()")
             assert_check(visible_surface('.site-popover'),layout+' permissions expansion stays in client')
+            exercise_select('.site-permissions select',layout+' permissions')
             s.evaluate(shell,"(()=>{const n=document.querySelector('.site-permissions select');n.value='2';n.dispatchEvent(new Event('change'))})()")
             time.sleep(.2)
             assert_check(visible_surface('.site-popover'),layout+' permission rerender stays in client')
@@ -129,6 +144,7 @@ with tempfile.TemporaryDirectory(prefix='soulu-reader-', ignore_cleanup_errors=T
             assert_check(visible_surface('.reader-view'),layout+' menu to Reader bounded')
             s.evaluate(shell,"document.querySelector('.reader-toolbar button:last-child').click()")
             assert_check(visible_surface('.reader-settings'),layout+' Reader appearance bounded')
+            exercise_select('.reader-settings select',layout+' Reader appearance')
             s.evaluate(shell,"document.querySelector('.reader-toolbar button:first-child').click()")
             wait(lambda:not current()['readerActive'])
         action('reset');action('zoom',{'command':'reset'})
