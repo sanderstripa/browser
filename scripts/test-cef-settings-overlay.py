@@ -143,13 +143,15 @@ def main():
             # Never treat pixels from an unrelated foreground app as evidence.
             candidates=windows(process.pid,'SouluSettingsOverlay')
             target=next((h for h in candidates if u.IsWindowVisible(h)),main_window)
-            pid=w.DWORD();u.GetWindowThreadProcessId(u.GetForegroundWindow(),c.byref(pid))
-            if pid.value!=process.pid:
+            def is_foreground():
+                pid=w.DWORD();u.GetWindowThreadProcessId(u.GetForegroundWindow(),c.byref(pid))
+                return pid.value==process.pid
+            if not is_foreground():
                 u.keybd_event(0x12,0,0,0);u.keybd_event(0x12,0,2,0)
                 u.SetForegroundWindow(target)
-                wait(lambda:u.GetForegroundWindow() in [main_window,target],timeout=5)
+                wait(is_foreground,timeout=5)
                 time.sleep(.08)
-            assert u.GetForegroundWindow() in [main_window,target], 'Test Soulu must be foreground before composed capture'
+            assert is_foreground(), 'Test Soulu must be foreground before composed capture'
             return ImageGrab.grab(bbox=rect(main_window))
         try:
             shell = socket('/ui/index.html')
