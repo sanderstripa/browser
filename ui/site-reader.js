@@ -186,7 +186,7 @@
   async function sync(next) {
     state = next; const readerTop = (state.settings?.layout === 'classic' ? 82 : 48) + (state.bookmarksBarVisible ? 28 : 0);
     reader.style.top = `${readerTop}px`; reader.style.setProperty('--reader-top', `${readerTop}px`);
-    reader.style.left = state.sidebarVisible ? '276px' : '0';
+    reader.style.left = state.bookmarksSidebarVisible ? '276px' : '0';
     const nextKey = `${state.activeTabId}|${state.page?.url || 'about:blank'}|${state.page?.generation}`;
     if (key !== nextKey) { key = nextKey; ++revision; site = null; articleKey = ''; reader.hidden = true; closeFind(); close(); }
     const request = revision; const result = await api.getCurrentSite();

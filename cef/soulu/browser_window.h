@@ -249,6 +249,9 @@ class BrowserWindow final : public CefBaseRefCounted {
   int right_panel_width_ = 0;
   int suggestions_height_ = 0;
   bool sidebar_visible_ = false;
+  bool bookmarks_sidebar_ = false;
+  bool sidebar_motion_ = false;
+  unsigned sidebar_motion_generation_ = 0;
   bool overview_visible_ = false;
   bool popover_visible_ = false;
   bool bookmarks_auto_visible_ = false;

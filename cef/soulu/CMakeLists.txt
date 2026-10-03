@@ -11,6 +11,7 @@ set(SOULU_SRCS
   browser_window.cc
   settings_session.cc
   settings_overlay.h
+  motion.h
   settings_overlay.cc
   home_page.cc
   onboarding.cc

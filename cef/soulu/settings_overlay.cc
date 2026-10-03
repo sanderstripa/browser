@@ -1,4 +1,5 @@
 #include "examples/soulu/settings_overlay.h"
+#include "examples/soulu/motion.h"
 #include "examples/soulu/frosted_backdrop.h"
 #include <dwmapi.h>
 #include <windowsx.h>
@@ -6,18 +7,6 @@
 #include <cmath>
 
 namespace soulu {
-namespace {
-// CSS cubic-bezier(.22,1,.36,1), shared by slide and backdrop opacity.
-float Ease(float x) {
-  float lo = 0, hi = 1, t = x;
-  for (int i = 0; i < 16; ++i) {
-    t = (lo + hi) / 2;
-    float v = 3 * (1-t) * (1-t) * t * .22f + 3 * (1-t) * t * t * .36f + t*t*t;
-    if (v < x) lo = t; else hi = t;
-  }
-  return 1 - (1-t)*(1-t)*(1-t);
-}
-}
 SettingsOverlay::SettingsOverlay(HWND owner, std::function<void()> closed,
     std::function<void()> request_close)
     : owner_(owner), closed_(std::move(closed)), request_close_(std::move(request_close)) {}
@@ -41,7 +30,7 @@ bool SettingsOverlay::Create() {
   SetFrostedBackdropOpacity(hwnd_, 0);
   BOOL animate = TRUE;
   if (SystemParametersInfoW(SPI_GETCLIENTAREAANIMATION, 0, &animate, 0)) reduced_ = !animate;
-  duration_ = reduced_ ? 90 : 260;
+  duration_ = reduced_ ? motion::kReducedOverlayMs : motion::kStructuralMs;
   Layout();
   // The invisible panel starts above the clipping bounds. Showing the host now
   // blocks input immediately and allows Chromium to prepare its first frame.
@@ -99,7 +88,7 @@ void SettingsOverlay::PlacePanel() {
 }
 void SettingsOverlay::Tick() {
   const float fraction = std::min(1.f, static_cast<float>(GetTickCount64()-start_) / duration_);
-  const float eased = fraction >= 1 ? 1 : Ease(fraction);
+  const float eased = fraction >= 1 ? 1 : motion::EaseOut(fraction);
   progress_ = state_ == State::Closing ? close_start_ * (1-eased) : eased;
   ++ticks_;
   SetFrostedBackdropOpacity(hwnd_, progress_);

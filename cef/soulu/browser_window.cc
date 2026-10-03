@@ -1,5 +1,6 @@
 #include "examples/soulu/browser_window.h"
 #include "examples/soulu/app_version.h"
+#include "examples/soulu/motion.h"
 #include "include/cef_app.h"
 #include "include/cef_command_line.h"
 #include "include/cef_devtools_message_observer.h"
@@ -1308,10 +1309,10 @@ BrowserWindow::Geometry BrowserWindow::CurrentGeometry() const {
   g.width = std::max(1L, client.right - client.left);
   g.height = std::max(1L, client.bottom - client.top);
   g.toolbar = px((EffectiveSettings()->GetString("layout") == "classic" ? 82 : 48) + (BookmarksBarVisible() ? 28 : 0));
-  g.sidebar = sidebar_visible_ ? px(276) : 0;
+  g.sidebar = sidebar_visible_ && bookmarks_sidebar_ ? px(276) : 0;
   g.panel = px(std::max(0, right_panel_width_));
   const auto* active=const_cast<BrowserWindow*>(this)->ActiveTab();
-  g.shell_height = (active&&active->reader_active) || popover_visible_ || overview_visible_ || sidebar_visible_ || g.panel > 0 ? g.height :
+  g.shell_height = (active&&active->reader_active) || popover_visible_ || overview_visible_ || sidebar_visible_ || sidebar_motion_ || g.panel > 0 ? g.height :
       std::min(g.height, std::max(g.toolbar, px(suggestions_height_)));
   g.content = CefRect(g.sidebar, g.toolbar,
       std::max(1, g.width - g.sidebar - g.panel), std::max(1, g.height - g.toolbar));
@@ -1425,6 +1426,7 @@ CefRefPtr<CefDictionaryValue> BrowserWindow::State() const {
   state->SetList("tabs", list);
   state->SetInt("activeTabId", active_tab_id_);
   state->SetBool("sidebarVisible", sidebar_visible_);
+  state->SetBool("bookmarksSidebarVisible", sidebar_visible_ && bookmarks_sidebar_);
   state->SetBool("overviewVisible", overview_visible_);
   auto* active=const_cast<BrowserWindow*>(this)->ActiveTab();
   state->SetBool("readerActive",active&&active->reader_active);
@@ -1828,8 +1830,19 @@ void BrowserWindow::HandleBridge(const std::string& request,
   }
   else if (action == "browser.switchTab") SwitchTab(payload->GetInt());
   else if (action == "browser.closeTab") CloseTab(payload->GetInt());
-  else if (action == "browser.bookmarks.sidebar") { sidebar_visible_ = payload && payload->GetType()==VTYPE_BOOL && payload->GetBool(); Layout(); EmitState(); }
-  else if (action == "browser.toggleSidebar") { sidebar_visible_ = !sidebar_visible_; Layout(); EmitState(); }
+  else if (action == "browser.bookmarks.sidebar") { sidebar_visible_ = payload && payload->GetType()==VTYPE_BOOL && payload->GetBool(); bookmarks_sidebar_ = true; Layout(); EmitState(); }
+  else if (action == "browser.toggleSidebar") {
+    sidebar_visible_ = bookmarks_sidebar_ || !sidebar_visible_; bookmarks_sidebar_ = false;
+    sidebar_motion_ = true; const auto generation = ++sidebar_motion_generation_;
+    CefRefPtr<BrowserWindow> self = this;
+    // Keep the OSR host mapped throughout exit. No webpage HWND resizing occurs.
+    // A bounded native deadline also handles frontend interruption or failure.
+    CefPostDelayedTask(TID_UI, new FunctionTask([self,generation] {
+      if (self->sidebar_motion_generation_ != generation) return;
+      self->sidebar_motion_ = false; self->Layout();
+    }), motion::kStructuralMs);
+    Layout(); EmitState();
+  }
   else if (action == "browser.popover") { popover_visible_ = payload->GetBool(); Layout(); }
   else if (action == "browser.setRightPanel") { right_panel_width_ = payload->GetInt(); Layout(); }
   else if (action == "browser.setSuggestionsHeight") { suggestions_height_ = payload->GetInt(); Layout(); }

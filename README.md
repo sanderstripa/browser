@@ -17,7 +17,7 @@ Soulu is an experimental browser for Windows built on Chromium and CEF.
 
 The project grew from the idea of creating a browser where the interface does not take up half of the screen, settings are located where you expect to find them, and VPN is part of the browser itself without interfering with the Windows system proxy.
 
-Soulu is currently in the Preview stage and is actively evolving.
+Soulu is currently in the Beta stage and is actively evolving.
 
 ## What already works
 
@@ -37,7 +37,7 @@ Light and dark themes are supported, as well as Windows-style frosted transparen
 
 The browser uses Chromium through Chromium Embedded Framework (CEF), while the native Soulu shell handles the window, interface, and Windows integration.
 
-The Preview 49 candidate uses stable CEF 154.0.33 / Chromium 154.0.8037.94.
+Soulu Beta 1.0.50 uses stable CEF 154.0.33 / Chromium 154.0.8037.94.
 See [CEF_UPGRADE.md](CEF_UPGRADE.md) for dependency provenance, runtime checks
 and the mandatory release gates.
 
@@ -84,4 +84,4 @@ The latest version is always available in the **Releases** section.
 
 Soulu is under active development.
 
-Some Preview features may change as the project evolves.
+Some Beta features may change as the project evolves.
