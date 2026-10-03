@@ -1,9 +1,11 @@
 (() => {
   'use strict';
   const preference = matchMedia('(prefers-reduced-motion: reduce)');
-  const tokens = Object.freeze({micro: 140, surface: 180, structural: 260,
-    sidebarOpen: 200, sidebarClose: 180, reduced: 60,
-    enter: 'cubic-bezier(.22,1,.36,1)', exit: 'cubic-bezier(.4,0,.6,1)'});
+  const style = getComputedStyle(document.documentElement);
+  const ms = name => parseFloat(style.getPropertyValue('--motion-'+name));
+  const tokens = Object.freeze({micro: ms('micro'), surface: ms('surface'), structural: ms('structural'),
+    sidebarOpen: ms('sidebar-open'), sidebarClose: ms('sidebar-close'), reduced: ms('reduced'),
+    enter: style.getPropertyValue('--motion-enter').trim(), exit: style.getPropertyValue('--motion-exit').trim()});
   const active = new Set();
   function cancel() { for (const finish of [...active]) finish(); }
   function transaction() {

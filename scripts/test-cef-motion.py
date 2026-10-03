@@ -41,22 +41,20 @@ def main():
         def card(key):return '#homeCards [data-section="'+key+'"]'
         try:
             shell=connect('/ui/index.html')
-            o.wait(lambda:s.evaluate(shell,'typeof browserShell?.getState==="function"'))
+            o.wait(lambda:s.evaluate(shell,'typeof window.browserShell?.getState==="function"'))
             window=o.wait(lambda:next(iter(o.windows(process.pid,'SouluBrowserWindow')),None))
-            # Class name can vary across shell revisions; discover the owner via overlay below.
-        except AssertionError:
-            window=None
-        try:
             s.evaluate(shell,'browserShell.openSettingsWindow()');settings=connect('/ui/settings.html')
             o.wait(lambda:evaluate('document.body?.classList.contains("ready")'))
             host=o.wait(lambda:next(iter(o.windows(process.pid,'SouluSettingsOverlay')),None))
-            if not window:window=o.u.GetWindow(host,4)  # GW_OWNER
             keys=evaluate('[...document.querySelectorAll("#homeCards [data-section]")].map(n=>n.dataset.section)')
             check(len(keys)==10,'Ten Settings categories preserved')
             for key in keys:
                 evaluate('document.querySelector('+json.dumps(card(key))+').scrollIntoView({block:"center"})')
                 click(card(key))
                 check(evaluate('!!document.querySelector(".motion-shared") && document.querySelector(".motion-shared").inert && document.querySelector(".motion-shared").getAttribute("aria-hidden")==="true"'),key+': shared container is visual only')
+                if key=='interface':
+                    capture('interface-transition')
+                    o.ImageGrab.grab(bbox=o.rect(host)).save(visuals/'interface-transition-composed.png')
                 settled()
                 check(evaluate('document.querySelector("main").dataset.view==="section" && document.querySelector(".nav-item.active").dataset.section==='+json.dumps(key)),key+': correct destination')
                 check(evaluate('document.activeElement.id==="settingsContent"'),key+': section focus')
@@ -79,6 +77,14 @@ def main():
             s.command(settings,'Input.dispatchKeyEvent',{'type':'keyDown','key':'ArrowLeft','code':'ArrowLeft','windowsVirtualKeyCode':37,'modifiers':1})
             o.wait(lambda:evaluate('document.querySelector("main").dataset.view==="home"'));settled()
             check(True,'Alt Left returns through same transition')
+            evaluate('document.querySelector('+json.dumps(card('tabs'))+').focus()')
+            for params in [{'type':'rawKeyDown','key':' ','code':'Space','windowsVirtualKeyCode':32},{'type':'char','text':' ','key':' ','code':'Space','windowsVirtualKeyCode':32},{'type':'keyUp','key':' ','code':'Space','windowsVirtualKeyCode':32}]:s.command(settings,'Input.dispatchKeyEvent',params)
+            o.wait(lambda:evaluate('document.querySelector("main").dataset.view==="section"'));settled()
+            check(True,'Space activates card')
+            for modifiers in [0,8]:
+                s.command(settings,'Input.dispatchKeyEvent',{'type':'keyDown','key':'Tab','code':'Tab','windowsVirtualKeyCode':9,'modifiers':modifiers})
+                check(evaluate('document.activeElement.getClientRects().length>0 && !document.activeElement.closest("[inert],[aria-hidden=true]")'),'Tab and Shift Tab focus visible semantic controls')
+            click('#sectionNav button:first-child');settled()
             for theme in ['light','dark','system']:
                 for scale in [1,1.25,1.5,1.75,2]:
                     s.command(settings,'Emulation.setDeviceMetricsOverride',{'width':900,'height':740,'deviceScaleFactor':scale,'mobile':False})
@@ -109,9 +115,19 @@ def main():
             s.command(settings,'Emulation.setEmulatedMedia',{'features':[]})
             s.command(settings,'HeapProfiler.collectGarbage')
             heap_before=s.command(settings,'Runtime.getHeapUsage')['usedSize']
+            s.command(settings,'Performance.enable')
+            renderer_before={m['name']:m['value'] for m in s.command(settings,'Performance.getMetrics')['metrics']}
+            class FT(o.c.Structure):_fields_=[('low',o.w.DWORD),('high',o.w.DWORD)]
+            def cpu_ms():
+                times=[FT() for _ in range(4)]
+                assert o.c.windll.kernel32.GetProcessTimes(o.w.HANDLE(int(process._handle)),*[o.c.byref(t) for t in times])
+                return sum((t.high<<32)+t.low for t in times[2:])/10000
+            host_before=cpu_ms();wall_before=time.monotonic()
             # Record monotonic rAF pacing and real transition duration over repeated cycles.
             samples=evaluate('''(async()=>{const cycles=[];for(let i=0;i<10;i++){const frames=[];let run=true,last=performance.now();function frame(now){frames.push(now-last);last=now;if(run)requestAnimationFrame(frame)}requestAnimationFrame(frame);const start=performance.now();souluSettings.openSection("interface");while(souluMotion.activeCount)await new Promise(r=>setTimeout(r,10));run=false;cycles.push({elapsed:performance.now()-start,frames});souluSettings.openSection("");while(souluMotion.activeCount)await new Promise(r=>setTimeout(r,10));}return cycles})()''')
             report['timing']=samples
+            renderer_after={m['name']:m['value'] for m in s.command(settings,'Performance.getMetrics')['metrics']}
+            report['cpu']={'hostMs':cpu_ms()-host_before,'rendererTaskMs':1000*(renderer_after['TaskDuration']-renderer_before['TaskDuration']),'wallMs':1000*(time.monotonic()-wall_before)}
             intervals=[n for cycle in samples for n in cycle['frames'] if n>0]
             report['frameIntervalsMs']={'median':statistics.median(intervals),'max':max(intervals)}
             check(all(cycle['elapsed']<1500 for cycle in samples),'Repeated motion remains responsive within runner allowance')

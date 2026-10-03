@@ -16,7 +16,7 @@ The latest navigation intent takes effect immediately; a second transition first
 settles the previous destination. Resize, page teardown, search, theme edits,
 profile changes and close settle temporary layers. There is no new UI framework.
 
-`ui/motion.css` exposes timing/easing tokens for structural surfaces; native
+`ui/motion.css` owns web timing/easing tokens read by `ui/motion.js`; native
 `cef/soulu/motion.h` supplies equivalent timing and ease-out for the existing
 overlay. Keep these small cross-runtime token sets synchronized.
 

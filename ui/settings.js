@@ -112,6 +112,7 @@
       const tile=el('span');Object.assign(tile.style,{position:'absolute',display:'flex',alignItems:'center',justifyContent:'center',background:data.tileBackground,borderRadius:data.tileRadius});
       Object.assign(data.glyph.style,{margin:'0'});tile.append(data.glyph);layer.append(tile);
       if(data.copy){Object.assign(data.copy.style,{position:'absolute',left:'96px',right:'35px',top:'16px'});layer.append(data.copy);tx.animate(data.copy,[{opacity:1},{opacity:0}],motion.tokens.micro);}
+      else if(data.returning){const copy=destination.querySelector('.category-copy')?.cloneNode(true);if(copy){const r=destination.querySelector('.category-copy').getBoundingClientRect();Object.assign(copy.style,{position:'absolute',left:(r.left-end.left)+'px',top:(r.top-end.top)+'px',width:r.width+'px'});layer.append(copy);tx.animate(copy,[{opacity:0,offset:0},{opacity:0,offset:.6},{opacity:1,offset:1}],duration);}}
       document.body.append(layer);
       if(data.returning)content.focus({preventScroll:true});
       destination.classList.add('motion-source-hidden');

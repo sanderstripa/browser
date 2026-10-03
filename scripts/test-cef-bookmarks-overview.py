@@ -75,7 +75,7 @@ with tempfile.TemporaryDirectory(prefix='soulu-navigation-', ignore_cleanup_erro
                 wait(lambda:s.evaluate(shell,"document.body.dataset.bookmarksBar === 'true'"))
                 assert s.evaluate(shell,"document.querySelector('.bookmarks-bar').getBoundingClientRect().height")==28
         s.evaluate(shell,"window.browserShell.setSettings({bookmarksBarPosition:'above'})")
-        s.evaluate(shell,"document.getElementById('compactSidebarButton').click()")
+        s.evaluate(shell,"document.querySelector('.compact-toolbar [data-favorites]').click()")
         wait(lambda:s.evaluate(shell,"!document.querySelector('.bookmarks-menu').hidden && document.querySelector('.bookmarks-menu').getBoundingClientRect().height > 300"))
         assert s.evaluate(shell,'window.browserShell.getState()')['sidebarVisible']
         assert s.evaluate(shell,"document.querySelector('.bookmarks-menu').getBoundingClientRect().left")==0

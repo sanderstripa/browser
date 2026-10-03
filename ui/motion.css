@@ -1,14 +1,14 @@
-:root{--motion-micro:140ms;--motion-surface:180ms;--motion-structural:260ms;--motion-enter:cubic-bezier(.22,1,.36,1);--motion-exit:cubic-bezier(.4,0,.6,1)}
+:root{--motion-micro:140ms;--motion-surface:180ms;--motion-structural:260ms;--motion-sidebar-open:200ms;--motion-sidebar-close:180ms;--motion-sidebar-content:160ms;--motion-stagger:40ms;--motion-reduced:60ms;--motion-enter:cubic-bezier(.22,1,.36,1);--motion-exit:cubic-bezier(.4,0,.6,1)}
 .motion-shared{position:fixed;z-index:1000;pointer-events:none;overflow:hidden;box-sizing:border-box;display:flex;align-items:center;gap:18px;transform-origin:0 0;will-change:transform;contain:layout paint}
 .motion-shared svg{flex:none;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
 .motion-source-hidden{visibility:hidden!important}
 .settings-shell .motion-shared{user-select:none}
-#sidebar{display:block;transform:translateX(-100%);transition:transform 180ms var(--motion-exit),opacity 180ms var(--motion-exit),visibility 0s 180ms;pointer-events:none}
-#sidebar.visible{transform:translateX(0);opacity:1;visibility:visible;pointer-events:auto;transition:transform 200ms var(--motion-enter),opacity 200ms var(--motion-enter),visibility 0s}
-#sidebarTabs{opacity:0;transition:opacity 140ms var(--motion-exit)}
-#sidebar.visible #sidebarTabs{opacity:1;transition:opacity 160ms var(--motion-enter) 40ms}
+#sidebar{display:block;transform:translateX(-100%);transition:transform var(--motion-sidebar-close) var(--motion-exit),opacity var(--motion-sidebar-close) var(--motion-exit),visibility 0s var(--motion-sidebar-close);pointer-events:none}
+#sidebar.visible{transform:translateX(0);opacity:1;visibility:visible;pointer-events:auto;transition:transform var(--motion-sidebar-open) var(--motion-enter),opacity var(--motion-sidebar-open) var(--motion-enter),visibility 0s}
+#sidebarTabs{opacity:0;transition:opacity var(--motion-micro) var(--motion-exit)}
+#sidebar.visible #sidebarTabs{opacity:1;transition:opacity var(--motion-sidebar-content) var(--motion-enter) var(--motion-stagger)}
 html.cef-runtime body[data-layout=compact] #sidebar{top:48px}
 html.cef-runtime body[data-layout=classic] #sidebar{top:82px}
 html.cef-runtime body[data-bookmarks-bar=true][data-layout=compact] #sidebar{top:76px}
 html.cef-runtime body[data-bookmarks-bar=true][data-layout=classic] #sidebar{top:110px}
-@media(prefers-reduced-motion:reduce){#sidebar,#sidebar.visible{transform:none;transition-duration:60ms,60ms,0s}#sidebarTabs,#sidebar.visible #sidebarTabs{transition:opacity 60ms;transition-delay:0s}}
+@media(prefers-reduced-motion:reduce){#sidebar,#sidebar.visible{transform:none;transition-duration:var(--motion-reduced),var(--motion-reduced),0s}#sidebarTabs,#sidebar.visible #sidebarTabs{transition:opacity var(--motion-reduced);transition-delay:0s}}
