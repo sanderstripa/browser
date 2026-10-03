@@ -1,4 +1,21 @@
-# Soulu Preview 49 candidate — Stable CEF update
+# Soulu Beta 1.0.50 — Structural motion
+
+- Adds the shared motion language documented in `MOTION.md`, with short
+  structural transitions and reduced-motion handling.
+- Restores the existing tab-panel entry point. The panel enters from the left
+  and exits in reverse without resizing the webpage during animation.
+- Settings category cards morph into the active navigation item and return to
+  the card grid through the same spatial model. Search/deep links use a reveal.
+- Temporary layers are visual-only and removed on completion, rapid navigation,
+  resize, theme changes, profile changes and close. Keyboard focus is preserved.
+- Keeps the existing native Settings overlay, editing transaction, card home,
+  section design and pinned CEF 154.0.33 / Chromium 154.0.8037.94.
+- Native motion verification records geometry, keyboard/focus, repeated cycles,
+  three themes, five device scales, frame pacing and retained heap. Physical DPI,
+  public-site authenticated sessions and configured VPN checks remain explicit
+  release gates; emulation is not claimed as physical OS verification.
+
+# Soulu Preview 49 — Stable CEF update
 
 - Updated the complete Windows x64 CEF distribution to
   `154.0.33+ga03e714+chromium-154.0.8037.94` (Chromium `154.0.8037.94`),

@@ -1830,17 +1830,26 @@ void BrowserWindow::HandleBridge(const std::string& request,
   }
   else if (action == "browser.switchTab") SwitchTab(payload->GetInt());
   else if (action == "browser.closeTab") CloseTab(payload->GetInt());
-  else if (action == "browser.bookmarks.sidebar") { sidebar_visible_ = payload && payload->GetType()==VTYPE_BOOL && payload->GetBool(); bookmarks_sidebar_ = true; Layout(); EmitState(); }
-  else if (action == "browser.toggleSidebar") {
-    sidebar_visible_ = bookmarks_sidebar_ || !sidebar_visible_; bookmarks_sidebar_ = false;
-    sidebar_motion_ = true; const auto generation = ++sidebar_motion_generation_;
-    CefRefPtr<BrowserWindow> self = this;
-    // Keep the OSR host mapped throughout exit. No webpage HWND resizing occurs.
-    // A bounded native deadline also handles frontend interruption or failure.
-    CefPostDelayedTask(TID_UI, new FunctionTask([self,generation] {
-      if (self->sidebar_motion_generation_ != generation) return;
-      self->sidebar_motion_ = false; self->Layout();
-    }), motion::kStructuralMs);
+  else if (action == "browser.bookmarks.sidebar" || action == "browser.toggleSidebar") {
+    const bool tab_toggle = action == "browser.toggleSidebar";
+    const bool show_bookmarks = !tab_toggle && payload && payload->GetType()==VTYPE_BOOL && payload->GetBool();
+    const bool closing_tabs = !tab_toggle && !show_bookmarks && sidebar_visible_ && !bookmarks_sidebar_;
+    if (tab_toggle) {
+      sidebar_visible_ = bookmarks_sidebar_ || !sidebar_visible_; bookmarks_sidebar_ = false;
+    } else {
+      sidebar_visible_ = show_bookmarks;
+      if (!closing_tabs) bookmarks_sidebar_ = true;
+    }
+    if (tab_toggle || closing_tabs) {
+      sidebar_motion_ = true; const auto generation = ++sidebar_motion_generation_;
+      CefRefPtr<BrowserWindow> self = this;
+      // Keep the OSR host mapped throughout exit, including Escape/overview.
+      // A bounded deadline handles frontend interruption or failure.
+      CefPostDelayedTask(TID_UI, new FunctionTask([self,generation] {
+        if (self->sidebar_motion_generation_ != generation) return;
+        self->sidebar_motion_ = false; self->Layout();
+      }), motion::kStructuralMs);
+    }
     Layout(); EmitState();
   }
   else if (action == "browser.popover") { popover_visible_ = payload->GetBool(); Layout(); }

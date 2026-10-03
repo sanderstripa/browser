@@ -44,7 +44,7 @@
     for(const [id,ru,en] of [['applySettings','Применить','Apply'],['cancelSettings','Отмена','Cancel'],['closeTitle','Сохранить изменения?','Save changes?'],['closeHint','Изменения настроек ещё не применены.','Your settings changes have not been applied.'],['discardClose','Не сохранять','Discard'],['cancelClose','Отмена','Cancel'],['saveClose','Сохранить','Save']])$(id).textContent=t(ru,en);
     $('homeCards').replaceChildren();$('sectionNav').replaceChildren();const all=button('',()=>openSection(''),'nav-item');all.append(icon('all'));all.title=t('Все настройки','All settings');all.setAttribute('aria-label',all.title);$('sectionNav').append(all);
     index=[];
-    for(const s of sections){const b=button('',()=>openSection(s.id),'category-card icon-'+s.id);const tile=el('span',undefined,'icon-tile');tile.append(icon(s.id));const text=el('span',undefined,'category-copy');text.append(el('strong',t(s.ru,s.en)),el('small',t(s.hint,s.enHint)));b.dataset.section=s.id;b.append(tile,text,el('span','›','chevron'));$('homeCards').append(b);
+    for(const s of sections){const b=button('',()=>openSection(s.id,undefined,true),'category-card icon-'+s.id);const tile=el('span',undefined,'icon-tile');tile.append(icon(s.id));const text=el('span',undefined,'category-copy');text.append(el('strong',t(s.ru,s.en)),el('small',t(s.hint,s.enHint)));b.dataset.section=s.id;b.append(tile,text,el('span','›','chevron'));$('homeCards').append(b);
       const nav=button('',()=>openSection(s.id),'nav-item');nav.dataset.section=s.id;nav.append(icon(s.id));nav.title=t(s.ru,s.en);nav.setAttribute('aria-label',nav.title);nav.classList.toggle('active',section===s.id);if(section===s.id)nav.setAttribute('aria-current','page');$('sectionNav').append(nav);
       for(const g of s.groups)for(const r of g.rows)index.push({section:s.id,key:r.store+'-'+r.key,title:t(r.ru,r.en),path:t(s.ru,s.en)+' → '+t(g.ru,g.en),hay:[s.ru,s.en,g.ru,g.en,r.ru,r.en,r.hint,r.enHint,r.key,r.tags,...r.options.flatMap(o=>[o.ru,o.en])].join(' ').toLowerCase().replaceAll('ё','е')});
     }
@@ -63,11 +63,11 @@
   }
 
   // Capture only visible sources. Search and deep links never invent a card.
-  function prepareSectionMotion(id,target){
+  function prepareSectionMotion(id,target,fromCard){
     const motion=window.souluMotion;motion.cancel();
     if(id===section&&!target)return null;
     const returning=!id&&!!section;
-    const source=!target&&(!$('settingsSearch').value.trim())?
+    const source=!target&&(returning||fromCard)&&(!$('settingsSearch').value.trim())?
       document.querySelector(returning?'#sectionNav [data-section="'+section+'"]':!section?'#homeCards [data-section="'+id+'"]':'[data-no-source]'):null;
     const visible=source&&source.getClientRects().length;
     const data={returning,key:returning?section:id};
@@ -80,6 +80,10 @@
         data.style=getComputedStyle(source);data.background=data.style.backgroundColor;
         data.radius=data.style.borderRadius;data.border=data.style.border;
         data.glyph=glyph.cloneNode(true);data.color=getComputedStyle(glyph).color;
+        const tile=source.querySelector('.icon-tile');
+        data.tileBounds=tile?tile.getBoundingClientRect():data.iconBounds;
+        data.tileBackground=tile?getComputedStyle(tile).backgroundColor:'transparent';
+        data.tileRadius=tile?getComputedStyle(tile).borderRadius:'0px';
         data.copy=source.querySelector('.category-copy')?.cloneNode(true);
       }
     }
@@ -89,12 +93,12 @@
     old.setAttribute('aria-hidden','true');old.inert=true;
     Object.assign(old.style,{position:'fixed',left:bounds.left+'px',top:bounds.top+'px',width:bounds.width+'px',height:bounds.height+'px',zIndex:'999',pointerEvents:'none',margin:'0',background:getComputedStyle(document.querySelector('main')).backgroundColor});
     old.scrollTop=$('settingsContent').scrollTop;
-    data.old=old;return data;
+    data.scrollTop=$('settingsContent').scrollTop;data.old=old;return data;
   }
   function finishSectionMotion(data,id){
     if(!data)return;
     const motion=window.souluMotion,tx=motion.transaction(),duration=motion.tokens.structural;
-    document.body.append(data.old);tx.cleanup(()=>data.old.remove());
+    document.body.append(data.old);data.old.scrollTop=data.scrollTop;tx.cleanup(()=>data.old.remove());
     tx.animate(data.old,[{opacity:1},{opacity:0}],motion.tokens.surface);
     const nav=document.querySelector('aside'),content=$('settingsContent');
     if(id)tx.animate(nav,[{opacity:0,transform:motion.reduced?'none':'translateX(-12px)'},{opacity:1,transform:'none'}]);
@@ -105,21 +109,26 @@
       const end=destination.getBoundingClientRect(),glyphEnd=destination.querySelector('svg').getBoundingClientRect(),style=getComputedStyle(destination);
       const layer=el('div',undefined,'motion-shared');layer.setAttribute('aria-hidden','true');layer.inert=true;
       Object.assign(layer.style,{left:'0',top:'0',color:data.color,border:data.border,background:data.background});
-      Object.assign(data.glyph.style,{position:'absolute',margin:'0'});layer.append(data.glyph);
+      const tile=el('span');Object.assign(tile.style,{position:'absolute',display:'flex',alignItems:'center',justifyContent:'center',background:data.tileBackground,borderRadius:data.tileRadius});
+      Object.assign(data.glyph.style,{margin:'0'});tile.append(data.glyph);layer.append(tile);
       if(data.copy){Object.assign(data.copy.style,{position:'absolute',left:'96px',right:'35px',top:'16px'});layer.append(data.copy);tx.animate(data.copy,[{opacity:1},{opacity:0}],motion.tokens.micro);}
-      document.body.append(layer);destination.classList.add('motion-source-hidden');
+      document.body.append(layer);
+      if(data.returning)content.focus({preventScroll:true});
+      destination.classList.add('motion-source-hidden');
       // Suppress the outgoing copy of the source as well.
       data.old.querySelector('[data-section="'+data.key+'"]')?.classList.add('motion-source-hidden');
-      tx.cleanup(()=>{layer.remove();destination.classList.remove('motion-source-hidden');});
+      tx.cleanup(()=>{layer.remove();destination.classList.remove('motion-source-hidden');
+        if(data.returning&&destination.isConnected&&(document.activeElement===content||document.activeElement===document.body))destination.focus({preventScroll:true});});
       const frame=(r,radius,background)=>({transform:`translate(${r.left}px,${r.top}px)`,width:r.width+'px',height:r.height+'px',borderRadius:radius,background});
       tx.animate(layer,[frame(data.bounds,data.radius,data.background),frame(end,style.borderRadius,style.backgroundColor)],duration);
       const iconFrame=(r,parent)=>({left:(r.left-parent.left)+'px',top:(r.top-parent.top)+'px',width:r.width+'px',height:r.height+'px'});
-      tx.animate(data.glyph,[iconFrame(data.iconBounds,data.bounds),iconFrame(glyphEnd,end)],duration);
+      tx.animate(tile,[{...iconFrame(data.tileBounds,data.bounds),background:data.tileBackground,borderRadius:data.tileRadius},{...iconFrame(glyphEnd,end),background:'transparent',borderRadius:'0px'}],duration);
+      tx.animate(data.glyph,[{width:data.iconBounds.width+'px',height:data.iconBounds.height+'px'},{width:glyphEnd.width+'px',height:glyphEnd.height+'px'}],duration);
     }
     tx.play();
   }
 
-  function openSection(id,target){const previous=section;const transition=prepareSectionMotion(id,target);section=id;$('settingsSearch').value='';document.querySelector('main').dataset.view=id?'section':'home';document.querySelector('aside').hidden=!id;$('homeCards').hidden=!!id;$('sectionContent').hidden=!id;$('searchResults').hidden=true;render();$('settingsContent').scrollTop=0;if(target){const n=$('control-'+target);if(n){if(n.hidden){n.hidden=false;n.querySelector('span').append(el('small',t('Выберите «Указанный адрес», чтобы изменить эту страницу.','Choose Custom address to edit this page.'),'search-mode-note'));}n.scrollIntoView({block:'center',behavior:'smooth'});n.classList.add('setting-highlight');n.focus({preventScroll:true});setTimeout(()=>n.classList.remove('setting-highlight'),2200);}}else if(!id&&previous)document.querySelector('#homeCards [data-section="'+previous+'"]')?.focus({preventScroll:true});else $('settingsContent').focus({preventScroll:true});finishSectionMotion(transition,id);}
+  function openSection(id,target,fromCard=false){const previous=section;const transition=prepareSectionMotion(id,target,fromCard);section=id;$('settingsSearch').value='';document.querySelector('main').dataset.view=id?'section':'home';document.querySelector('aside').hidden=!id;$('homeCards').hidden=!!id;$('sectionContent').hidden=!id;$('searchResults').hidden=true;render();$('settingsContent').scrollTop=0;if(target){const n=$('control-'+target);if(n){if(n.hidden){n.hidden=false;n.querySelector('span').append(el('small',t('Выберите «Указанный адрес», чтобы изменить эту страницу.','Choose Custom address to edit this page.'),'search-mode-note'));}n.scrollIntoView({block:'center',behavior:'smooth'});n.classList.add('setting-highlight');n.focus({preventScroll:true});setTimeout(()=>n.classList.remove('setting-highlight'),2200);}}else if(!id&&previous)document.querySelector('#homeCards [data-section="'+previous+'"]')?.focus({preventScroll:true});else $('settingsContent').focus({preventScroll:true});finishSectionMotion(transition,id);}
   function showSearch(){window.souluMotion.cancel();const query=$('settingsSearch').value.trim().toLowerCase().replaceAll('ё','е');$('clearSearch').hidden=!query;$('searchResults').hidden=!query;$('homeCards').hidden=!!query||!!section;$('sectionContent').hidden=!!query||!section;if(!query)return;const box=$('searchResults');box.replaceChildren();const results=index.filter(x=>query.split(/\s+/).every(word=>x.hay.includes(word)));for(const r of results){const b=button('',()=>openSection(r.section,r.key),'result');const text=el('span');text.append(el('strong',r.title),el('small',r.path));b.append(icon(r.section),text);box.append(b);}if(!results.length)box.append(el('p',t('Ничего не найдено','No settings found'),'note'));}
   function rebase(base,draft,live){if(equal(base,draft))return clone(live);if(base&&draft&&live&&typeof draft==='object'&&!Array.isArray(draft)){const next=clone(live);for(const key of Object.keys(draft))next[key]=rebase(base[key],draft[key],live[key]);return next;}return clone(draft);}
   function validate(){for(const kind of ['startup','newTab','home'])if(staged.settings[kind+'Mode']==='custom'){const raw=staged.settings[kind+'Url'].trim();try{if(!raw||/\s/.test(raw))throw Error();const u=new URL(raw.includes('://')?raw:'https://'+raw);if(!['http:','https:'].includes(u.protocol)||!u.hostname||u.username||u.password)throw Error();}catch{openSection('tabs','settings-'+kind+'Url');throw Error(t('Укажите корректный HTTP/HTTPS-адрес страницы.','Enter a valid HTTP/HTTPS page address.'));}}if(!equal(staged.vpn,persisted.vpn)){const parsed=window.souluParseVpnKey(staged.vpn.link,staged.vpn.protocol);Object.assign(staged.vpn,parsed);}}

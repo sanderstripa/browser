@@ -48,7 +48,7 @@ def main():
             window=None
         try:
             s.evaluate(shell,'browserShell.openSettingsWindow()');settings=connect('/ui/settings.html')
-            o.wait(lambda:evaluate('document.body.classList.contains("ready")'))
+            o.wait(lambda:evaluate('document.body?.classList.contains("ready")'))
             host=o.wait(lambda:next(iter(o.windows(process.pid,'SouluSettingsOverlay')),None))
             if not window:window=o.u.GetWindow(host,4)  # GW_OWNER
             keys=evaluate('[...document.querySelectorAll("#homeCards [data-section]")].map(n=>n.dataset.section)')
@@ -73,10 +73,12 @@ def main():
             # Native keyboard events exercise semantic button activation and back.
             click('#sectionNav button:first-child');settled()
             evaluate('document.querySelector('+json.dumps(card('interface'))+').focus()')
-            for params in [{'type':'keyDown','key':'Enter','code':'Enter','windowsVirtualKeyCode':13},{'type':'keyUp','key':'Enter','code':'Enter','windowsVirtualKeyCode':13}]:s.command(settings,'Input.dispatchKeyEvent',params)
-            settled();check(evaluate('document.querySelector("main").dataset.view==="section"'),'Enter activates card')
+            for params in [{'type':'rawKeyDown','key':'Enter','code':'Enter','windowsVirtualKeyCode':13},{'type':'char','text':'\r','key':'Enter','code':'Enter','windowsVirtualKeyCode':13},{'type':'keyUp','key':'Enter','code':'Enter','windowsVirtualKeyCode':13}]:s.command(settings,'Input.dispatchKeyEvent',params)
+            o.wait(lambda:evaluate('document.querySelector("main").dataset.view==="section"'));settled()
+            check(True,'Enter activates card')
             s.command(settings,'Input.dispatchKeyEvent',{'type':'keyDown','key':'ArrowLeft','code':'ArrowLeft','windowsVirtualKeyCode':37,'modifiers':1})
-            settled();check(evaluate('document.querySelector("main").dataset.view==="home"'),'Alt Left returns through same transition')
+            o.wait(lambda:evaluate('document.querySelector("main").dataset.view==="home"'));settled()
+            check(True,'Alt Left returns through same transition')
             for theme in ['light','dark','system']:
                 for scale in [1,1.25,1.5,1.75,2]:
                     s.command(settings,'Emulation.setDeviceMetricsOverride',{'width':900,'height':740,'deviceScaleFactor':scale,'mobile':False})
@@ -105,21 +107,31 @@ def main():
             check(evaluate('souluMotion.reduced && !document.querySelector(".motion-shared")'),'Reduced motion removes spatial morph');settled()
             click('#sectionNav button:first-child');settled()
             s.command(settings,'Emulation.setEmulatedMedia',{'features':[]})
+            s.command(settings,'HeapProfiler.collectGarbage')
+            heap_before=s.command(settings,'Runtime.getHeapUsage')['usedSize']
             # Record monotonic rAF pacing and real transition duration over repeated cycles.
             samples=evaluate('''(async()=>{const cycles=[];for(let i=0;i<10;i++){const frames=[];let run=true,last=performance.now();function frame(now){frames.push(now-last);last=now;if(run)requestAnimationFrame(frame)}requestAnimationFrame(frame);const start=performance.now();souluSettings.openSection("interface");while(souluMotion.activeCount)await new Promise(r=>setTimeout(r,10));run=false;cycles.push({elapsed:performance.now()-start,frames});souluSettings.openSection("");while(souluMotion.activeCount)await new Promise(r=>setTimeout(r,10));}return cycles})()''')
             report['timing']=samples
             intervals=[n for cycle in samples for n in cycle['frames'] if n>0]
             report['frameIntervalsMs']={'median':statistics.median(intervals),'max':max(intervals)}
             check(all(cycle['elapsed']<1500 for cycle in samples),'Repeated motion remains responsive within runner allowance')
+            s.command(settings,'HeapProfiler.collectGarbage')
+            heap_after=s.command(settings,'Runtime.getHeapUsage')['usedSize']
+            report['heapBytes']={'before':heap_before,'after':heap_after}
+            check(heap_after-heap_before<4*1024*1024,'No accumulating transition layers or material retained JS heap growth')
             # Close during an in-flight internal transition, then reopen canonical Settings.
             evaluate('souluSettings.cancel()')
             click(card('interface'));evaluate('souluSettingsRequestClose()')
             o.wait(lambda:not o.windows(process.pid,'SouluSettingsOverlay'))
             # Tab sidebar is an overlay: webpage geometry must stay unchanged.
+            target=next(t for t in s.targets() if t.get('type')=='page' and '/ui/index.html' not in t.get('url','') and '/ui/settings.html' not in t.get('url',''))
+            page=s.websocket.create_connection(target['webSocketDebuggerUrl'],timeout=30,origin=s.BASE);sockets.append(page)
             for layout in ['compact','classic']:
                 s.evaluate(shell,'browserShell.setSettings({layout:'+json.dumps(layout)+'})')
+                dimensions=s.evaluate(page,'[innerWidth,innerHeight]')
                 for cycle in range(30):
                     s.evaluate(shell,'browserShell.toggleSidebar()');time.sleep(.025)
+                    check(s.evaluate(page,'[innerWidth,innerHeight]')==dimensions,f'{layout} cycle {cycle}: webpage is not resized')
                     s.evaluate(shell,'browserShell.toggleSidebar()')
                 time.sleep(.35)
                 check(s.evaluate(shell,'browserShell.getState().then(s=>!s.sidebarVisible)'),'Sidebar repeated close: '+layout)
