@@ -82,9 +82,10 @@ try:
                          and row['page']['ready'] == 'complete')
         # A server rejection is recorded separately from a browser/network error.
         # Preview 48 already receives this Ozon challenge from CI runner egress.
+        # Its challenge may keep reloading; a 403 is still a server rejection,
+        # never usable content. The publication gate separately requires opened.
         row['externalServiceRejection'] = (
             host == 'ozon.ru' and row['page']['url'].startswith('https://ozon.ru/')
-            and row['page']['ready'] == 'complete'
             and any(e.get('response', {}).get('status') in (403, 429) for e in row['events']))
         rows.append(row)
         if len(sys.argv) > 2:
