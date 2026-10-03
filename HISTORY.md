@@ -57,7 +57,7 @@ all query/delete/clear requests. No normal history is exposed to private browsin
 The native coordinator uses an invisible auxiliary Chromium Settings WebUI in
 the History document's existing `CefRequestContext`. It invokes Chromium's
 allowlisted `browser.clear_data.cookies` / `browser.clear_data.cache` operation,
-then waits for its completion through an observed DevTools promise and for the
+in a Chrome-style CEF Views window that is never shown. It waits for completion through an observed DevTools promise and for the
 auxiliary browser to close. The worker has no Soulu bridge. It does not infer
 site origins from history, inspect/delete live profile files, reset the entire
 profile or create another persistent browser context.

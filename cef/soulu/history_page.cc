@@ -71,12 +71,13 @@ void BrowserWindow::HandleHistoryBridge(int id,const std::string& request,
   if(action=="history.open"){
     const std::string url=payload?payload->GetString("url"):"";
     if(WebOrigin(url).empty()){callback->Failure(400,"Web URL required");return;}
+    if(payload->GetBool("newTab")&&tab->profile_id!=active_profile_id_){callback->Failure(409,"Переключитесь в профиль этой истории перед открытием новой вкладки.");return;}
     ReplyEmpty(callback);
     if(payload->GetBool("newTab"))NewTab(url,false,true,tab->browser->GetHost()->GetRequestContext(),tab->profile_id);
     else tab->browser->GetMainFrame()->LoadURL(url);return;
   }
   if(action=="history.clear"){
-    if(clearing_data_){callback->Failure(409,"Очистка уже выполняется.");return;}
+    if(closing_||clearing_data_){callback->Failure(409,"Очистка уже выполняется или браузер закрывается.");return;}
     if(!payload||payload->GetType("history")!=VTYPE_BOOL||payload->GetType("sites")!=VTYPE_BOOL||payload->GetType("cache")!=VTYPE_BOOL){callback->Failure(400,"Categories required");return;}
     const std::string range=payload->GetString("range");double duration=0;
     if(range=="15m")duration=15*60*1000.;else if(range=="hour")duration=60*60*1000.;

@@ -130,6 +130,13 @@ def main():
             index=next(i for i,label in enumerate(labels) if label.startswith('История'));rect=Rect();check(u.GetMenuItemRect(None,menu,index,ctypes.byref(rect)),'History menu item has a native hit target')
             u.SetCursorPos((rect.left+rect.right)//2,(rect.top+rect.bottom)//2);time.sleep(.1);u.mouse_event(0x0002,0,0,0,0);u.mouse_event(0x0004,0,0,0,0)
             wait(lambda:not menu_window());check(wait(lambda:state()['activeTabId']==bridge(history,'state')['tabId']),'Selecting History from the actual native menu opens its internal page')
+            history_id=bridge(history,'state')['tabId'];count=len(state()['tabs'])
+            bridge(history,'open',dict(url=origin+'/from-history',newTab=True))
+            check(wait(lambda:len(state()['tabs'])==count+1 and next(t['url'] for t in state()['tabs'] if t['active'])==origin+'/from-history'),'A history entry opens in a new native tab')
+            call('switchTab',history_id);wait(lambda:s.evaluate(history,"document.querySelector('.visit-link')!==null"))
+            s.command(history,'Runtime.evaluate',dict(expression="document.querySelector('.visit-link').click()",awaitPromise=False))
+            check(wait(lambda:next(t['url'] for t in state()['tabs'] if t['active']).startswith(origin)),'A history row opens in its current tab')
+            call('back');wait(lambda:s.evaluate(history,"location.href.includes('/ui/history.html')&&typeof window.souluHistoryClear==='function'"))
             db=sqlite3.connect(profile/'soulu-history.sqlite')
             now=time.time()*1000
             fixtures=[('old-control',origin+'/old','Old control','',now-40*864e5,'old control '+origin+'/old'),('recent-control',origin+'/recent','Recent control','',now-5*60e3,'recent control '+origin+'/recent')]
@@ -158,7 +165,8 @@ def main():
                     candidate=socket(target)
                     if bridge(candidate,'state')['profile']==profile_b:h_b=candidate;break
             check(all('/profile-b' in r['url'] for r in query(h_b)['rows']),'Profile B history excludes Profile A')
-            call('switchProfile','personal');check(clear(history,history=True)['ok'],'Full history clearing succeeds')
+            call('switchProfile','personal');check(rejected(h_b,'open',dict(url=origin+'/wrong-profile',newTab=True)),'A background History document cannot open a foreground tab in another active profile')
+            check(clear(history,history=True)['ok'],'Full history clearing succeeds')
             check(not query(history)['rows'] and query(h_b)['rows'],'Clearing A preserves B history')
             # Site data still exists after its visits were deleted: no origin list shortcut.
             check(clear(history,sites=True)['ok'],'Profile-wide cookies and site storage clearing completes through Chromium')
