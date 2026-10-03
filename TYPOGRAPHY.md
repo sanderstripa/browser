@@ -65,8 +65,10 @@ alert/confirm/prompt dialogs use the shared Win32 dialog helper. It registers
 the same bundled faces privately once, caches HFONT handles by role and DPI,
 selects the actual Onest Medium/SemiBold families, and paints headings/body
 in semantic line boxes using the font's hhea ascent/descent. Native button and
-edit controls receive those private fonts before display. Result IDs, safe
-default rejection and CEF dialog cancellation remain explicit.
+edit controls receive those private fonts before display. Existing native consent
+dialogs retain default rejection; JavaScript confirm/prompt retain OK/Cancel and
+Enter behavior. CEF reset and owner shutdown cancel open dialogs explicitly,
+and the modal loop permits CEF tasks while retaining its client lifetime.
 Toolbar/page/link and CEF content context menus retain Win32 menu tracking and
 command routing, while the shared owner-draw layer selects compactControl Onest
 and canonical line boxes. Enabled/checked states and nested menu items are retained.

@@ -1,5 +1,6 @@
 #include "examples/soulu/typography_native.h"
 #include "examples/soulu/typography_metrics.h"
+#include "include/cef_app.h"
 #include <filesystem>
 #include <fstream>
 #include <map>
@@ -184,6 +185,7 @@ int Show(Dialog& state){
   definition.dialog.style=WS_POPUP|WS_CAPTION|WS_SYSMENU|DS_MODALFRAME;
   definition.dialog.cx=300;definition.dialog.cy=140;
   activeDialogs.push_back(&state);
+  CefScopedSetNestableTasksAllowed allow_tasks;
   int result=static_cast<int>(DialogBoxIndirectParamW(GetModuleHandleW(nullptr),&definition.dialog,state.owner,Procedure,reinterpret_cast<LPARAM>(&state)));
   activeDialogs.erase(std::remove(activeDialogs.begin(),activeDialogs.end(),&state),activeDialogs.end());
   return result<0?IDCANCEL:result;
@@ -199,6 +201,10 @@ bool TypographyPrompt(HWND owner,const std::wstring& text,const std::wstring& in
 void TypographyCancelDialogs(const void* tag){
   if(!tag)return;auto dialogs=activeDialogs;
   for(auto* dialog:dialogs)if(dialog->tag==tag&&dialog->window)EndDialog(dialog->window,IDCANCEL);
+}
+void TypographyCancelOwnedDialogs(HWND owner){
+  auto dialogs=activeDialogs;
+  for(auto* dialog:dialogs)if(dialog->window&&(dialog->owner==owner||IsChild(owner,dialog->owner)||GetAncestor(dialog->owner,GA_ROOTOWNER)==owner))EndDialog(dialog->window,IDCANCEL);
 }
 int TypographyTrackPopupMenu(HMENU menu,UINT flags,int x,int y,int reserved,HWND owner,const RECT* bounds){
   if(!Service().ready)return 0;

@@ -142,7 +142,7 @@ def main():
             from pywinauto.controls.win32_controls import EditWrapper, ButtonWrapper
             EditWrapper(edit[0]).set_edit_text(str(saved.resolve()))
             check(EditWrapper(edit[0]).window_text() == str(saved.resolve()), 'Native Save As accepts the test path')
-            ButtonWrapper(save[0]).click()
+            ButtonWrapper(save[0]).click_input()
             wait(lambda: saved.exists() and saved.stat().st_size == len(BODY))
             check(saved.read_bytes() == BODY, 'Native Save As downloads exact fixture bytes to selected path')
             downloads = wait(lambda: (rows if any(r['state'] == 'completed' for r in rows) else None) if (rows := s.evaluate(shell, 'browserShell.getDownloads()')) else None)

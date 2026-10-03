@@ -2304,7 +2304,7 @@ LRESULT CALLBACK BrowserWindow::WindowProc(HWND hwnd, UINT message, WPARAM wpara
     case WM_SETFOCUS: if (self->settings_overlay_) { self->FocusSettings(); return 0; } break;
     case WM_DWMCOMPOSITIONCHANGED: self->ApplyWindowAppearance(); return 0;
     case WM_SETTINGCHANGE: self->ApplyWindowAppearance(); self->ApplyContentTheme(); break;
-    case WM_CLOSE: self->CloseAll(); return 0;
+    case WM_CLOSE: TypographyCancelOwnedDialogs(hwnd);self->CloseAll();return 0;
     case WM_DESTROY: ReleaseFrostedBackdrop(hwnd); CefQuitMessageLoop(); return 0;
     case WM_NCDESTROY:
       SetWindowLongPtr(hwnd, GWLP_USERDATA, 0); self->hwnd_ = nullptr; self->Release(); break;

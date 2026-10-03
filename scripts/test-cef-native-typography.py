@@ -21,6 +21,7 @@ u.GetDlgItem.argtypes=[w.HWND,ctypes.c_int];u.GetDlgItem.restype=w.HWND
 u.SendMessageW.argtypes=[w.HWND,w.UINT,w.WPARAM,w.LPARAM];u.SendMessageW.restype=ctypes.c_ssize_t
 u.SetWindowTextW.argtypes=[w.HWND,w.LPCWSTR]
 u.SetForegroundWindow.argtypes=[w.HWND]
+u.PostMessageW.argtypes=[w.HWND,w.UINT,w.WPARAM,w.LPARAM]
 class LOGFONT(ctypes.Structure):
     _fields_=[(name,w.LONG) for name in ('height','width','escapement','orientation','weight')]+[(name,w.BYTE) for name in ('italic','underline','strikeout','charset','outprecision','clipprecision','quality','pitch')]+[('face',w.WCHAR*32)]
 g.GetObjectW.argtypes=[w.HANDLE,ctypes.c_int,ctypes.c_void_p]
@@ -73,16 +74,28 @@ def main():
                 time.sleep(.35)  # Capture after Windows' dialog entrance transition.
                 ImageGrab.grab(bbox=(rect.left,rect.top,rect.right,rect.bottom),all_screens=True).save(visuals/('native-'+label.replace(' ','-')+'.png'))
                 if label in ('prompt enter','confirm escape'):
-                    u.SetForegroundWindow(hwnd);key=0x0D if label=='prompt enter' else 0x1B
-                    u.keybd_event(key,0,0,0);u.keybd_event(key,0,2,0)
+                    key=0x0D if label=='prompt enter' else 0x1B
+                    # Route normal key messages through the native dialog loop;
+                    # another desktop app must not steal the test's keystrokes.
+                    u.PostMessageW(edit or control,0x0100,key,1)
+                    u.PostMessageW(edit or control,0x0101,key,0xC0000001)
                 else:u.SendMessageW(control,0x00F5,0,0)
                 wait(lambda:s.evaluate(ws,'window.dialogFinished'))
                 actual=s.evaluate(ws,'window.dialogValue')
                 assert actual==expected,(label,actual,expected)
                 report['checks'].append(label);print('PASS:',label,flush=True)
+            s.evaluate(ws,'setTimeout(()=>prompt("Close owner", "initial"),50);true')
+            wait(lambda:dialog_for(process.pid))
+            s.close_normally(process)
+            assert process.returncode==0,'Closing a modal owner failed'
+            report['checks'].append('normal shutdown with prompt open')
+            print('PASS: normal shutdown with prompt open',flush=True)
             report['passed']=True
         finally:
             if ws:ws.close()
-            s.close_normally(process);server.shutdown()
-            out.write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
+            try:
+                if process.poll() is None:s.close_normally(process)
+            finally:
+                server.shutdown()
+                out.write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
 if __name__=='__main__':main()

@@ -19,6 +19,7 @@ bool BrowserClient::OnJSDialog(CefRefPtr<CefBrowser>, const CefString& origin, J
     CefRefPtr<CefJSDialogCallback> callback, bool& suppress) {
   CEF_REQUIRE_UI_THREAD();
   if(js_dialog_open_){suppress=true;return false;}
+  CefRefPtr<BrowserClient> keep_alive(this);
   js_dialog_open_=true;
   std::wstring value;
   const auto site=origin.empty()?std::wstring():CefFormatUrlForSecurityDisplay(origin).ToWString();
@@ -33,6 +34,7 @@ bool BrowserClient::OnBeforeUnloadDialog(CefRefPtr<CefBrowser>,const CefString& 
     CefRefPtr<CefJSDialogCallback> callback){
   CEF_REQUIRE_UI_THREAD();
   if(js_dialog_open_){callback->Continue(false,CefString());return true;}
+  CefRefPtr<BrowserClient> keep_alive(this);
   js_dialog_open_=true;
   const bool accepted=TypographyMessageBox(owner_->hwnd(),text.ToWString().c_str(),L"Soulu",MB_YESNO|MB_DEFBUTTON2,this)==IDYES;
   js_dialog_open_=false;callback->Continue(accepted,CefString());return true;
