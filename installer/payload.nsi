@@ -8,7 +8,7 @@ SetCompressor /SOLID lzma
 !ifndef OUT_FILE
 !error "OUT_FILE required"
 !endif
-Name "Soulu Preview 47"
+Name "Soulu Preview 49"
 OutFile "${OUT_FILE}"
 InstallDir "$LOCALAPPDATA\Programs\Soulu"
 Icon "${BUILD_DIR}\ui\soulu-icon.ico"
@@ -23,6 +23,10 @@ Section
   SetOverwrite on
   File /r "${BUILD_DIR}\*"
   IfErrors install_failed
+  ; Earlier previews included build artifacts; remove them during upgrades.
+  Delete "$INSTDIR\shared.lib"
+  Delete "$INSTDIR\shared.pdb"
+  Delete "$INSTDIR\soulu.pdb"
   SetOutPath "$INSTDIR\ui"
   File /oname=soulu-icon-v44.ico "${BUILD_DIR}\ui\soulu-icon.ico"
   ; Existing pinned shortcuts may still name v24. Replace its bytes too rather
@@ -41,7 +45,7 @@ Section
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "DisplayIcon" "$INSTDIR\Soulu.exe"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "UninstallString" '$"$INSTDIR\Uninstall Soulu.exe$"'
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "Publisher" "Soulu"
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "DisplayVersion" "0.9.0-cef-preview.47"
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Soulu" "DisplayVersion" "0.9.0-cef-preview.49"
   System::Call 'shell32::SHChangeNotify(i 0x00002000, i 0x0005, w "$INSTDIR\Soulu.exe", p 0)'
   System::Call 'shell32::SHChangeNotify(i 0x00002000, i 0x0005, w "$INSTDIR\ui\soulu-icon-v24.ico", p 0)'
   System::Call 'shell32::SHChangeNotify(i 0x00002000, i 0x0005, w "$INSTDIR\ui\soulu-icon-v44.ico", p 0)'

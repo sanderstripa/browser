@@ -37,6 +37,10 @@ Light and dark themes are supported, as well as Windows-style frosted transparen
 
 The browser uses Chromium through Chromium Embedded Framework (CEF), while the native Soulu shell handles the window, interface, and Windows integration.
 
+The Preview 49 candidate uses stable CEF 154.0.33 / Chromium 154.0.8037.94.
+See [CEF_UPGRADE.md](CEF_UPGRADE.md) for dependency provenance, runtime checks
+and the mandatory release gates.
+
 ### Profiles
 
 Soulu supports separate profiles with independent:

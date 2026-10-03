@@ -43,7 +43,8 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, wchar_t*, int) {
         command_line->GetSwitchValue("engine-version-file").ToWString());
     std::ofstream report(output);
     report << "{\"cef\":\"" << soulu::EngineVersion(0, 3)
-           << "\",\"chromium\":\"" << soulu::EngineVersion(4, 4) << "\"}";
+           << "\",\"chromium\":\"" << soulu::EngineVersion(4, 4)
+           << "\",\"cef_build\":\"" << soulu::RuntimeCEFBuild() << "\"}";
     report.close();
     return report && soulu::ApprovedEngine() ? 0 : 2;
   }
