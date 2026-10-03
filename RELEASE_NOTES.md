@@ -1,3 +1,18 @@
+# Soulu Preview 49 candidate — Stable CEF update
+
+- Updated the complete Windows x64 CEF distribution to
+  `154.0.33+ga03e714+chromium-154.0.8037.94` (Chromium `154.0.8037.94`),
+  the newest stable Windows x64 build in the canonical index on 2026-10-03.
+- Headers, import library, rebuilt wrapper, binaries, resources and locales use
+  one checksum-verified distribution. Every packaged runtime file is verified.
+- Added native web-platform, GPU, media and download validation; excluded build
+  libraries/debug symbols from the installer and ZIP.
+- Existing interface and feature architecture are preserved. No CEF API
+  signature changes or new security exceptions were needed.
+- Publication requires the full regression evidence for the final main SHA.
+  An external Ozon challenge and unverified authenticated/manual scenarios
+  must not be described as passing tests. See `CEF_UPGRADE.md`.
+
 # Soulu Preview 48 — Settings overlay
 
 - Settings opens from the top of the current browser window, preserving the existing Settings sections and controls.
