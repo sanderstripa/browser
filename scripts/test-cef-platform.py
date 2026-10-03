@@ -88,7 +88,7 @@ def main():
     os.environ['SOULU_REGRESSION_SKIP_FIRST_RUN'] = '1'
     urllib.request.install_opener(urllib.request.build_opener(urllib.request.ProxyHandler({})))
     executable = str(Path(sys.argv[1]).resolve())
-    output = Path(sys.argv[2]); output.parent.mkdir(parents=True, exist_ok=True)
+    output = Path(sys.argv[2]).resolve(); output.parent.mkdir(parents=True, exist_ok=True)
     report = {'checks': [], 'limitations': []}
     def check(value, label):
         assert value, label
