@@ -7,6 +7,8 @@ model. See [HISTORY.md](HISTORY.md) for storage, shortcuts and clearing limitati
 Baseline: main `1d1ac757276477ddf95918bdefa1c1ecea805e53`, Preview 45.
 CEF 154.0.32 / Chromium 154.0.8037.58 are pinned and remain unchanged.
 
+Current hosting: Settings uses the native top-anchored overlay described in [SETTINGS_OVERLAY.md](SETTINGS_OVERLAY.md); the storage and editing model below is retained.
+
 ## Canonical storage audit (before implementation)
 
 | User settings / actions | Existing model | Scope | Destination |
@@ -71,7 +73,7 @@ reply includes the actual persisted snapshot; already committed groups are
 reported honestly and the remaining draft remains editable for retry.
 
 Dirty Apply is enabled only after a real difference. Apply is disabled during
-save. Tab close, document navigation, Escape and whole-window close use a
+save. Overlay close, Escape and whole-window close use a
 Save / Discard / Keep editing dialog. Failed Save leaves the dialog and draft
 open. Profile switching/creation require Apply or Cancel first. Background
 Settings documents receive profile-change notifications, clear stale drafts
