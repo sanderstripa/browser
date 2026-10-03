@@ -1,3 +1,14 @@
+# Soulu Preview 48 — Settings overlay
+
+- Settings opens from the top of the current browser window, preserving the existing Settings sections and controls.
+- Native live backdrop blur and coordinated slide transitions, including reduced motion.
+- Browser tabs, navigation, scroll and media remain alive; background input is blocked until closing completes.
+- Apply, Cancel, dirty close confirmation, sensitive subviews and profile isolation retain their existing behavior.
+- Native Windows build and overlay regression checks run alongside the existing browser suite.
+- CEF remains 154.0.32 / Chromium 154.0.8037.58.
+
+See SETTINGS_OVERLAY.md for composition, lifecycle and verification details.
+
 # Soulu Preview 47 — History and browsing data
 
 - Profile-scoped persistent History with native toolbar menu entries, Ctrl+H and

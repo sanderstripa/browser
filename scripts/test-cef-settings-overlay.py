@@ -158,7 +158,10 @@ def main():
             check(pr[1]==br[1] and abs((pr[0]+pr[2])-(br[0]+br[2]))<=1,'Native panel is top anchored and horizontally centered')
             check(u.GetWindow(overlay,4)==main_window, 'Native host is owned by the current Soulu window')
             check(bool(u.IsChild(overlay,focus(main_window))), 'Real Windows keyboard focus is inside Settings')
-            check(state()['settingsOverlayDuration']==260, 'Normal transition duration is 260 ms')
+            animations = w.BOOL()
+            assert u.SystemParametersInfoW(0x1042, 0, c.byref(animations), 0)
+            duration = 260 if animations.value else 90
+            check(state()['settingsOverlayDuration']==duration, 'Transition duration respects Windows animation preference')
             initial = edit('JSON.stringify(souluSettings.staged)')
             call('openSettingsWindow')
             check(len(windows(process.pid,'SouluSettingsOverlay'))==1 and edit('JSON.stringify(souluSettings.staged)')==initial,
@@ -205,7 +208,7 @@ def main():
             s.command(settings,'Emulation.clearDeviceMetricsOverride')
             edit('souluSettings.cancel()')
             edit('souluSettingsRequestClose()')
-            time.sleep(.06)
+            time.sleep(duration / 1000 * .15)
             transition=state()
             check(transition['settingsOverlayOpen'] and 0<transition['settingsOverlayProgress']<1,'Close transition retains the overlay and blocker while blur fades')
             wait(lambda:not state()['settingsOverlayOpen']);settings.close()
