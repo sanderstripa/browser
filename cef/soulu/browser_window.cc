@@ -612,7 +612,7 @@ void BrowserWindow::RequestContextInitialized(CefRefPtr<CefRequestContext> conte
 
 bool BrowserWindow::IsTrustedUi(const std::string& url) const {
   const auto ui=std::filesystem::u8path(ExecutableDirectory())/"ui";
-  return url==FileUrl(ui/"index.html") || url==FileUrl(ui/"settings.html");
+  return url==FileUrl(ui/"index.html") || IsSettingsUrl(url);
 }
 bool BrowserWindow::IsIncognitoTab(int id) {auto* tab=FindTab(id);return tab&&tab->incognito;}
 std::shared_ptr<SitePolicy> BrowserWindow::PolicyForTab(int id) {
@@ -817,13 +817,14 @@ CefRefPtr<CefDictionaryValue> BrowserWindow::SendVpnHelper(
 
 void BrowserWindow::SwitchProfile(const std::string& id) {
   if(settings_dirty_&&id!=active_profile_id_)return;
-  settings_preview_=nullptr;settings_tab_=0;settings_loaded_=nullptr;settings_staged_=nullptr;
+  settings_preview_=nullptr;settings_loaded_=nullptr;settings_staged_=nullptr;
   const auto it = std::find_if(profiles_.begin(), profiles_.end(),
       [&id](const Profile& profile) { return profile.id == id; });
   if (it == profiles_.end()) return;
   CaptureThumbnail();
   active_profile_id_ = id;
   LoadProfileSettings();
+  RefreshSettingsProfile();
   auto tab = std::find_if(tabs_.begin(), tabs_.end(),
       [&id](const Tab& item) { return !item.incognito && item.profile_id == id; });
   if (tab == tabs_.end()) NewTab();
@@ -835,21 +836,97 @@ void BrowserWindow::SwitchProfile(const std::string& id) {
   }
 }
 
-void BrowserWindow::OpenSettingsTab() {
-  const auto url = FileUrl(std::filesystem::u8path(ExecutableDirectory()) /
-                           "ui" / "settings.html");
-  auto existing = std::find_if(tabs_.begin(), tabs_.end(),
-      [&url, this](const Tab& tab) {
-        return !tab.incognito && tab.profile_id == active_profile_id_ &&
-               tab.url == url;
-      });
-  if (existing != tabs_.end()) SwitchTab(existing->id);
-  else if (auto* tab = ActiveTab(); tab && !tab->incognito && tab->url == "about:blank" && tab->browser) {
-    tab->url = url;
-    tab->title = settings_->GetString("language") == "en" ? "Settings" : "Настройки";
-    tab->browser->GetMainFrame()->LoadURL(url);
-    EmitState();
-  } else NewTab(url);
+bool BrowserWindow::IsSettingsUrl(const std::string& url) const {
+  const auto canonical = FileUrl(std::filesystem::u8path(ExecutableDirectory()) / "ui" / "settings.html");
+  return url == "soulu://settings" || url.rfind("soulu://settings/", 0) == 0 ||
+      url == canonical || url.rfind(canonical + "#", 0) == 0 || url.rfind(canonical + "?", 0) == 0;
+}
+void BrowserWindow::OpenSettingsOverlay() {
+  if (closing_) return;
+  if (settings_overlay_) { FocusSettings(); return; }
+  settings_previous_focus_ = GetFocus();
+  settings_overlay_ = std::make_unique<SettingsOverlay>(hwnd_,
+      [this] { FinishSettingsTransition(); }, [this] { GuardSettingsClose(kSettingsSession); });
+  if (!settings_overlay_->Create()) {
+    settings_overlay_.reset();
+    MessageBoxW(hwnd_, L"Не удалось создать слой настроек Windows Composition.", L"Soulu", MB_OK | MB_ICONERROR);
+    return;
+  }
+  BlockSettingsBackground(true);
+  CefWindowInfo info;
+  info.SetAsChild(settings_overlay_->hwnd(), CefRect(0, -800, 1020, 800));
+  info.runtime_style = CEF_RUNTIME_STYLE_ALLOY;
+  info.style &= ~WS_VISIBLE;
+  CefBrowserSettings config;
+  const std::string theme = EffectiveSettings()->GetString("theme");
+  const bool dark = theme == "dark" || (theme == "system" && IsWindowsDarkMode());
+  config.background_color = dark ? CefColorSetARGB(255,20,27,39) : CefColorSetARGB(255,255,255,255);
+  settings_profile_ = active_profile_id_;
+  settings_browser_pending_ = true;
+  const auto url = FileUrl(std::filesystem::u8path(ExecutableDirectory()) / "ui" / "settings.html");
+  if (!CefBrowserHost::CreateBrowser(info, new BrowserClient(this, BrowserRole::kSettings, kSettingsSession),
+      url + "?host=overlay", config, nullptr, ContextForNewTab(false))) {
+    settings_browser_pending_ = false;
+    BlockSettingsBackground(false); settings_overlay_.reset();
+  }
+  EmitState();
+}
+void BrowserWindow::AttachSettings(CefRefPtr<CefBrowser> browser) {
+  settings_browser_pending_ = false;
+  settings_browser_ = browser;
+  if (!settings_overlay_ || closing_) { browser->GetHost()->CloseBrowser(true); return; }
+  settings_overlay_->Attach(browser->GetHost()->GetWindowHandle());
+  if (settings_overlay_->closing()) browser->GetHost()->CloseBrowser(true);
+}
+void BrowserWindow::FocusSettings() {
+  if (settings_overlay_) settings_overlay_->Focus();
+  if (settings_browser_ && settings_overlay_ && !settings_overlay_->closing())
+    settings_browser_->GetHost()->SetFocus(true);
+}
+void BrowserWindow::BlockSettingsBackground(bool block) {
+  if (block) {
+    auto disable = [this](HWND child) {
+      if (!child || !IsWindow(child)) return;
+      if (!settings_input_state_.count(child)) settings_input_state_[child] = IsWindowEnabled(child) != FALSE;
+      EnableWindow(child, FALSE);
+    };
+    if (surface_) disable(surface_->hwnd());
+    for (auto& tab : tabs_) if (tab.browser) disable(tab.browser->GetHost()->GetWindowHandle());
+  } else {
+    for (const auto& [child, enabled] : settings_input_state_) if (IsWindow(child)) EnableWindow(child, enabled);
+    settings_input_state_.clear();
+  }
+}
+void BrowserWindow::CloseSettingsOverlay() {
+  if (settings_overlay_) settings_overlay_->Close();
+}
+void BrowserWindow::FinishSettingsTransition() {
+  if (settings_browser_) settings_browser_->GetHost()->CloseBrowser(true);
+  else if (!settings_browser_pending_) SettingsClosed(nullptr);
+}
+void BrowserWindow::SettingsClosed(CefRefPtr<CefBrowser> browser) {
+  if (browser && (!settings_browser_ || !settings_browser_->IsSame(browser))) return;
+  settings_browser_ = nullptr; settings_session_id_ = 0; settings_dirty_ = false;
+  settings_loaded_ = nullptr; settings_staged_ = nullptr;
+  const bool all = settings_close_all_; settings_close_all_ = false;
+  const auto pending = settings_pending_url_; settings_pending_url_.clear();
+  ResetSettingsPreview();
+  settings_overlay_.reset();
+  BlockSettingsBackground(false);
+  const HWND previous = settings_previous_focus_; settings_previous_focus_ = nullptr;
+  if (IsWindow(previous) && IsWindowEnabled(previous)) SetFocus(previous);
+  else if (auto* tab = ActiveTab(); tab && tab->browser) tab->browser->GetHost()->SetFocus(true);
+  EmitState();
+  if (all) CloseAll();
+  else if (!pending.empty()) NewTab(pending);
+}
+void BrowserWindow::RefreshSettingsProfile() {
+  if (!settings_browser_) return;
+  settings_profile_ = active_profile_id_; settings_dirty_ = false;
+  settings_loaded_ = nullptr; settings_staged_ = nullptr; settings_preview_ = nullptr;
+  settings_browser_->GetMainFrame()->ExecuteJavaScript(
+      "window.souluSettingsProfileChanged&&window.souluSettingsProfileChanged()",
+      settings_browser_->GetMainFrame()->GetURL(), 0);
 }
 
 void BrowserWindow::OpenIncognitoLink(int source_id, CefRefPtr<CefBrowser> source,
@@ -873,6 +950,7 @@ int BrowserWindow::PreparePopup(int source_id, const std::string& url,
                                 bool background, CefWindowInfo& info) {
   auto* source = FindTab(source_id);
   if (!source || closing_) return 0;
+  if (IsSettingsUrl(url)) { OpenSettingsOverlay(); return 0; }
   Tab tab;
   tab.id = next_tab_id_++;
   tab.url = url.empty() ? "about:blank" : url;
@@ -896,7 +974,7 @@ void BrowserWindow::AbortPopup(int tab_id) {
   if (!tab || tab->browser) return;
   tabs_.erase(std::remove_if(tabs_.begin(), tabs_.end(),
       [tab_id](const Tab& item) { return item.id == tab_id; }), tabs_.end());
-  if (closing_ && !shell_ && tabs_.empty()) FinishClose();
+  if (closing_ && !shell_ && !settings_browser_ && !settings_browser_pending_ && tabs_.empty()) FinishClose();
   EmitState();
 }
 
@@ -904,6 +982,7 @@ void BrowserWindow::NewTab(const std::string& url, bool incognito,
                           bool foreground, CefRefPtr<CefRequestContext> context,
                           const std::string& profile_id) {
   InitializeProfiles();
+  if (IsSettingsUrl(url)) { OpenSettingsOverlay(); return; }
   const int id = next_tab_id_++;
   Tab tab;
   tab.id = id;
@@ -915,8 +994,7 @@ void BrowserWindow::NewTab(const std::string& url, bool incognito,
   tab.focus_address_on_attach = tab.url!="soulu://onboarding" && foreground && (url.empty() || tab.url=="about:blank" || tab.url=="soulu://home");
   tab.incognito = incognito;
   tab.profile_id = profile_id.empty() ? (incognito ? "__incognito__" : active_profile_id_) : profile_id;
-  if (url.find("/ui/settings.html") != std::string::npos)
-    tab.title = settings_->GetString("language") == "en" ? "Settings" : "Настройки";
+
   tabs_.push_back(tab);
   const int previous_active = active_tab_id_;
   if (foreground) { CaptureThumbnail(); active_tab_id_ = id; if(!incognito)last_normal_active_[tab.profile_id]=id; }
@@ -930,9 +1008,7 @@ void BrowserWindow::NewTab(const std::string& url, bool incognito,
   CefBrowserSettings browser_settings;
   const bool dark = settings_->GetString("theme") == "dark" || (settings_->GetString("theme") == "system" && IsWindowsDarkMode());
   browser_settings.background_color = dark && tab.url!="soulu://onboarding" ? CefColorSetARGB(255,8,9,11) : CefColorSetARGB(255,250,250,250);
-  const BrowserRole role =
-      url.find("/ui/settings.html") != std::string::npos
-          ? BrowserRole::kSettings : BrowserRole::kContent;
+  const BrowserRole role = BrowserRole::kContent;
   const bool created = CefBrowserHost::CreateBrowser(
       info, new BrowserClient(this, role, id),
       InternalUrl(tab.url), browser_settings,
@@ -1010,9 +1086,9 @@ std::string BrowserWindow::VisibleProfileId() const {
 void BrowserWindow::SwitchTab(int id) {
   auto* tab=FindTab(id);if(!tab)return;
   if(!tab->incognito&&tab->profile_id!=active_profile_id_){
-    if(settings_dirty_){GuardSettingsClose(settings_tab_);return;}
-    settings_preview_=nullptr;settings_loaded_=nullptr;settings_staged_=nullptr;settings_tab_=0;
-    active_profile_id_=tab->profile_id;LoadProfileSettings();
+    if(settings_dirty_){GuardSettingsClose(settings_session_id_);return;}
+    settings_preview_=nullptr;settings_loaded_=nullptr;settings_staged_=nullptr;
+    active_profile_id_=tab->profile_id;LoadProfileSettings();RefreshSettingsProfile();
   }
   if (active_tab_id_ != id) CaptureThumbnail();
   active_tab_id_ = id;
@@ -1025,8 +1101,7 @@ void BrowserWindow::CloseTab(int id) {
   auto it = std::find_if(tabs_.begin(), tabs_.end(),
       [id](const Tab& tab) { return tab.id == id; });
   if (it == tabs_.end()) return;
-  if (GuardSettingsClose(id)) return;
-  if (id==settings_tab_) {settings_tab_=0;settings_dirty_=false;ResetSettingsPreview();}
+
   if (it->browser) {
     it->browser->GetHost()->CloseBrowser(true);
     return;
@@ -1046,7 +1121,7 @@ void BrowserWindow::CloseTab(int id) {
 
 void BrowserWindow::BrowserClosed(CefRefPtr<CefBrowser> browser, int tab_id,
                                   bool shell) {
-  if(tab_id==settings_tab_){settings_tab_=0;settings_dirty_=false;ResetSettingsPreview();}
+
   if (shell) { if (surface_) surface_->Detach(); shell_ = nullptr; }
   else {
     auto* tab = FindTab(tab_id);
@@ -1062,11 +1137,12 @@ void BrowserWindow::BrowserClosed(CefRefPtr<CefBrowser> browser, int tab_id,
     }
     ReleaseIncognito();
   }
-  if (closing_ && !shell_ && tabs_.empty()) FinishClose();
+  if (closing_ && !shell_ && !settings_browser_ && !settings_browser_pending_ && tabs_.empty()) FinishClose();
   else { Layout(); EmitState(); }
 }
 
 void BrowserWindow::FocusAddress() {
+  if (settings_overlay_) { FocusSettings(); return; }
   if (!shell_ || !shell_->GetMainFrame()) return;
   if (surface_) surface_->Focus();
   const std::string script =
@@ -1077,6 +1153,7 @@ void BrowserWindow::FocusAddress() {
 
 void BrowserWindow::Navigate(const std::string& value) {
   std::string url = NormalizeAddress(value);
+  if (IsSettingsUrl(url)) { OpenSettingsOverlay(); return; }
   auto* tab = ActiveTab();
   if (!tab) return;
   if (settings_->GetString("addressOpenMode") == "newIfOccupied" &&
@@ -1299,6 +1376,7 @@ void BrowserWindow::Layout() {
   }
   ResizeFrostedBackdrop(hwnd_, g.width, std::min(g.height, g.toolbar));
   if (surface_) surface_->CommitResize();
+  if (settings_overlay_) { settings_overlay_->Layout(); BlockSettingsBackground(true); }
 }
 
 void BrowserWindow::ApplyContentTheme() {
@@ -1315,6 +1393,11 @@ void BrowserWindow::ApplyContentTheme() {
 
 CefRefPtr<CefDictionaryValue> BrowserWindow::State() const {
   auto state = CefDictionaryValue::Create();
+  state->SetBool("settingsOverlayOpen", settings_overlay_ != nullptr);
+  state->SetBool("settingsOverlayReady", settings_overlay_ && settings_overlay_->ready());
+  state->SetDouble("settingsOverlayProgress", settings_overlay_ ? settings_overlay_->progress() : 0);
+  state->SetInt("settingsOverlayDuration", settings_overlay_ ? settings_overlay_->duration() : 260);
+  state->SetInt("settingsOverlayTicks", settings_overlay_ ? settings_overlay_->ticks() : 0);
   auto list = CefListValue::Create();
   size_t output_index = 0;
   const std::string visible_profile = VisibleProfileId();
@@ -1408,16 +1491,12 @@ void BrowserWindow::Emit(const std::string& event, CefRefPtr<CefValue> value) {
   if (shell_ && shell_->GetMainFrame())
     shell_->GetMainFrame()->ExecuteJavaScript(
         script, shell_->GetMainFrame()->GetURL(), 0);
-  for (const auto& tab : tabs_) {
-    if (!tab.browser || tab.url.find("/ui/settings.html") == std::string::npos ||
-        !tab.browser->GetMainFrame()) continue;
-    tab.browser->GetMainFrame()->ExecuteJavaScript(
-        script, tab.browser->GetMainFrame()->GetURL(), 0);
-  }
+  if (settings_browser_ && settings_browser_->GetMainFrame())
+    settings_browser_->GetMainFrame()->ExecuteJavaScript(script, settings_browser_->GetMainFrame()->GetURL(), 0);
 }
 void BrowserWindow::EmitState() { Emit("state", Wrap(State())); }
 
-void BrowserWindow::RequestFind() { if(surface_)surface_->Focus();Emit("requestFind",EmptyValue()); }
+void BrowserWindow::RequestFind() { if (settings_overlay_) { FocusSettings(); return; } if(surface_)surface_->Focus();Emit("requestFind",EmptyValue()); }
 
 void BrowserWindow::ReaderDocumentNavigation(int id) {
   if(auto* tab=FindTab(id)){++tab->document_generation;tab->main_loading=true;tab->reader_active=false;tab->reader_article=nullptr;}
@@ -1447,8 +1526,8 @@ CefRefPtr<CefDictionaryValue> BrowserWindow::ReaderPreferences(const Tab& tab) {
   return prefs->Copy(false);
 }
 
-CefRefPtr<CefDictionaryValue> BrowserWindow::SiteSnapshot() {
-  auto result=CefDictionaryValue::Create();auto* tab=ActiveTab();if(!tab)return result;
+CefRefPtr<CefDictionaryValue> BrowserWindow::SiteSnapshot(int id) {
+  auto result=CefDictionaryValue::Create();auto* tab=id?FindTab(id):ActiveTab();if(!tab)return result;
   result->SetInt("tabId",tab->id);result->SetString("url",tab->url);result->SetInt("generation",tab->document_generation);
   result->SetString("origin",WebOrigin(tab->url));result->SetString("domain",SiteDomain(tab->url));
   result->SetString("favicon",tab->favicon);result->SetBool("readerActive",tab->reader_active);
@@ -1579,7 +1658,7 @@ void BrowserWindow::SetSetting(const std::string& key, CefRefPtr<CefValue> value
 }
 
 void BrowserWindow::HandleBridge(const std::string& request,
-                                 CefRefPtr<CefMessageRouterBrowserSide::Callback> callback) {
+                                 CefRefPtr<CefMessageRouterBrowserSide::Callback> callback, bool settings_source) {
   CEF_REQUIRE_UI_THREAD();
   auto parsed = CefParseJSON(request, JSON_PARSER_RFC);
   if (!parsed || parsed->GetType() != VTYPE_DICTIONARY) {
@@ -1588,6 +1667,30 @@ void BrowserWindow::HandleBridge(const std::string& request,
   auto root = parsed->GetDictionary();
   const std::string action = root->GetString("action");
   auto payload = root->GetValue("payload");
+  if (action == "browser.settings.siteSnapshot" || action == "browser.settings.clearSite") {
+    auto data = payload && payload->GetType() == VTYPE_DICTIONARY ? payload->GetDictionary() : nullptr;
+    auto* tab = data ? FindTab(data->GetInt("tabId")) : nullptr;
+    if (!settings_source || !settings_overlay_ || !tab || tab->incognito ||
+        tab->profile_id != active_profile_id_ || !tab->browser || WebOrigin(tab->url).empty()) {
+      callback->Failure(403,"Сайт недоступен в текущем профиле.");return;
+    }
+    if (action == "browser.settings.siteSnapshot") return Reply(callback,SiteSnapshot(tab->id));
+    const int id = tab->id, generation = tab->document_generation;
+    const auto url = tab->url, origin = WebOrigin(url);
+    if (data->GetString("url") != url || data->GetInt("generation") != generation) {
+      callback->Failure(409,"Страница изменилась.");return;
+    }
+    const std::wstring message = L"Очистить хранилища сайта " + CefString(origin).ToWString() +
+      L"? Cookies, HTTP-кэш, пароли и закладки сохранятся.";
+    if (MessageBoxW(settings_overlay_->hwnd(),message.c_str(),L"Данные сайта",MB_YESNO|MB_ICONWARNING|MB_DEFBUTTON2) != IDYES) {
+      callback->Success("{\"cleared\":false}");return;
+    }
+    tab = FindTab(id);
+    if (!tab || tab->profile_id != active_profile_id_ || tab->url != url || tab->document_generation != generation) {
+      callback->Failure(409,"Страница изменилась.");return;
+    }
+    CefRefPtr<SiteStorageJob> job = new SiteStorageJob(callback);job->Start(tab->browser,origin);return;
+  }
   if(HandleSiteAction(action,payload,callback))return;
 
   if (action == "browser.state.get") return Reply(callback, State());
@@ -1649,9 +1752,10 @@ void BrowserWindow::HandleBridge(const std::string& request,
     std::string name = payload && payload->GetType() == VTYPE_STRING
         ? payload->GetString() : "Профиль";
     CreateProfile(name);
-    settings_preview_=nullptr;settings_tab_=0;settings_loaded_=nullptr;settings_staged_=nullptr;settings_dirty_=false;
+    settings_preview_=nullptr;settings_loaded_=nullptr;settings_staged_=nullptr;settings_dirty_=false;
     active_profile_id_ = profiles_.back().id;
     LoadProfileSettings();
+    RefreshSettingsProfile();
     NewTab();
     return Reply(callback, State());
   }
@@ -1684,7 +1788,7 @@ void BrowserWindow::HandleBridge(const std::string& request,
   else if(action=="browser.import.browsers")return Reply(callback,Wrap(DiscoverImportBrowsers()));
   else if(action=="browser.import.passwords") {
     auto data=payload&&payload->GetType()==VTYPE_DICTIONARY?payload->GetDictionary():nullptr;
-    if(!data||importing_||VisibleProfileId()=="__incognito__") {callback->Failure(409,"Import is unavailable");return;}
+    if(!data||importing_||(!settings_source&&VisibleProfileId()=="__incognito__")) {callback->Failure(409,"Import is unavailable");return;}
     const std::string target=data->GetString("target"),source=data->GetString("source");
     if(std::none_of(profiles_.begin(),profiles_.end(),[&](const Profile& p){return p.id==target;})) {callback->Failure(400,"Unknown target profile");return;}
     importing_=true;CefRefPtr<BrowserWindow> self=this;
@@ -1809,7 +1913,7 @@ void BrowserWindow::HandleBridge(const std::string& request,
     return Reply(callback,Wrap(ProfileBookmarks()));
   }
   else if (action == "browser.bookmarks.open") Navigate(payload->GetString());
-  else if (action == "browser.settings.openWindow") OpenSettingsTab();
+  else if (action == "browser.settings.openWindow") OpenSettingsOverlay();
   else if (action == "browser.settings.get") return Reply(callback, EffectiveSettings()->Copy(false));
   else if (action == "browser.settings.set") {
     if (payload && payload->GetType() == VTYPE_DICTIONARY) {
@@ -1877,7 +1981,7 @@ void BrowserWindow::HandleBridge(const std::string& request,
   }
   else if (action.rfind("browser.passwords.",0)==0) {
     if(importing_&&action!="browser.passwords.get"){callback->Failure(409,"Wait for import to finish");return;}
-    if(VisibleProfileId()=="__incognito__") {callback->Failure(403,"Passwords are unavailable in incognito");return;}
+    if(!settings_source&&VisibleProfileId()=="__incognito__") {callback->Failure(403,"Passwords are unavailable in incognito");return;}
     PasswordVault vault(active_profile_id_);
     if(action=="browser.passwords.get")return Reply(callback,Wrap(vault.List()));
     auto data=payload&&payload->GetType()==VTYPE_DICTIONARY?payload->GetDictionary():nullptr;
@@ -2002,7 +2106,7 @@ void BrowserWindow::HandleBridge(const std::string& request,
     DestroyMenu(menu);
     if (command == 5) OpenHistory();
     else if (command == 6) OpenHistory(true);
-    else if (command == 1) OpenSettingsTab();
+    else if (command == 1) OpenSettingsOverlay();
     else if (command == 2) Emit("openDownloads", EmptyValue());
     else if (command == 3) NewTab();
     else if (command == 4) NewTab("", true);
@@ -2046,7 +2150,7 @@ void BrowserWindow::HandleBridge(const std::string& request,
 
 void BrowserWindow::CloseAll() {
   if(clearing_data_){close_after_clear_=true;return;}
-  if(GuardSettingsClose(settings_tab_,true))return;
+  if (settings_overlay_) { settings_close_all_ = true; GuardSettingsClose(kSettingsSession, true); return; }
   if(importing_){close_after_import_=true;return;}
   if (closing_) return;
   SaveSession();
@@ -2138,7 +2242,7 @@ LRESULT CALLBACK BrowserWindow::WindowProc(HWND hwnd, UINT message, WPARAM wpara
       DeleteObject(background);
       return 1;
     }
-    case WM_SIZE: self->Layout(); return 0;
+    case WM_SIZE: self->Layout(); if (self->settings_overlay_ && IsIconic(hwnd)) self->settings_overlay_->Layout(); return 0;
     case WM_SYSCOMMAND:
       if ((wparam & 0xFFF0) == SC_MOVE || (wparam & 0xFFF0) == SC_SIZE) {
         // CEF 154 disables nestable Chromium work by default. Win32's move/
@@ -2167,7 +2271,9 @@ LRESULT CALLBACK BrowserWindow::WindowProc(HWND hwnd, UINT message, WPARAM wpara
       self->shell_frame_ready_ = true;
       self->ShowWhenReady();
       return 0;
-    case WM_MOVE: if (self->shell_) self->shell_->GetHost()->NotifyMoveOrResizeStarted(); break;
+    case WM_MOVE: if (self->shell_) self->shell_->GetHost()->NotifyMoveOrResizeStarted();
+      if (self->settings_overlay_) self->settings_overlay_->Layout(); break;
+    case WM_SETFOCUS: if (self->settings_overlay_) { self->FocusSettings(); return 0; } break;
     case WM_DWMCOMPOSITIONCHANGED: self->ApplyWindowAppearance(); return 0;
     case WM_SETTINGCHANGE: self->ApplyWindowAppearance(); self->ApplyContentTheme(); break;
     case WM_CLOSE: self->CloseAll(); return 0;

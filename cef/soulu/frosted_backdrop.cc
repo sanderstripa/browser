@@ -58,5 +58,9 @@ void ResizeFrostedBackdrop(HWND window,int width,int height){
   if(found!=backdrops.end()&&found->second.visual)
     found->second.visual.Size({static_cast<float>(width),static_cast<float>(height)});
 }
+void SetFrostedBackdropOpacity(HWND window,float opacity){
+  const auto found=backdrops.find(window);
+  if(found!=backdrops.end()&&found->second.visual)found->second.visual.Opacity(opacity);
+}
 void ReleaseFrostedBackdrop(HWND window){backdrops.erase(window);}
 }

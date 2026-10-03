@@ -53,18 +53,23 @@ void BrowserWindow::ResetSettingsPreview() {
   settings_preview_=nullptr;ApplyWindowAppearance();ApplyContentTheme();Layout();EmitState();
 }
 bool BrowserWindow::GuardSettingsClose(int id,bool all) {
-  if(!settings_dirty_||!settings_tab_||(!all&&id!=settings_tab_))return false;
-  auto* tab=FindTab(settings_tab_);if(!tab||!tab->browser)return false;
-  settings_close_all_=all;
-  tab->browser->GetMainFrame()->ExecuteJavaScript(
-    "window.souluSettingsRequestClose&&window.souluSettingsRequestClose()",tab->browser->GetMainFrame()->GetURL(),0);
-  SwitchTab(settings_tab_);return true;
+  if (!settings_overlay_ || (!all && id != kSettingsSession)) return false;
+  if (all) settings_close_all_ = true;
+  if (settings_dirty_ && settings_browser_) {
+    settings_browser_->GetMainFrame()->ExecuteJavaScript(
+      "window.souluSettingsRequestClose&&window.souluSettingsRequestClose()",
+      settings_browser_->GetMainFrame()->GetURL(), 0);
+    FocusSettings();
+  } else CloseSettingsOverlay();
+  return true;
 }
 bool BrowserWindow::GuardSettingsNavigation(int id,const std::string& url) {
-  if(!settings_tab_||id!=settings_tab_)return false;
-  if(settings_dirty_){settings_pending_url_=url;return GuardSettingsClose(id);}
-  ResetSettingsPreview();settings_tab_=0;settings_loaded_=nullptr;settings_staged_=nullptr;
-  return false;
+  if (id != kSettingsSession && IsSettingsUrl(url)) { OpenSettingsOverlay(); return true; }
+  if (id != kSettingsSession) return false;
+  // Permit the initial trusted document and profile-local reload only. Settings
+  // cannot turn itself into a webpage or a tab; outgoing navigation is gated.
+  if (IsSettingsUrl(url)) return false;
+  settings_pending_url_ = url; GuardSettingsClose(id); return true;
 }
 
 // Each canonical store commits atomically through its existing writer. If a
@@ -175,18 +180,15 @@ bool BrowserWindow::HandleSettingsBridge(int id,const std::string& request,
   auto parsed=CefParseJSON(request,JSON_PARSER_RFC);
   if(!parsed||parsed->GetType()!=VTYPE_DICTIONARY)return false;
   auto root=parsed->GetDictionary();const std::string action=root->GetString("action");
-  auto* tab=FindTab(id);
-  // Also gate legacy manager actions from a background Settings document.
-  // They must never resolve against a different active profile.
-  if(tab&&tab->browser&&tab->url.find("/ui/settings.html")!=std::string::npos&&
-      (tab->incognito||tab->profile_id!=active_profile_id_)){
-    callback->Failure(403,"Профиль настроек больше не активен.");return true;
-  }
-  if(action.rfind("settings.",0)!=0)return false;
-  if(!tab||!tab->browser||tab->incognito||tab->profile_id!=active_profile_id_||
-      tab->browser->GetMainFrame()->GetURL().ToString().find("/ui/settings.html")==std::string::npos){
-    callback->Failure(403,"Настройки доступны в обычном активном профиле.");return true;}
   auto payload=root->GetDictionary("payload");
+  if(action.rfind("settings.",0)!=0)return false;
+  if(id!=kSettingsSession||!settings_browser_||!settings_overlay_||
+      !IsSettingsUrl(settings_browser_->GetMainFrame()->GetURL())){
+    callback->Failure(403,"Настройки доступны только в слое Soulu.");return true;
+  }
+  if (settings_overlay_->closing() && action != "settings.abortClose") {
+    callback->Failure(409,"Настройки закрываются.");return true;
+  }
   if(action=="settings.capabilities"){
     auto result=CefDictionaryValue::Create();bool is_default=true;
     for(const wchar_t* scheme:{L"http",L"https"}){
@@ -200,8 +202,11 @@ bool BrowserWindow::HandleSettingsBridge(int id,const std::string& request,
     result->SetBool("defaultBrowser",is_default);Reply(callback,result);return true;
   }
   if(action=="settings.begin"){
-    if(settings_tab_&&settings_tab_!=id&&settings_dirty_){callback->Failure(409,"Закройте другое окно настроек.");return true;}
-    ResetSettingsPreview();settings_tab_=id;settings_profile_=active_profile_id_;
+    if(settings_session_id_&&settings_session_id_!=id&&settings_dirty_){callback->Failure(409,"Закройте другое окно настроек.");return true;}
+    if (settings_loaded_ && settings_profile_ == active_profile_id_ && settings_session_id_ == id) {
+      Reply(callback,settings_loaded_->Copy(false));return true;
+    }
+    ResetSettingsPreview();settings_session_id_=id;settings_profile_=active_profile_id_;
     settings_dirty_=false;settings_loaded_=SettingsSnapshot();settings_staged_=settings_loaded_->Copy(false);
     Reply(callback,settings_loaded_->Copy(false));return true;
   }
@@ -210,7 +215,7 @@ bool BrowserWindow::HandleSettingsBridge(int id,const std::string& request,
     return true;
   }
   if(action=="settings.chooseFolder"){
-    BROWSEINFOW info={};info.hwndOwner=hwnd_;info.lpszTitle=L"Папка загрузок";
+    BROWSEINFOW info={};info.hwndOwner=settings_overlay_->hwnd();info.lpszTitle=L"Папка загрузок";
     info.ulFlags=BIF_RETURNONLYFSDIRS|BIF_NEWDIALOGSTYLE;
     auto item=SHBrowseForFolderW(&info);wchar_t path[MAX_PATH]={};
     if(item){SHGetPathFromIDListW(item,path);CoTaskMemFree(item);}
@@ -225,10 +230,10 @@ bool BrowserWindow::HandleSettingsBridge(int id,const std::string& request,
       callback->Failure(500,"Не удалось открыть папку загрузок.");else ReplyEmpty(callback);
     return true;
   }
-  if(id!=settings_tab_||settings_profile_!=active_profile_id_||!settings_loaded_){
+  if(id!=settings_session_id_||settings_profile_!=active_profile_id_||!settings_loaded_){
     callback->Failure(409,"Откройте настройки заново.");return true;}
   if(action=="settings.stage"){
-    if(!payload||!payload->GetDictionary("settings")||!payload->GetDictionary("rules")||
+    if(!payload||payload->GetString("profile")!=settings_profile_||!payload->GetDictionary("settings")||!payload->GetDictionary("rules")||
         !payload->GetDictionary("reader")||!payload->GetDictionary("vpn")){
       callback->Failure(400,"Некорректные настройки.");return true;}
     settings_staged_=payload->Copy(false);settings_dirty_=!Same(settings_staged_,settings_loaded_);
@@ -249,13 +254,12 @@ bool BrowserWindow::HandleSettingsBridge(int id,const std::string& request,
     settings_loaded_=SettingsSnapshot();settings_staged_=settings_loaded_->Copy(false);settings_dirty_=false;
     ResetSettingsPreview();Reply(callback,settings_loaded_->Copy(false));return true;
   }
+  if(action=="settings.ready"){
+    settings_overlay_->Open(); FocusSettings(); ReplyEmpty(callback); return true;
+  }
   if(action=="settings.close"){
     if(settings_dirty_){GuardSettingsClose(id);ReplyEmpty(callback);return true;}
-    ResetSettingsPreview();const auto url=settings_pending_url_;const bool all=settings_close_all_;
-    settings_tab_=0;settings_pending_url_.clear();settings_close_all_=false;
-    ReplyEmpty(callback);
-    if(all)CloseAll();else if(!url.empty())tab->browser->GetMainFrame()->LoadURL(url);else CloseTab(id);
-    return true;
+    ResetSettingsPreview();ReplyEmpty(callback);CloseSettingsOverlay();return true;
   }
   if(action=="settings.abortClose"){
     settings_pending_url_.clear();settings_close_all_=false;ReplyEmpty(callback);return true;

@@ -70,6 +70,8 @@
     addBookmark: () => invoke("browser.bookmarks.add"),
     removeBookmark: id => invoke("browser.bookmarks.remove", id),
     openBookmark: url => invoke("browser.bookmarks.open", url),
+    getSettingsSite: tabId => invoke("browser.settings.siteSnapshot", {tabId}),
+    clearSettingsSite: snapshot => invoke("browser.settings.clearSite", snapshot),
     openSettingsWindow: () => invoke("browser.settings.openWindow"),
     getSettings: () => invoke("browser.settings.get"),
     setSettings: value => invoke("browser.settings.set", value),

@@ -12,6 +12,7 @@
 
 #include "include/cef_browser.h"
 #include "examples/soulu/shell_surface.h"
+#include "examples/soulu/settings_overlay.h"
 #include "include/cef_download_item.h"
 #include "include/cef_registration.h"
 #include "include/cef_request_context.h"
@@ -54,7 +55,7 @@ class BrowserWindow final : public CefBaseRefCounted {
   void StoreThumbnail(int id, const std::string& url, const std::string& data);
   void UpdateDownload(int tab_id, CefRefPtr<CefDownloadItem> item);
   void HandleBridge(const std::string& request,
-                    CefRefPtr<CefMessageRouterBrowserSide::Callback> callback);
+                    CefRefPtr<CefMessageRouterBrowserSide::Callback> callback, bool settings_source = false);
 
   HWND hwnd() const { return hwnd_; }
   CefRefPtr<ShellSurface> surface() const { return surface_; }
@@ -72,6 +73,11 @@ class BrowserWindow final : public CefBaseRefCounted {
   bool HandleSettingsBridge(int id, const std::string& request,
       CefRefPtr<CefMessageRouterBrowserSide::Callback> callback);
   bool GuardSettingsNavigation(int id, const std::string& url);
+  void AttachSettings(CefRefPtr<CefBrowser> browser);
+  void SettingsClosed(CefRefPtr<CefBrowser> browser);
+  bool SettingsOverlayActive() const { return settings_overlay_ != nullptr; }
+  void FocusSettings();
+  bool IsSettingsUrl(const std::string& url) const;
   bool IsIncognitoTab(int id);
   std::shared_ptr<SitePolicy> PolicyForTab(int id);
   bool AllowSite(int id, const std::string& origin, const std::string& permission);
@@ -122,7 +128,11 @@ class BrowserWindow final : public CefBaseRefCounted {
   static LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam);
   bool CreateNativeWindow();
   void CreateShellBrowser();
-  void OpenSettingsTab();
+  void OpenSettingsOverlay();
+  void CloseSettingsOverlay();
+  void FinishSettingsTransition();
+  void BlockSettingsBackground(bool block);
+  void RefreshSettingsProfile();
   void InitializeProfiles();
   void CreateProfile(const std::string& name, const std::string& requested_id = "", bool existing = false);
   bool NeedsOnboarding() const;
@@ -191,7 +201,7 @@ class BrowserWindow final : public CefBaseRefCounted {
   void SetSetting(const std::string& key, CefRefPtr<CefValue> value);
   bool HandleSiteAction(const std::string& action, CefRefPtr<CefValue> payload,
       CefRefPtr<CefMessageRouterBrowserSide::Callback> callback);
-  CefRefPtr<CefDictionaryValue> SiteSnapshot();
+  CefRefPtr<CefDictionaryValue> SiteSnapshot(int id = 0);
   CefRefPtr<CefDictionaryValue> ReaderPreferences(const Tab& tab);
   std::map<std::string, CefRefPtr<CefDictionaryValue>> reader_preferences_;
   std::string find_text_;
@@ -216,7 +226,13 @@ class BrowserWindow final : public CefBaseRefCounted {
   CefRefPtr<CefDictionaryValue> settings_preview_;
   CefRefPtr<CefDictionaryValue> settings_loaded_;
   CefRefPtr<CefDictionaryValue> settings_staged_;
-  int settings_tab_ = 0;
+  static constexpr int kSettingsSession = -1;
+  int settings_session_id_ = 0;
+  CefRefPtr<CefBrowser> settings_browser_;
+  std::unique_ptr<SettingsOverlay> settings_overlay_;
+  HWND settings_previous_focus_ = nullptr;
+  std::map<HWND, bool> settings_input_state_;
+  bool settings_browser_pending_ = false;
   std::string settings_profile_;
   bool settings_dirty_ = false;
   bool settings_close_all_ = false;

@@ -44,7 +44,7 @@ class BridgeHandler final : public CefMessageRouterBrowserSide::Handler {
       return false;
     }
     if (owner_->HandleSettingsBridge(id_, request, callback)) return true;
-    owner_->HandleBridge(request, callback);
+    owner_->HandleBridge(request, callback, id_ == -1);
     return true;
   }
  private:
@@ -58,6 +58,8 @@ BrowserClient::BrowserClient(CefRefPtr<BrowserWindow> owner, BrowserRole role, i
       policy_(role!=BrowserRole::kShell?owner->PolicyForTab(tab_id):nullptr) {}
 
 bool BrowserClient::OnPreKeyEvent(CefRefPtr<CefBrowser>,const CefKeyEvent& event,CefEventHandle,bool*) {
+  if (role_ == BrowserRole::kSettings) return false;
+  if (owner_->SettingsOverlayActive()) { owner_->FocusSettings(); return true; }
   if(event.type==KEYEVENT_RAWKEYDOWN&&(event.modifiers&EVENTFLAG_CONTROL_DOWN)&&!(event.modifiers&EVENTFLAG_ALT_DOWN)) {
     if(event.windows_key_code=='H'){owner_->OpenHistory();return true;}
     if(event.windows_key_code==VK_DELETE&&(event.modifiers&EVENTFLAG_SHIFT_DOWN)){owner_->OpenHistory(true);return true;}
@@ -227,14 +229,14 @@ void BrowserClient::OnAfterCreated(CefRefPtr<CefBrowser> browser) {
     popup_opener_->pending_popups_.erase(opener_popup_id_);
     popup_opener_ = nullptr;
   }
-  // Every browser gets a router. BridgeHandler itself strictly limits access
-  // to Soulu's trusted local UI pages. Settings is intentionally opened as a
-  // content tab, so excluding kContent made every settings control a no-op.
+  // Every browser gets a router. Settings has its own role and host, and the
+  // bridge binds editing requests to that browser rather than an active tab.
   CefMessageRouterConfig config;
   router_ = CefMessageRouterBrowserSide::Create(config);
   bridge_ = std::make_unique<BridgeHandler>(owner_, tab_id_);
   router_->AddHandler(bridge_.get(), false);
   if (role_ == BrowserRole::kShell) owner_->AttachShell(browser);
+  else if (role_ == BrowserRole::kSettings) owner_->AttachSettings(browser);
   else owner_->AttachContent(tab_id_, browser);
 }
 
@@ -243,6 +245,8 @@ bool BrowserClient::OnOpenURLFromTab(CefRefPtr<CefBrowser> browser,
     bool) {
   CEF_REQUIRE_UI_THREAD();
   if (role_ == BrowserRole::kShell) return false;
+  if (owner_->IsSettingsUrl(url)) { owner_->GuardSettingsNavigation(tab_id_, url); return true; }
+  if (role_ == BrowserRole::kSettings) { owner_->GuardSettingsNavigation(tab_id_, url); return true; }
   switch (disposition) {
     case CEF_WOD_NEW_FOREGROUND_TAB:
     case CEF_WOD_NEW_BACKGROUND_TAB:
@@ -262,7 +266,7 @@ bool BrowserClient::OnBeforePopup(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFr
     CefWindowInfo& info, CefRefPtr<CefClient>& client, CefBrowserSettings&,
     CefRefPtr<CefDictionaryValue>& extra_info, bool*) {
   CEF_REQUIRE_UI_THREAD();
-  if (role_ == BrowserRole::kShell) return true;
+  if (role_ != BrowserRole::kContent) return true;
   const bool popup_request=!gesture||disposition==CEF_WOD_NEW_POPUP||disposition==CEF_WOD_NEW_WINDOW;
   if(popup_request&&!owner_->AllowSite(tab_id_,browser->GetMainFrame()->GetURL(),"popups"))return true;
   const int id = owner_->PreparePopup(tab_id_, url,
@@ -308,7 +312,8 @@ void BrowserClient::OnBeforeClose(CefRefPtr<CefBrowser> browser) {
   }
   for (const auto& popup : pending_popups_) owner_->AbortPopup(popup.second);
   pending_popups_.clear();
-  owner_->BrowserClosed(browser, tab_id_, role_ == BrowserRole::kShell);
+  if (role_ == BrowserRole::kSettings) owner_->SettingsClosed(browser);
+  else owner_->BrowserClosed(browser, tab_id_, role_ == BrowserRole::kShell);
 }
 
 void BrowserClient::OnTitleChange(CefRefPtr<CefBrowser>, const CefString& title) {

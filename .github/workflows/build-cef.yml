@@ -14,8 +14,8 @@ on:
         default: false
         type: boolean
   push:
-    branches: [main]
-    tags: [preview-47]
+    branches: [main, codex/settings-overlay]
+    tags: [preview-48]
     paths:
       - "cef/**"
       - "installer/**"
@@ -38,8 +38,8 @@ jobs:
     runs-on: windows-2025
     timeout-minutes: 90
     env:
-      PREVIEW_VERSION: 0.9.0-cef-preview.47
-      PREVIEW_NUMBER: 47
+      PREVIEW_VERSION: 0.9.0-cef-preview.48
+      PREVIEW_NUMBER: 48
       SOULU_REGRESSION_SKIP_FIRST_RUN: 1
       SOULU_TEST_DEFAULT_APPS: 1
       PYTHONUTF8: 1
@@ -155,6 +155,14 @@ jobs:
           python browser/scripts/test-cef-settings.py $exe.FullName browser/artifacts/settings-evidence.json
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+      - name: Test native Settings overlay lifecycle and background state
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check websocket-client pillow
+          $exe = Get-ChildItem cef-build -Recurse -Filter Soulu.exe | Where-Object { $_.FullName -match 'Release' } | Select-Object -First 1
+          python browser/scripts/test-cef-settings-overlay.py $exe.FullName browser/artifacts/settings-overlay-evidence.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - name: Upload settings verification and visual evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -162,6 +170,8 @@ jobs:
           name: Soulu-settings-${{ github.sha }}
           path: |
             browser/artifacts/settings-evidence.json
+            browser/artifacts/settings-overlay-evidence.json
+            browser/artifacts/settings-overlay-visuals/
             browser/artifacts/settings-visuals/
           if-no-files-found: ignore
 
@@ -689,7 +699,7 @@ jobs:
           if-no-files-found: ignore
 
       - name: Verify release source is the current main commit
-        if: ${{ !inputs.native_only && (success() && (github.ref == 'refs/tags/preview-47' || (github.ref == 'refs/heads/main' && inputs.publish))) }}
+        if: ${{ !inputs.native_only && (success() && (github.ref == 'refs/tags/preview-48' || (github.ref == 'refs/heads/main' && inputs.publish))) }}
         shell: pwsh
         working-directory: browser
         run: |
@@ -703,7 +713,7 @@ jobs:
           Write-Host "Release source verified: HEAD == origin/main == $headSha"
 
       - name: Publish Soulu release
-        if: ${{ !inputs.native_only && (success() && (github.ref == 'refs/tags/preview-47' || (github.ref == 'refs/heads/main' && inputs.publish)) && steps.verified.outputs.passed == 'true') }}
+        if: ${{ !inputs.native_only && (success() && (github.ref == 'refs/tags/preview-48' || (github.ref == 'refs/heads/main' && inputs.publish)) && steps.verified.outputs.passed == 'true') }}
         uses: softprops/action-gh-release@v2
         with:
           tag_name: preview-${{ env.PREVIEW_NUMBER }}
@@ -719,3 +729,5 @@ jobs:
             browser/artifacts/onboarding-evidence.json
             browser/artifacts/default-links-evidence.json
             browser/artifacts/settings-evidence.json
+            browser/artifacts/settings-overlay-evidence.json
+            browser/artifacts/settings-overlay-visuals/

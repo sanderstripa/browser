@@ -10,6 +10,8 @@ set(SOULU_SRCS
   browser_window.h
   browser_window.cc
   settings_session.cc
+  settings_overlay.h
+  settings_overlay.cc
   home_page.cc
   onboarding.cc
   home_weather.h
