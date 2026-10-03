@@ -1006,7 +1006,11 @@ std::string BrowserWindow::VisibleProfileId() const {
 
 void BrowserWindow::SwitchTab(int id) {
   auto* tab=FindTab(id);if(!tab)return;
-  if(!tab->incognito&&tab->profile_id!=active_profile_id_){active_profile_id_=tab->profile_id;LoadProfileSettings();}
+  if(!tab->incognito&&tab->profile_id!=active_profile_id_){
+    if(settings_dirty_){GuardSettingsClose(settings_tab_);return;}
+    settings_preview_=nullptr;settings_loaded_=nullptr;settings_staged_=nullptr;settings_tab_=0;
+    active_profile_id_=tab->profile_id;LoadProfileSettings();
+  }
   if (active_tab_id_ != id) CaptureThumbnail();
   active_tab_id_ = id;
   if(!tab->incognito)last_normal_active_[tab->profile_id]=id;
@@ -1399,10 +1403,11 @@ void BrowserWindow::Emit(const std::string& event, CefRefPtr<CefValue> value) {
   if (shell_ && shell_->GetMainFrame())
     shell_->GetMainFrame()->ExecuteJavaScript(
         script, shell_->GetMainFrame()->GetURL(), 0);
-  if (auto* tab = ActiveTab(); tab && tab->browser &&
-      tab->url.find("/ui/settings.html") != std::string::npos) {
-    tab->browser->GetMainFrame()->ExecuteJavaScript(
-        script, tab->browser->GetMainFrame()->GetURL(), 0);
+  for (const auto& tab : tabs_) {
+    if (!tab.browser || tab.url.find("/ui/settings.html") == std::string::npos ||
+        !tab.browser->GetMainFrame()) continue;
+    tab.browser->GetMainFrame()->ExecuteJavaScript(
+        script, tab.browser->GetMainFrame()->GetURL(), 0);
   }
 }
 void BrowserWindow::EmitState() { Emit("state", Wrap(State())); }

@@ -103,6 +103,24 @@ bool BrowserWindow::ApplySettingsSession(std::string& error) {
   for(const auto& [key,allowed]:enums){const std::string value=next->GetString(key);
     if(std::find(allowed.begin(),allowed.end(),value)==allowed.end()){
       error="Некорректное значение: "+std::string(key);return false;}}
+  auto homePatch=CefDictionaryValue::Create();
+  for(const char* key:{"homeShortcuts","homeWeatherCity","homeShowLogo","homeShowSearch",
+      "homeShowWeather","homeShowShortcuts","homeShowBackground"}){
+    auto changed=config->GetValue(key),before=base->GetValue(key);
+    if(changed&&(!before||!before->IsEqual(changed)))homePatch->SetValue(key,changed->Copy());
+  }
+  if(!ValidateHomePatch(homePatch,next,error))return false;
+  for(const char* kind:{"startup","newTab","home"}){
+    const std::string mode=std::string(kind)+"Mode",url=std::string(kind)+"Url";
+    if(next->GetString(mode)=="custom"&&next->GetString(url).empty()){
+      error="Укажите HTTP/HTTPS-адрес страницы.";return false;
+    }
+  }
+  const auto download=next->GetString("downloadPath").ToWString();
+  std::error_code folderError;
+  if(!download.empty()&&!std::filesystem::is_directory(download,folderError)){
+    error="Папка загрузок не существует или недоступна.";return false;
+  }
   if(!Same(next,settings_)){
     if(!WriteJson(ProfileRoot(settings_profile_)/L"soulu-settings.json",Value(next))){
       error="Не удалось сохранить настройки профиля.";return false;}

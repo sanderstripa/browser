@@ -125,34 +125,41 @@ void BrowserWindow::HandleHomeBridge(int id,const std::string& request,
     callback->Failure(403,"Home action not allowed");return;
   }
   auto patch=payload->GetDictionary(),config=PageSettings(*tab)->Copy(false);
-  CefDictionaryValue::KeyList keys;patch->GetKeys(keys);
-  for(const auto& key:keys){
-    const std::string name=key;auto value=patch->GetValue(key);
-    if(name=="homeShortcuts"){
-      if(value->GetType()!=VTYPE_LIST||value->GetList()->GetSize()>12){callback->Failure(400,"At most 12 shortcuts");return;}
-      auto safe=CefListValue::Create(),rows=value->GetList();
-      for(size_t i=0;i<rows->GetSize();++i){
-        auto row=rows->GetDictionary(i);
-        if(!row||row->GetType("name")!=VTYPE_STRING||row->GetString("name").empty()||row->GetString("name").length()>80){callback->Failure(400,"Invalid shortcut name");return;}
-        const auto url=WebUrl(row->GetString("url"));
-        if(url.empty()){callback->Failure(400,"Invalid shortcut URL");return;}
-        auto item=CefDictionaryValue::Create();item->SetString("name",row->GetString("name"));item->SetString("url",url);
-        safe->SetDictionary(i,item);
-      }
-      config->SetList(name,safe);
-    }else if(name=="homeWeatherCity"){
-      if(value->GetType()!=VTYPE_STRING||value->GetString().length()>100){callback->Failure(400,"Invalid city");return;}
-      config->SetValue(key,value->Copy());
-    }else if(name=="homeShowLogo"||name=="homeShowSearch"||name=="homeShowWeather"||name=="homeShowShortcuts"||name=="homeShowBackground"){
-      if(value->GetType()!=VTYPE_BOOL){callback->Failure(400,"Boolean required");return;}config->SetValue(key,value->Copy());
-    }else {callback->Failure(403,"Setting not allowed");return;}
-  }
+  std::string error;
+  if(!ValidateHomePatch(patch,config,error)){callback->Failure(400,error);return;}
   if(tab->incognito)private_page_settings_=config;
   else {
     if(!WriteJson(ProfileRoot(tab->profile_id)/L"soulu-settings.json",AsValue(config))){callback->Failure(500,"Could not save home settings");return;}
     if(tab->profile_id==active_profile_id_)settings_=config;
   }
   Reply(callback,HomeState(*tab));RefreshHomePages();EmitState();
+}
+
+bool BrowserWindow::ValidateHomePatch(CefRefPtr<CefDictionaryValue> patch,
+    CefRefPtr<CefDictionaryValue> config,std::string& error) const {
+  CefDictionaryValue::KeyList keys;patch->GetKeys(keys);
+  for(const auto& key:keys){
+    const std::string name=key;auto value=patch->GetValue(key);
+    if(name=="homeShortcuts"){
+      if(value->GetType()!=VTYPE_LIST||value->GetList()->GetSize()>12){error="At most 12 shortcuts";return false;}
+      auto safe=CefListValue::Create(),rows=value->GetList();
+      for(size_t i=0;i<rows->GetSize();++i){
+        auto row=rows->GetDictionary(i);
+        if(!row||row->GetType("name")!=VTYPE_STRING||row->GetString("name").empty()||row->GetString("name").length()>80){error="Invalid shortcut name";return false;}
+        const auto url=WebUrl(row->GetString("url"));
+        if(url.empty()){error="Invalid shortcut URL";return false;}
+        auto item=CefDictionaryValue::Create();item->SetString("name",row->GetString("name"));item->SetString("url",url);
+        safe->SetDictionary(i,item);
+      }
+      config->SetList(name,safe);
+    }else if(name=="homeWeatherCity"){
+      if(value->GetType()!=VTYPE_STRING||value->GetString().length()>100){error="Invalid city";return false;}
+      config->SetValue(key,value->Copy());
+    }else if(name=="homeShowLogo"||name=="homeShowSearch"||name=="homeShowWeather"||name=="homeShowShortcuts"||name=="homeShowBackground"){
+      if(value->GetType()!=VTYPE_BOOL){error="Boolean required";return false;}config->SetValue(key,value->Copy());
+    }else {error="Setting not allowed";return false;}
+  }
+  return true;
 }
 
 bool BrowserWindow::ValidatePagePatch(CefRefPtr<CefDictionaryValue> patch) const {

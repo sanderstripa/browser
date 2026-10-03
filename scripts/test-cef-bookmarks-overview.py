@@ -87,17 +87,7 @@ with tempfile.TemporaryDirectory(prefix='soulu-navigation-', ignore_cleanup_erro
             s.command(shell,'Input.dispatchMouseEvent',{'type':'mouseMoved',**point})
             s.command(shell,'Input.dispatchMouseEvent',{'type':'mousePressed','button':'left','clickCount':1,**point})
             s.command(shell,'Input.dispatchMouseEvent',{'type':'mouseReleased','button':'left','clickCount':1,**point})
-        for key,values in [('bookmarksBarMode',['newTab','home','always']),('bookmarksBarPosition',['hidden','above']),('bookmarksIconsOnly',['true','false'])]:
-            for value in values:
-                trigger=f'.bookmark-select-trigger[data-key="{key}"]'
-                click_selector(trigger)
-                wait(lambda:s.evaluate(shell,'document.querySelector('+json.dumps(trigger)+').getAttribute("aria-expanded")==="true"'))
-                selector=f'#bookmark-choice-{key} [data-value="{value}"]'
-                assert s.evaluate(shell,'(()=>{const r=document.querySelector('+json.dumps(selector)+').getBoundingClientRect();return r.height>0&&r.top>=0&&r.bottom<=innerHeight})()'), 'Chooser options not visible in native viewport'
-                click_selector(selector)
-                expected=value=='true' if key=='bookmarksIconsOnly' else value
-                wait(lambda:s.evaluate(shell,'window.browserShell.getState()')['settings'][key]==expected)
-                wait(lambda:s.evaluate(shell,'document.querySelector('+json.dumps(trigger)+').getAttribute("aria-expanded")==="false"'))
+        assert s.evaluate(shell,"!!document.querySelector('#bookmarkSettingsAction') && !document.querySelector('.bookmark-select-trigger')"), 'Bookmark preferences have one canonical Settings editor'
         settings_file=Path(isolated)/'Soulu'/'User Data'/'Profiles'/'personal'/'soulu-settings.json'
         assert json.loads(settings_file.read_text(encoding='utf-8'))['bookmarksBarMode']=='always'
         s.evaluate(shell,"document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))")

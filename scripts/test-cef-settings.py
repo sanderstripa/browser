@@ -59,7 +59,8 @@ def main():
                     ws=s.websocket.create_connection(target['webSocketDebuggerUrl'],timeout=30,origin=s.BASE)
                     if fragment=='/ui/settings.html':
                         try:
-                            if not s.evaluate(ws,"Boolean(souluSettings?.persisted && souluSettings.persisted.profile===souluSettings.state.activeProfileId)"):
+                            active=s.evaluate(shell,"window.browserShell.getState()")
+                            if s.evaluate(ws,"window.souluSettings?.persisted?.profile")!=active["activeProfileId"]:
                                 ws.close();continue
                         except Exception:ws.close();continue
                     connections.append(ws);return ws
@@ -124,6 +125,7 @@ def main():
             section('tabs');change('#startupMode','custom');change('#startupUrl','javascript:alert(1)')
             check(evaluate('souluSettings.apply()') is False and saved()==before,'Invalid custom URL does not persist or discard draft')
             change('#startupUrl','https://example.com/start');change('#newTabMode','blank');change('#homeMode','custom');change('#homeUrl','https://example.com/home2')
+            section('search');change('#searchEngine','google')
             section('sites');change('#permissions-camera','1');change('#reader-theme','dark');click('#blocking-contentBlocking')
             applied=evaluate('souluSettings.apply()')
             if not applied:print('Apply error:',evaluate("document.querySelector('#dataMessage').textContent"),flush=True)
@@ -131,6 +133,17 @@ def main():
             check(saved()['startupUrl']=='https://example.com/start' and saved()['homeUrl']=='https://example.com/home2' and saved()['newTabMode']=='blank','Startup/New Tab/Home persist independently')
             check(json.loads((profile/'soulu-site-rules.json').read_text())['defaults']['camera']==1 and json.loads((profile/'soulu-reader.json').read_text())['theme']=='dark','Policy and Reader canonical stores persist')
             check(evaluate("document.querySelector('#applySettings').disabled"),'Successful Apply clears dirty state')
+            # Force an existing canonical writer to fail without touching user data.
+            rulesFile=profile/'soulu-site-rules.json';rulesBackup=profile/'rules.backup'
+            rulesFile.rename(rulesBackup);rulesFile.mkdir()
+            section('search');change('#searchEngine','yandex')
+            section('sites');change('#permissions-microphone','2');change('#reader-theme','sepia')
+            check(evaluate('souluSettings.apply()') is False,'Canonical writer failure reports failure')
+            check(saved()['searchEngine']=='yandex' and json.loads((profile/'soulu-reader.json').read_text())['theme']=='dark','Partial Apply reports actual committed groups')
+            check(evaluate('souluSettings.dirty() && souluSettings.staged.reader.theme==="sepia" && souluSettings.staged.rules.defaults.microphone===2'),'Failed Apply retains remaining editable draft')
+            rulesFile.rmdir();rulesBackup.rename(rulesFile)
+            check(evaluate('souluSettings.apply()'),'Apply can retry after writer recovery')
+            section('search');change('#searchEngine','google');check(evaluate('souluSettings.apply()'),'Restore Profile A search after failure fixture')
             section('vpn');change('#vpn-link','unsupported://invalid')
             check(evaluate('souluSettings.apply()') is False and json.loads((data/'settings.json').read_text())['vpn']==vpn,'Invalid VPN key retains saved config and editable draft')
             evaluate('souluSettings.cancel()')
@@ -161,8 +174,9 @@ def main():
             evaluate('souluSettings.cancel()');stop();start()
             check(evaluate('souluSettings.persisted.settings.startupUrl')=='https://example.com/start' and evaluate('souluSettings.persisted.settings.theme')=='light','Applied settings survive real restart')
             a=saved();shellcall('createProfile','Settings B');bId=shellcall('getState')['activeProfileId']
+            wait(lambda:not any('/ui/onboarding.html' in t.get('url','') for t in s.targets()))
             shellcall('openSettingsWindow');settings=socket('/ui/settings.html');wait(lambda:evaluate("document.body.classList.contains('ready')"))
-            check(evaluate('souluSettings.persisted.profile')==bId and evaluate('souluSettings.persisted.settings.searchEngine')=='google','Profile B does not inherit A search settings')
+            check(evaluate('souluSettings.persisted.profile')==bId and evaluate('souluSettings.persisted.settings.searchEngine')==legacy['searchEngine'],'Profile B keeps legacy template and does not inherit A edits')
             section('search');change('#searchEngine','duckduckgo');check(evaluate('souluSettings.apply()'),'Profile B Apply succeeds')
             shellcall('switchProfile','personal');check(saved()==a,'Profile B edits leave Profile A unchanged')
             shellcall('newIncognito');wait(lambda:shellcall('getState')['incognito']);shellcall('openSettingsWindow')
