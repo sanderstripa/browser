@@ -186,7 +186,7 @@ def main():
             count=len(state()['tabs']); s.evaluate(shell,"cefQuery({request:JSON.stringify({action:'browser.test.pageShortcut',payload:84}),onSuccess:()=>{}})")
             time.sleep(.2);check(len(state()['tabs'])==count,'Background Ctrl+T cannot change tabs while Settings is open')
             for theme in ['light','dark','system']:
-                edit('souluSettings.openSection("interface");document.querySelector('[name="settings-theme"][value="'+theme+'"]').click()')
+                edit(f'''souluSettings.openSection("interface");document.querySelector('[name="settings-theme"][value="{theme}"]').click()''')
                 for matte in [False,True]:
                     edit('(()=>{const n=document.querySelector("#mattePanel");if(n.checked!=='+str(matte).lower()+')n.click();})()')
                     u.MoveWindow(main_window,50,50,1280,900,True);time.sleep(.15)
