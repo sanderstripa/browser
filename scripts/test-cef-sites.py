@@ -13,6 +13,10 @@ rows = []
 try:
     shell_target = next(t for t in s.targets() if '/ui/index.html' in t.get('url', ''))
     shell = s.websocket.create_connection(shell_target['webSocketDebuggerUrl'], timeout=30, origin=s.BASE)
+    deadline = time.monotonic() + 30
+    while not s.evaluate(shell, 'typeof window.browserShell?.setSiteRule === "function"'):
+        assert time.monotonic() < deadline, 'Native shell bridge did not initialize'
+        time.sleep(.1)
     # This network fixture must not block on interactive permission prompts.
     for permission in ['geolocation', 'camera', 'microphone', 'notifications', 'popups']:
         s.evaluate(shell, 'browserShell.setSiteRule(' + json.dumps({

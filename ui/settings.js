@@ -84,7 +84,7 @@
         data.tileBounds=tile?tile.getBoundingClientRect():data.iconBounds;
         data.tileBackground=tile?getComputedStyle(tile).backgroundColor:'transparent';
         data.tileRadius=tile?getComputedStyle(tile).borderRadius:'0px';
-        data.copy=source.querySelector('.category-copy')?.cloneNode(true);
+        const copy=source.querySelector('.category-copy');data.copy=copy?.cloneNode(true);data.copyBounds=copy?.getBoundingClientRect();
       }
     }
     const old=$('settingsContent').cloneNode(true);
@@ -113,7 +113,7 @@
       Object.assign(layer.style,{left:'0',top:'0',color:data.color,border:data.border,background:data.background});
       const tile=el('span');Object.assign(tile.style,{position:'absolute',display:'flex',alignItems:'center',justifyContent:'center',background:data.tileBackground,borderRadius:data.tileRadius});
       Object.assign(data.glyph.style,{margin:'0'});tile.append(data.glyph);layer.append(tile);
-      if(data.copy){Object.assign(data.copy.style,{position:'absolute',left:'96px',right:'35px',top:'16px'});layer.append(data.copy);tx.animate(data.copy,[{opacity:1},{opacity:0}],motion.tokens.micro);}
+      if(data.copy){const r=data.copyBounds;Object.assign(data.copy.style,{position:'absolute',left:(r.left-data.bounds.left)+'px',top:(r.top-data.bounds.top)+'px',width:r.width+'px'});layer.append(data.copy);tx.animate(data.copy,[{opacity:1},{opacity:0}],motion.tokens.micro);}
       else if(data.returning){const copy=destination.querySelector('.category-copy')?.cloneNode(true);if(copy){const r=destination.querySelector('.category-copy').getBoundingClientRect();Object.assign(copy.style,{position:'absolute',left:(r.left-end.left)+'px',top:(r.top-end.top)+'px',width:r.width+'px'});layer.append(copy);tx.animate(copy,[{opacity:0,offset:0},{opacity:0,offset:.6},{opacity:1,offset:1}],duration);}}
       document.body.append(layer);
       if(data.returning)content.focus({preventScroll:true});
