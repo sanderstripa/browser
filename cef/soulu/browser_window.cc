@@ -2278,7 +2278,16 @@ LRESULT CALLBACK BrowserWindow::WindowProc(HWND hwnd, UINT message, WPARAM wpara
       DeleteObject(background);
       return 1;
     }
-    case WM_SIZE: self->Layout(); if (self->settings_overlay_ && IsIconic(hwnd)) self->settings_overlay_->Layout(); return 0;
+    case WM_SIZE: {
+      self->Layout();
+      if (self->settings_overlay_ && IsIconic(hwnd)) self->settings_overlay_->Layout();
+      const bool maximized = IsZoomed(hwnd) != FALSE;
+      if (self->reported_maximized_ != maximized) {
+        self->reported_maximized_ = maximized;
+        if (self->shell_) self->EmitState();
+      }
+      return 0;
+    }
     case WM_SYSCOMMAND:
       if ((wparam & 0xFFF0) == SC_MOVE || (wparam & 0xFFF0) == SC_SIZE) {
         // CEF 154 disables nestable Chromium work by default. Win32's move/

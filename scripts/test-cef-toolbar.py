@@ -25,6 +25,8 @@ u.GetWindowRect.argtypes=[W.HWND,C.POINTER(W.RECT)]
 u.SetForegroundWindow.argtypes=[W.HWND]
 u.ShowWindow.argtypes=[W.HWND,C.c_int]
 u.GetDpiForWindow.argtypes=[W.HWND]
+u.IsZoomed.argtypes=[W.HWND]
+u.IsIconic.argtypes=[W.HWND]
 def wait(fn,timeout=30):
     deadline=time.monotonic()+timeout
     while time.monotonic()<deadline:
@@ -87,6 +89,15 @@ def main():
                 E('browserShell.setSettings('+json.dumps({'layout':layout,'showSidebar':True,'showBack':True,'showFavorites':True,'showNewTab':True,'showDownloads':True,'vpnToolbarVisible':True,'downloadsVisibility':'always'})+')')
                 wait(lambda:E('document.body.dataset.layout')==layout)
                 captions(layout)
+                max_selector='#windowMaximize' if layout=='classic' else '#compactWindowMaximize'
+                E('document.querySelector('+json.dumps(max_selector)+').click()')
+                wait(lambda:u.IsZoomed(hwnd) and E('document.querySelector('+json.dumps(max_selector)+'+" rect").getAttribute("width")==="7"'))
+                check(True,layout+': maximize updates Restore glyph immediately')
+                captions(layout)
+                E('document.querySelector('+json.dumps(max_selector)+').click()');wait(lambda:not u.IsZoomed(hwnd))
+                min_selector='#windowMinimize' if layout=='classic' else '#compactWindowMinimize'
+                E('document.querySelector('+json.dumps(min_selector)+').click()');wait(lambda:u.IsIconic(hwnd));u.ShowWindow(hwnd,9)
+                wait(lambda:not u.IsIconic(hwnd));check(True,layout+': minimize/restore native target')
                 for theme in ('light','dark','system'):
                     for matte in (False,True):
                         E('browserShell.setSettings('+json.dumps({'theme':theme,'mattePanel':matte})+')')

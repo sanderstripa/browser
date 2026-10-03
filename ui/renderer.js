@@ -50,7 +50,7 @@ function revealClassicTab(){
   else if(right>tabStrip.scrollLeft+tabStrip.clientWidth)tabStrip.scrollLeft=right-tabStrip.clientWidth;
 }
 function renderClassicTabs(){
-  tabStrip.innerHTML=state.tabs.map((x)=>`<div class="classic-tab${x.active?" active":""}" role="tab" aria-selected="${!!x.active}" tabindex="0" data-tooltip="${esc(x.title||x.label)}" data-tab-id="${x.id}">${fav(x)}<strong>${esc(x.title||x.label)}</strong><button title="${tr("close")}" aria-label="${tr("close")}" data-close-tab="${x.id}">×</button></div>`).join("");
+  tabStrip.innerHTML=state.tabs.map((x)=>`<div class="classic-tab${x.active?" active":""}" role="tab" aria-selected="${!!x.active}" tabindex="0" data-tooltip="${esc(x.title||x.label)}" data-tab-id="${x.id}">${fav(x)}<strong>${esc(x.title||x.label)}</strong><button class="tab-action" title="${tr("close")}" aria-label="${tr("close")}" data-close-tab="${x.id}"><svg viewBox="0 0 20 20"><path d="M5.5 5.5l9 9m0-9-9 9"/></svg></button></div>`).join("");
   fallbacks(tabStrip);
   tabStrip.querySelectorAll("[data-tab-id]").forEach((e)=>{
     e.onclick=(v)=>{if(!v.target.closest("[data-close-tab]"))window.browserShell.switchTab(+e.dataset.tabId);};

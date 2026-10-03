@@ -93,8 +93,6 @@
     maximize: () => invoke("window.maximize"),
     close: () => invoke("window.close"),
     dragStart: (clicks = 1) => invoke("window.beginDrag", clicks),
-    dragMove: () => Promise.resolve(),
-    dragEnd: () => Promise.resolve(),
     toolbarMenu: () => invoke("window.toolbarMenu"),
     getState: () => invoke("browser.state.get"),
     onState: callback => subscribe("state", callback),

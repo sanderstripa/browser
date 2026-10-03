@@ -21,6 +21,8 @@
 .browser-toolbar :is(.toolbar-button,.compact-control,.tab-action,.address-menu-button,.navigation-toolbar-button):active {background:var(--caption-pressed);transform:none}
 .browser-toolbar :is(.toolbar-button,.compact-control,.tab-action,.address-menu-button,.navigation-toolbar-button):disabled {opacity:var(--toolbar-disabled);pointer-events:auto}
 .browser-toolbar :is(.toolbar-button,.compact-control,.tab-action,.address-menu-button,.navigation-toolbar-button):focus-visible {outline:2px solid var(--blue);outline-offset:-2px}
+.browser-toolbar :is(.toolbar-button,.compact-control,.tab-action,.address-menu-button,.navigation-toolbar-button).active {color:var(--blue);background:var(--blue-soft)}
+.browser-toolbar .vpn-button.connected {color:#27b86b;background:#2dcc7017}
 .browser-toolbar :is(.toolbar-button,.compact-control,.tab-action,.address-menu-button,.navigation-toolbar-button) svg {
   width:var(--toolbar-glyph);height:var(--toolbar-glyph);fill:none;stroke:currentColor;
   stroke-width:var(--toolbar-stroke);stroke-linecap:round;stroke-linejoin:round;
@@ -31,7 +33,8 @@
 .compact-active-tab {grid-template-columns:var(--toolbar-target) 16px minmax(60px,1fr) repeat(3,var(--toolbar-target));gap:0;padding:0 3px}
 .compact-active-tab.no-favicon {grid-template-columns:var(--toolbar-target) minmax(60px,1fr) repeat(3,var(--toolbar-target))}
 .classic-toolbar .tabs-zone {padding-block:2px}
-.classic-main-row {grid-template-columns:minmax(70px,1fr) minmax(0,760px) minmax(170px,1fr)}
+.classic-toolbar :is(.tab-strip,.classic-tab) {height:var(--toolbar-target)}
+.classic-toolbar .classic-tab .tab-action {flex:0 0 var(--toolbar-target)}
 /* A caption keeps its full edge-accessible rectangle. Only the feedback is circular. */
 .browser-toolbar :is(.compact-window-button,.window-controls button):not(.navigation-toolbar-button) {
   position:relative;display:grid;place-items:center;flex:0 0 var(--caption-target);
