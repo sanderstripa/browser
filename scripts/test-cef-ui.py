@@ -61,9 +61,21 @@ shell = find_target("/ui/index.html")
 settings = None
 try:
     assert wait_for(lambda: evaluate(shell, "Boolean(window.browserShell && document.querySelector('.browser-toolbar'))"), "shell ready")
+    if os.environ.get('SOULU_REGRESSION_SKIP_FIRST_RUN')=='1':
+        onboarding=next((r for r in targets() if '/ui/onboarding.html' in r.get('url','')),None)
+        if onboarding:
+            setup=find_target('/ui/onboarding.html')
+            try:
+                wait_for(lambda:evaluate(setup,"typeof window.cefQuery==='function'"),'onboarding bridge')
+                evaluate(setup,"new Promise((resolve,reject)=>cefQuery({request:JSON.stringify({action:'onboarding.finish',payload:{skip:true}}),onSuccess:resolve,onFailure:(_,message)=>reject(Error(message))}))")
+            finally:setup.close()
     evaluate(shell, "window.browserShell.openSettingsWindow()")
     settings = find_target("/ui/settings.html")
-    assert wait_for(lambda: evaluate(settings, "document.body.classList.contains('ready')"), "settings ready")
+    assert wait_for(lambda: evaluate(settings, "Boolean(document.body?.classList.contains('ready'))"), "settings ready")
+    # This visual fixture explicitly selects Blank rather than assuming the
+    # product's Soulu Home default is an old blank New Tab page.
+    evaluate(settings,"souluSettings.openSection('tabs');const n=document.querySelector('#newTabMode');n.value='blank';n.dispatchEvent(new Event('change',{bubbles:true}))")
+    assert evaluate(settings,'souluSettings.apply()'), 'Blank visual fixture Apply failed'
     evaluate(settings, "window.souluSettings.openSection('interface')")
     # These are real change/click handlers from the settings page, not a
     # direct write to settings.json or a synthetic state injected into shell.
